@@ -7,7 +7,7 @@
 
 /* Global buffer for file reading - ZOS doesn't have malloc */
 /* Use smaller buffer size like other ZOS programs */
-static char file_buffer[1024];
+static __at(0xC000) char file_buffer[1024];
 
 char* target_read_file(const char* filename, size_t* out_size) {
     zos_dev_t dev;
