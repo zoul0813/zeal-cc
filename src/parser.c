@@ -386,6 +386,85 @@ static ast_node_t* parse_statement(parser_t* parser) {
         return node;
     }
     
+    if (parser_match(parser, TOK_WHILE)) {
+        ast_node_t* node = ast_node_create(AST_WHILE_STMT);
+        if (!node) return NULL;
+        
+        if (!parser_consume(parser, TOK_LPAREN, "Expected '(' after 'while'")) {
+            cc_free(node);
+            return NULL;
+        }
+        
+        node->data.while_stmt.condition = parse_expression(parser);
+        if (!node->data.while_stmt.condition) {
+            cc_free(node);
+            return NULL;
+        }
+        
+        if (!parser_consume(parser, TOK_RPAREN, "Expected ')' after while condition")) {
+            ast_node_destroy(node);
+            return NULL;
+        }
+        
+        node->data.while_stmt.body = parse_statement(parser);
+        if (!node->data.while_stmt.body) {
+            ast_node_destroy(node);
+            return NULL;
+        }
+        
+        return node;
+    }
+    
+    if (parser_match(parser, TOK_FOR)) {
+        ast_node_t* node = ast_node_create(AST_FOR_STMT);
+        if (!node) return NULL;
+        
+        if (!parser_consume(parser, TOK_LPAREN, "Expected '(' after 'for'")) {
+            cc_free(node);
+            return NULL;
+        }
+        
+        /* Init expression (or declaration) */
+        if (!parser_check(parser, TOK_SEMICOLON)) {
+            node->data.for_stmt.init = parse_statement(parser);
+        } else {
+            node->data.for_stmt.init = NULL;
+            parser_advance(parser); /* consume ; */
+        }
+        
+        /* Condition */
+        if (!parser_check(parser, TOK_SEMICOLON)) {
+            node->data.for_stmt.condition = parse_expression(parser);
+        } else {
+            node->data.for_stmt.condition = NULL;
+        }
+        if (!parser_consume(parser, TOK_SEMICOLON, "Expected ';' after for condition")) {
+            ast_node_destroy(node);
+            return NULL;
+        }
+        
+        /* Increment */
+        if (!parser_check(parser, TOK_RPAREN)) {
+            node->data.for_stmt.increment = parse_expression(parser);
+        } else {
+            node->data.for_stmt.increment = NULL;
+        }
+        
+        if (!parser_consume(parser, TOK_RPAREN, "Expected ')' after for clauses")) {
+            ast_node_destroy(node);
+            return NULL;
+        }
+        
+        /* Body */
+        node->data.for_stmt.body = parse_statement(parser);
+        if (!node->data.for_stmt.body) {
+            ast_node_destroy(node);
+            return NULL;
+        }
+        
+        return node;
+    }
+    
     if (parser_match(parser, TOK_RETURN)) {
         ast_node_t* node = ast_node_create(AST_RETURN_STMT);
         if (!parser_check(parser, TOK_SEMICOLON)) {
@@ -525,6 +604,22 @@ void ast_node_destroy(ast_node_t* node) {
             if (node->data.if_stmt.else_branch) {
                 ast_node_destroy(node->data.if_stmt.else_branch);
             }
+            break;
+        case AST_WHILE_STMT:
+            ast_node_destroy(node->data.while_stmt.condition);
+            ast_node_destroy(node->data.while_stmt.body);
+            break;
+        case AST_FOR_STMT:
+            if (node->data.for_stmt.init) {
+                ast_node_destroy(node->data.for_stmt.init);
+            }
+            if (node->data.for_stmt.condition) {
+                ast_node_destroy(node->data.for_stmt.condition);
+            }
+            if (node->data.for_stmt.increment) {
+                ast_node_destroy(node->data.for_stmt.increment);
+            }
+            ast_node_destroy(node->data.for_stmt.body);
             break;
         case AST_IDENTIFIER:
             if (node->data.identifier.name) {

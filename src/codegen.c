@@ -413,6 +413,119 @@ static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node) {
             }
             return CC_OK;
         }
+        
+        case AST_WHILE_STMT: {
+            /* While loop: test at top, jump to end if false, jump back to top at end of body */
+            char* loop_label = codegen_new_label(gen);
+            char* end_label = codegen_new_label(gen);
+            
+            /* Loop start label */
+            codegen_emit(gen, loop_label);
+            codegen_emit(gen, ":\n");
+            
+            /* Evaluate condition */
+            cc_error_t err = codegen_expression(gen, node->data.while_stmt.condition);
+            if (err != CC_OK) {
+                cc_free(loop_label);
+                cc_free(end_label);
+                return err;
+            }
+            
+            /* Test condition (A register) */
+            codegen_emit(gen, "    or a\n");
+            codegen_emit(gen, "    jp z, ");
+            codegen_emit(gen, end_label);
+            codegen_emit(gen, "\n");
+            
+            /* Loop body */
+            err = codegen_statement(gen, node->data.while_stmt.body);
+            if (err != CC_OK) {
+                cc_free(loop_label);
+                cc_free(end_label);
+                return err;
+            }
+            
+            /* Jump back to loop start */
+            codegen_emit(gen, "    jp ");
+            codegen_emit(gen, loop_label);
+            codegen_emit(gen, "\n");
+            
+            /* End label */
+            codegen_emit(gen, end_label);
+            codegen_emit(gen, ":\n");
+            
+            cc_free(loop_label);
+            cc_free(end_label);
+            return CC_OK;
+        }
+        
+        case AST_FOR_STMT: {
+            /* For loop: init, test condition, body, increment, repeat */
+            char* loop_label = codegen_new_label(gen);
+            char* end_label = codegen_new_label(gen);
+            cc_error_t err;
+            
+            /* Init statement */
+            if (node->data.for_stmt.init) {
+                err = codegen_statement(gen, node->data.for_stmt.init);
+                if (err != CC_OK) {
+                    cc_free(loop_label);
+                    cc_free(end_label);
+                    return err;
+                }
+            }
+            
+            /* Loop start label */
+            codegen_emit(gen, loop_label);
+            codegen_emit(gen, ":\n");
+            
+            /* Evaluate condition (if present) */
+            if (node->data.for_stmt.condition) {
+                err = codegen_expression(gen, node->data.for_stmt.condition);
+                if (err != CC_OK) {
+                    cc_free(loop_label);
+                    cc_free(end_label);
+                    return err;
+                }
+                
+                /* Test condition */
+                codegen_emit(gen, "    or a\n");
+                codegen_emit(gen, "    jp z, ");
+                codegen_emit(gen, end_label);
+                codegen_emit(gen, "\n");
+            }
+            
+            /* Loop body */
+            err = codegen_statement(gen, node->data.for_stmt.body);
+            if (err != CC_OK) {
+                cc_free(loop_label);
+                cc_free(end_label);
+                return err;
+            }
+            
+            /* Increment expression */
+            if (node->data.for_stmt.increment) {
+                err = codegen_expression(gen, node->data.for_stmt.increment);
+                if (err != CC_OK) {
+                    cc_free(loop_label);
+                    cc_free(end_label);
+                    return err;
+                }
+            }
+            
+            /* Jump back to loop start */
+            codegen_emit(gen, "    jp ");
+            codegen_emit(gen, loop_label);
+            codegen_emit(gen, "\n");
+            
+            /* End label */
+            codegen_emit(gen, end_label);
+            codegen_emit(gen, ":\n");
+            
+            cc_free(loop_label);
+            cc_free(end_label);
+            return CC_OK;
+        }
             
         case AST_ASSIGN:
         case AST_CALL:
