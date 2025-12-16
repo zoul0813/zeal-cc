@@ -6,3 +6,6 @@ debug/
 *.map
 *.ihx
 src/parser.c.backup
+tests/*.asm
+build_number.txt
+src/version.h

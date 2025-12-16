@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -x
+
 # Color codes for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -24,7 +26,7 @@ print_result() {
     local test_name="$1"
     local result="$2"
     TESTS_RUN=$((TESTS_RUN + 1))
-    
+
     if [ "$result" -eq 0 ]; then
         echo -e "${GREEN}✓${NC} $test_name"
         TESTS_PASSED=$((TESTS_PASSED + 1))
@@ -39,13 +41,15 @@ test_compile() {
     local compiler="$1"
     local test_file="$2"
     local test_name="$3"
-    
+
     if [ ! -f "$test_file" ]; then
         echo -e "${YELLOW}⚠${NC}  Skipping $test_name (file not found: $test_file)"
         return
     fi
-    
-    $compiler "$test_file" > /dev/null 2>&1
+
+    # Generate output .asm filename from input .c filename
+    local asm_file="${test_file%.c}.asm"
+    $compiler "$test_file" "$asm_file"
     print_result "$test_name" $?
 }
 
@@ -69,27 +73,14 @@ print_result "macOS compilation (bin/cc_darwin)" $?
 print_header "Running Compiler Tests (macOS)"
 
 if [ -f "bin/cc_darwin" ]; then
-    # Test basic compilation
-    if [ -f "tests/test_basic.c" ]; then
-        test_compile "./bin/cc_darwin" "tests/test_basic.c" "Basic syntax test"
-    fi
-    
-    if [ -f "tests/test_functions.c" ]; then
-        test_compile "./bin/cc_darwin" "tests/test_functions.c" "Function declaration test"
-    fi
-    
-    if [ -f "tests/test_expressions.c" ]; then
-        test_compile "./bin/cc_darwin" "tests/test_expressions.c" "Expression parsing test"
-    fi
-    
     # Test with example files if they exist
-    for test_file in examples/*.c; do
+    for test_file in tests/*.c; do
         if [ -f "$test_file" ]; then
             test_name="Compile $(basename "$test_file")"
             test_compile "./bin/cc_darwin" "$test_file" "$test_name"
         fi
     done
-    
+
     # If no test files found, run a simple inline test
     if [ $TESTS_RUN -eq 2 ]; then
         echo "Creating inline test..."
