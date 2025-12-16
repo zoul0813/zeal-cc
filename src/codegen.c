@@ -330,6 +330,46 @@ static cc_error_t codegen_function(codegen_t* gen, ast_node_t* node) {
     return CC_OK;
 }
 
+static void codegen_emit_runtime(codegen_t* gen) {
+    codegen_emit(gen, "\n");
+    codegen_emit_comment(gen, "Runtime library functions");
+    codegen_emit(gen, "\n");
+    
+    /* Multiply A by L */
+    codegen_emit(gen, "__mul_a_l:\n");
+    codegen_emit(gen, "    ld b, 0\n");
+    codegen_emit(gen, "    or a\n");
+    codegen_emit(gen, "    ret z\n");
+    codegen_emit(gen, "__mul_loop:\n");
+    codegen_emit(gen, "    add a, b\n");
+    codegen_emit(gen, "    ld b, a\n");
+    codegen_emit(gen, "    dec l\n");
+    codegen_emit(gen, "    ret z\n");
+    codegen_emit(gen, "    ld a, b\n");
+    codegen_emit(gen, "    jr __mul_loop\n");
+    codegen_emit(gen, "\n");
+    
+    /* Divide A by L */
+    codegen_emit(gen, "__div_a_l:\n");
+    codegen_emit(gen, "    ld b, 0\n");
+    codegen_emit(gen, "    ld c, a\n");
+    codegen_emit(gen, "__div_loop:\n");
+    codegen_emit(gen, "    ld a, c\n");
+    codegen_emit(gen, "    cp l\n");
+    codegen_emit(gen, "    ret c\n");
+    codegen_emit(gen, "    sub l\n");
+    codegen_emit(gen, "    ld c, a\n");
+    codegen_emit(gen, "    inc b\n");
+    codegen_emit(gen, "    jr __div_loop\n");
+    codegen_emit(gen, "\n");
+    
+    /* Modulo A by L */
+    codegen_emit(gen, "__mod_a_l:\n");
+    codegen_emit(gen, "    call __div_a_l\n");
+    codegen_emit(gen, "    ld a, c\n");
+    codegen_emit(gen, "    ret\n");
+}
+
 cc_error_t codegen_generate(codegen_t* gen, ast_node_t* ast) {
     if (!gen || !ast) {
         return CC_ERROR_INTERNAL;
@@ -356,10 +396,20 @@ cc_error_t codegen_generate(codegen_t* gen, ast_node_t* ast) {
                 if (err != CC_OK) return err;
             }
         }
+        
+        /* Emit runtime library */
+        codegen_emit_runtime(gen);
+        
         return CC_OK;
     } else if (ast->type == AST_FUNCTION) {
         /* Direct function node */
-        return codegen_function(gen, ast);
+        cc_error_t err = codegen_function(gen, ast);
+        if (err != CC_OK) return err;
+        
+        /* Emit runtime library */
+        codegen_emit_runtime(gen);
+        
+        return err;
     }
     
     return CC_OK;
