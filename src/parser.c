@@ -1,4 +1,5 @@
 #include "parser.h"
+
 #include "common.h"
 #include "symbol.h"
 
@@ -13,11 +14,11 @@ static ast_node_t* ast_node_create(ast_node_type_t type);
 parser_t* parser_create(token_t* tokens) {
     parser_t* parser = (parser_t*)cc_malloc(sizeof(parser_t));
     if (!parser) return NULL;
-    
+
     parser->tokens = tokens;
     parser->current = tokens;
     parser->error_count = 0;
-    
+
     return parser;
 }
 
@@ -56,7 +57,7 @@ static bool parser_consume(parser_t* parser, token_type_t type, const char* msg)
         parser_advance(parser);
         return true;
     }
-    
+
     cc_error(msg);
     parser->error_count++;
     return false;
@@ -65,41 +66,41 @@ static bool parser_consume(parser_t* parser, token_type_t type, const char* msg)
 static ast_node_t* ast_node_create(ast_node_type_t type) {
     ast_node_t* node = (ast_node_t*)cc_malloc(sizeof(ast_node_t));
     if (!node) return NULL;
-    
+
     node->type = type;
     node->line = 0;
     node->column = 0;
     node->expr_type = NULL;
     node->next = NULL;
-    
+
     return node;
 }
 
 static ast_node_t* parse_primary(parser_t* parser) {
     token_t* tok = parser_current(parser);
-    
+
     if (tok->type == TOK_IDENTIFIER) {
         char* name = cc_strdup(tok->value);
         int line = tok->line;
         int column = tok->column;
         parser_advance(parser);
-        
+
         /* Check for function call: identifier '(' args ')' */
         if (parser_check(parser, TOK_LPAREN)) {
             parser_advance(parser); /* consume '(' */
-            
+
             ast_node_t* call = ast_node_create(AST_CALL);
             if (!call) {
                 cc_free(name);
                 return NULL;
             }
-            
+
             call->data.call.name = name;
             call->data.call.args = NULL;
             call->data.call.arg_count = 0;
             call->line = line;
             call->column = column;
-            
+
             /* Parse arguments */
             if (!parser_check(parser, TOK_RPAREN)) {
                 /* Simple arg parsing - just count for now */
@@ -112,25 +113,25 @@ static ast_node_t* parse_primary(parser_t* parser) {
                     }
                     ast_node_destroy(arg); /* Not storing args yet */
                     arg_count++;
-                    
+
                     if (parser_check(parser, TOK_COMMA)) {
                         parser_advance(parser);
                     } else {
                         break;
                     }
                 } while (!parser_check(parser, TOK_RPAREN) && !parser_check(parser, TOK_EOF));
-                
+
                 call->data.call.arg_count = arg_count;
             }
-            
+
             if (!parser_consume(parser, TOK_RPAREN, "Expected ')' after function arguments")) {
                 ast_node_destroy(call);
                 return NULL;
             }
-            
+
             return call;
         }
-        
+
         /* Just an identifier */
         ast_node_t* node = ast_node_create(AST_IDENTIFIER);
         if (node) {
@@ -142,7 +143,7 @@ static ast_node_t* parse_primary(parser_t* parser) {
         }
         return node;
     }
-    
+
     if (tok->type == TOK_NUMBER) {
         parser_advance(parser);
         ast_node_t* node = ast_node_create(AST_CONSTANT);
@@ -154,7 +155,7 @@ static ast_node_t* parse_primary(parser_t* parser) {
         }
         return node;
     }
-    
+
     if (tok->type == TOK_STRING) {
         parser_advance(parser);
         ast_node_t* node = ast_node_create(AST_STRING_LITERAL);
@@ -165,13 +166,13 @@ static ast_node_t* parse_primary(parser_t* parser) {
         }
         return node;
     }
-    
+
     if (parser_match(parser, TOK_LPAREN)) {
         ast_node_t* expr = parse_expression(parser);
         parser_consume(parser, TOK_RPAREN, "Expected ')'");
         return expr;
     }
-    
+
     cc_error("Unexpected token in expression");
     parser->error_count++;
     parser_advance(parser);
@@ -189,66 +190,69 @@ static ast_node_t* parse_term(parser_t* parser);
 static ast_node_t* parse_factor(parser_t* parser) {
     ast_node_t* left = parse_primary(parser);
     if (!left) return NULL;
-    
-    while (parser_check(parser, TOK_STAR) || 
-           parser_check(parser, TOK_SLASH) || 
+
+    while (parser_check(parser, TOK_STAR) ||
+           parser_check(parser, TOK_SLASH) ||
            parser_check(parser, TOK_PERCENT)) {
         token_type_t op = parser_current(parser)->type;
         parser_advance(parser);
-        
+
         ast_node_t* right = parse_primary(parser);
         if (!right) {
             ast_node_destroy(left);
             return NULL;
         }
-        
+
         ast_node_t* binop = ast_node_create(AST_BINARY_OP);
         if (!binop) {
             ast_node_destroy(left);
             ast_node_destroy(right);
             return NULL;
         }
-        
+
         /* Map token type to operator */
-        if (op == TOK_STAR) binop->data.binary_op.op = OP_MUL;
-        else if (op == TOK_SLASH) binop->data.binary_op.op = OP_DIV;
-        else binop->data.binary_op.op = OP_MOD;
-        
+        if (op == TOK_STAR)
+            binop->data.binary_op.op = OP_MUL;
+        else if (op == TOK_SLASH)
+            binop->data.binary_op.op = OP_DIV;
+        else
+            binop->data.binary_op.op = OP_MOD;
+
         binop->data.binary_op.left = left;
         binop->data.binary_op.right = right;
         left = binop;
     }
-    
+
     return left;
 }
 
 static ast_node_t* parse_term(parser_t* parser) {
     ast_node_t* left = parse_factor(parser);
     if (!left) return NULL;
-    
+
     while (parser_check(parser, TOK_PLUS) || parser_check(parser, TOK_MINUS)) {
         token_type_t op = parser_current(parser)->type;
         parser_advance(parser);
-        
+
         ast_node_t* right = parse_factor(parser);
         if (!right) {
             ast_node_destroy(left);
             return NULL;
         }
-        
+
         ast_node_t* binop = ast_node_create(AST_BINARY_OP);
         if (!binop) {
             ast_node_destroy(left);
             ast_node_destroy(right);
             return NULL;
         }
-        
+
         binop->data.binary_op.op = (op == TOK_PLUS) ? OP_ADD : OP_SUB;
         binop->data.binary_op.left = left;
         binop->data.binary_op.right = right;
         left = binop;
     }
-    
+
     return left;
 }
 
@@ -256,46 +260,52 @@ static ast_node_t* parse_term(parser_t* parser) {
 static ast_node_t* parse_comparison(parser_t* parser) {
     ast_node_t* left = parse_term(parser);
     if (!left) return NULL;
-    
+
     while (parser_check(parser, TOK_LT) || parser_check(parser, TOK_GT) ||
            parser_check(parser, TOK_LE) || parser_check(parser, TOK_GE) ||
            parser_check(parser, TOK_EQ) || parser_check(parser, TOK_NE)) {
         token_type_t op = parser_current(parser)->type;
         parser_advance(parser);
-        
+
         ast_node_t* right = parse_term(parser);
         if (!right) {
             ast_node_destroy(left);
             return NULL;
         }
-        
+
         ast_node_t* binop = ast_node_create(AST_BINARY_OP);
         if (!binop) {
             ast_node_destroy(left);
             ast_node_destroy(right);
             return NULL;
         }
-        
+
         /* Map token type to operator */
-        if (op == TOK_LT) binop->data.binary_op.op = OP_LT;
-        else if (op == TOK_GT) binop->data.binary_op.op = OP_GT;
-        else if (op == TOK_LE) binop->data.binary_op.op = OP_LE;
-        else if (op == TOK_GE) binop->data.binary_op.op = OP_GE;
-        else if (op == TOK_EQ) binop->data.binary_op.op = OP_EQ;
-        else binop->data.binary_op.op = OP_NE;
-        
+        if (op == TOK_LT)
+            binop->data.binary_op.op = OP_LT;
+        else if (op == TOK_GT)
+            binop->data.binary_op.op = OP_GT;
+        else if (op == TOK_LE)
+            binop->data.binary_op.op = OP_LE;
+        else if (op == TOK_GE)
+            binop->data.binary_op.op = OP_GE;
+        else if (op == TOK_EQ)
+            binop->data.binary_op.op = OP_EQ;
+        else
+            binop->data.binary_op.op = OP_NE;
+
         binop->data.binary_op.left = left;
         binop->data.binary_op.right = right;
         left = binop;
     }
-    
+
     return left;
 }
 
 static ast_node_t* parse_expression(parser_t* parser) {
     ast_node_t* left = parse_comparison(parser);
     if (!left) return NULL;
-    
+
     /* Assignment is right-associative: a = b = c */
     if (parser_check(parser, TOK_ASSIGN)) {
         parser_advance(parser);
@@ -304,40 +314,40 @@ static ast_node_t* parse_expression(parser_t* parser) {
             ast_node_destroy(left);
             return NULL;
         }
-        
+
         ast_node_t* assign = ast_node_create(AST_ASSIGN);
         if (!assign) {
             ast_node_destroy(left);
             ast_node_destroy(right);
             return NULL;
         }
-        
+
         assign->data.assign.lvalue = left;
         assign->data.assign.rvalue = right;
         return assign;
     }
-    
+
     return left;
 }
 
 static ast_node_t* parse_statement(parser_t* parser) {
     /* Variable declaration: int x; or int x = 5; */
-    if (parser_check(parser, TOK_INT) || parser_check(parser, TOK_VOID) || 
+    if (parser_check(parser, TOK_INT) || parser_check(parser, TOK_VOID) ||
         parser_check(parser, TOK_CHAR)) {
         ast_node_t* node = ast_node_create(AST_VAR_DECL);
         if (!node) return NULL;
-        
+
         parser_advance(parser); /* consume type */
-        
+
         token_t* name_tok = parser_current(parser);
         if (!parser_consume(parser, TOK_IDENTIFIER, "Expected variable name")) {
             ast_node_destroy(node);
             return NULL;
         }
-        
+
         node->data.var_decl.name = cc_strdup(name_tok->value);
         node->data.var_decl.initializer = NULL;
-        
+
         /* Check for initializer: int x = 5; */
         if (parser_match(parser, TOK_ASSIGN)) {
             node->data.var_decl.initializer = parse_expression(parser);
@@ -346,84 +356,84 @@ static ast_node_t* parse_statement(parser_t* parser) {
                 return NULL;
             }
         }
-        
+
         parser_consume(parser, TOK_SEMICOLON, "Expected ';' after variable declaration");
         return node;
     }
-    
+
     if (parser_match(parser, TOK_IF)) {
         ast_node_t* node = ast_node_create(AST_IF_STMT);
         if (!node) return NULL;
-        
+
         if (!parser_consume(parser, TOK_LPAREN, "Expected '(' after 'if'")) {
             cc_free(node);
             return NULL;
         }
-        
+
         node->data.if_stmt.condition = parse_expression(parser);
         if (!node->data.if_stmt.condition) {
             cc_free(node);
             return NULL;
         }
-        
+
         if (!parser_consume(parser, TOK_RPAREN, "Expected ')' after if condition")) {
             ast_node_destroy(node);
             return NULL;
         }
-        
+
         node->data.if_stmt.then_branch = parse_statement(parser);
         if (!node->data.if_stmt.then_branch) {
             ast_node_destroy(node);
             return NULL;
         }
-        
+
         if (parser_match(parser, TOK_ELSE)) {
             node->data.if_stmt.else_branch = parse_statement(parser);
         } else {
             node->data.if_stmt.else_branch = NULL;
         }
-        
+
         return node;
     }
-    
+
     if (parser_match(parser, TOK_WHILE)) {
         ast_node_t* node = ast_node_create(AST_WHILE_STMT);
         if (!node) return NULL;
-        
+
         if (!parser_consume(parser, TOK_LPAREN, "Expected '(' after 'while'")) {
             cc_free(node);
             return NULL;
         }
-        
+
         node->data.while_stmt.condition = parse_expression(parser);
         if (!node->data.while_stmt.condition) {
             cc_free(node);
             return NULL;
         }
-        
+
         if (!parser_consume(parser, TOK_RPAREN, "Expected ')' after while condition")) {
             ast_node_destroy(node);
             return NULL;
         }
-        
+
         node->data.while_stmt.body = parse_statement(parser);
         if (!node->data.while_stmt.body) {
             ast_node_destroy(node);
             return NULL;
         }
-        
+
         return node;
     }
-    
+
     if (parser_match(parser, TOK_FOR)) {
         ast_node_t* node = ast_node_create(AST_FOR_STMT);
         if (!node) return NULL;
-        
+
         if (!parser_consume(parser, TOK_LPAREN, "Expected '(' after 'for'")) {
             cc_free(node);
             return NULL;
         }
-        
+
         /* Init expression (or declaration) */
         if (!parser_check(parser, TOK_SEMICOLON)) {
             node->data.for_stmt.init = parse_statement(parser);
@@ -431,7 +441,7 @@ static ast_node_t* parse_statement(parser_t* parser) {
             node->data.for_stmt.init = NULL;
             parser_advance(parser); /* consume ; */
         }
-        
+
         /* Condition */
         if (!parser_check(parser, TOK_SEMICOLON)) {
             node->data.for_stmt.condition = parse_expression(parser);
@@ -442,29 +452,29 @@ static ast_node_t* parse_statement(parser_t* parser) {
             ast_node_destroy(node);
             return NULL;
         }
-        
+
         /* Increment */
         if (!parser_check(parser, TOK_RPAREN)) {
             node->data.for_stmt.increment = parse_expression(parser);
         } else {
             node->data.for_stmt.increment = NULL;
         }
-        
+
         if (!parser_consume(parser, TOK_RPAREN, "Expected ')' after for clauses")) {
             ast_node_destroy(node);
             return NULL;
         }
-        
+
         /* Body */
         node->data.for_stmt.body = parse_statement(parser);
         if (!node->data.for_stmt.body) {
             ast_node_destroy(node);
             return NULL;
         }
-        
+
         return node;
     }
-    
+
     if (parser_match(parser, TOK_RETURN)) {
         ast_node_t* node = ast_node_create(AST_RETURN_STMT);
         if (!parser_check(parser, TOK_SEMICOLON)) {
@@ -475,11 +485,11 @@ static ast_node_t* parse_statement(parser_t* parser) {
         parser_consume(parser, TOK_SEMICOLON, "Expected ';'");
         return node;
     }
-    
+
     if (parser_match(parser, TOK_LBRACE)) {
         ast_node_t* node = ast_node_create(AST_COMPOUND_STMT);
         if (!node) return NULL;
-        
+
         /* Allocate array for statements (max 128 for now) */
         node->data.compound.statements = (ast_node_t**)cc_malloc(sizeof(ast_node_t*) * 128);
         if (!node->data.compound.statements) {
@@ -487,7 +497,7 @@ static ast_node_t* parse_statement(parser_t* parser) {
             return NULL;
         }
         node->data.compound.stmt_count = 0;
-        
+
         while (!parser_check(parser, TOK_RBRACE) && !parser_check(parser, TOK_EOF)) {
             ast_node_t* stmt = parse_statement(parser);
             if (stmt && node->data.compound.stmt_count < 128) {
@@ -497,14 +507,14 @@ static ast_node_t* parse_statement(parser_t* parser) {
         parser_consume(parser, TOK_RBRACE, "Expected '}'");
         return node;
     }
-    
+
     /* Expression statement (including assignments): x = 5; */
     ast_node_t* expr = parse_expression(parser);
     if (expr) {
         parser_consume(parser, TOK_SEMICOLON, "Expected ';' after expression");
         return expr;
     }
-    
+
     parser_advance(parser);
     return NULL;
 }
@@ -512,35 +522,35 @@ static ast_node_t* parse_statement(parser_t* parser) {
 static ast_node_t* parse_function(parser_t* parser) {
     ast_node_t* node = ast_node_create(AST_FUNCTION);
     if (!node) return NULL;
-    
+
     if (parser_match(parser, TOK_INT) || parser_match(parser, TOK_VOID)) {
         /* Got type */
     }
-    
+
     token_t* name_tok = parser_current(parser);
     if (!parser_consume(parser, TOK_IDENTIFIER, "Expected function name")) {
         cc_free(node);
         return NULL;
     }
-    
+
     node->data.function.name = cc_strdup(name_tok->value);
-    
+
     if (!parser_consume(parser, TOK_LPAREN, "Expected '('")) {
         cc_free(node);
         return NULL;
     }
-    
+
     while (!parser_check(parser, TOK_RPAREN) && !parser_check(parser, TOK_EOF)) {
         parser_advance(parser);
     }
-    
+
     if (!parser_consume(parser, TOK_RPAREN, "Expected ')'")) {
         cc_free(node);
         return NULL;
     }
-    
+
     node->data.function.body = parse_statement(parser);
-    
+
     return node;
 }
 
@@ -551,7 +561,7 @@ static ast_node_t* parse_declaration(parser_t* parser) {
 ast_node_t* parser_parse(parser_t* parser) {
     ast_node_t* program = ast_node_create(AST_PROGRAM);
     if (!program) return NULL;
-    
+
     /* Allocate array for declarations (max 128 for now) */
     program->data.program.declarations = (ast_node_t**)cc_malloc(sizeof(ast_node_t*) * 128);
     if (!program->data.program.declarations) {
@@ -559,7 +569,7 @@ ast_node_t* parser_parse(parser_t* parser) {
         return NULL;
     }
     program->data.program.decl_count = 0;
-    
+
     while (!parser_check(parser, TOK_EOF)) {
         ast_node_t* decl = parse_declaration(parser);
         if (!decl) {
@@ -568,19 +578,19 @@ ast_node_t* parser_parse(parser_t* parser) {
             }
             break;
         }
-        
+
         /* Store declaration in program node */
         if (program->data.program.decl_count < 128) {
             program->data.program.declarations[program->data.program.decl_count++] = decl;
         }
     }
-    
+
     return program;
 }
 
 void ast_node_destroy(ast_node_t* node) {
     if (!node) return;
-    
+
     switch (node->type) {
         case AST_PROGRAM:
             if (node->data.program.declarations) {
@@ -671,21 +681,31 @@ void ast_node_destroy(ast_node_t* node) {
         default:
             break;
     }
-    
+
     cc_free(node);
 }
 
 const char* ast_node_type_to_string(ast_node_type_t type) {
     switch (type) {
-        case AST_PROGRAM: return "PROGRAM";
-        case AST_FUNCTION: return "FUNCTION";
-        case AST_IDENTIFIER: return "IDENTIFIER";
-        case AST_CONSTANT: return "CONSTANT";
-        case AST_RETURN_STMT: return "RETURN";
-        case AST_BINARY_OP: return "BINARY_OP";
-        case AST_VAR_DECL: return "VAR_DECL";
-        case AST_ASSIGN: return "ASSIGN";
-        case AST_CALL: return "CALL";
-        default: return "UNKNOWN";
+        case AST_PROGRAM:
+            return "PROGRAM";
+        case AST_FUNCTION:
+            return "FUNCTION";
+        case AST_IDENTIFIER:
+            return "IDENTIFIER";
+        case AST_CONSTANT:
+            return "CONSTANT";
+        case AST_RETURN_STMT:
+            return "RETURN";
+        case AST_BINARY_OP:
+            return "BINARY_OP";
+        case AST_VAR_DECL:
+            return "VAR_DECL";
+        case AST_ASSIGN:
+            return "ASSIGN";
+        case AST_CALL:
+            return "CALL";
+        default:
+            return "UNKNOWN";
     }
 }

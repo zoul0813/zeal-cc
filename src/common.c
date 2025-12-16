@@ -46,12 +46,12 @@ void* cc_malloc(size_t size) {
     /* On ZOS, we'll use a simple memory pool for now */
     static char memory_pool[8192];
     static size_t pool_offset = 0;
-    
+
     if (pool_offset + size > sizeof(memory_pool)) {
         cc_error("Out of memory");
         return NULL;
     }
-    
+
     void* ptr = &memory_pool[pool_offset];
     pool_offset += size;
     return ptr;
@@ -73,17 +73,17 @@ void cc_free(void* ptr) {
 
 char* cc_strdup(const char* str) {
     if (!str) return NULL;
-    
+
     size_t len = 0;
     const char* p = str;
     while (*p++) len++;
-    
+
     char* copy = (char*)cc_malloc(len + 1);
     if (!copy) return NULL;
-    
+
     for (size_t i = 0; i <= len; i++) {
         copy[i] = str[i];
     }
-    
+
     return copy;
 }

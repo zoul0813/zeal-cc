@@ -1,12 +1,13 @@
 #include "codegen.h"
+
 #include "common.h"
 
 #ifdef __SDCC
 extern void put_s(const char* str);
 extern void put_c(char c);
 #else
-#include <stdio.h>
 #include <stdarg.h>
+#include <stdio.h>
 #endif
 
 #define INITIAL_OUTPUT_CAPACITY 4096
