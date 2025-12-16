@@ -4,6 +4,34 @@
     org 0x4000
 
 ; Program code
-_main:
-    ld a, 0
+add:
+; Load variable: 
+; a
+    ld a, (a)
+    push af
+; Load variable: 
+; b
+    ld a, (b)
+    ld l, a
+    pop af
+    add a, l
     ret
+
+main:
+; Variable: 
+; x
+x:
+    defb 0
+; Variable: 
+; y
+y:
+    defb 0
+    ld a, 5
+    ld (x), a
+    ld a, 10
+    ld (y), a
+; Call function: 
+; add
+    call add
+    ret
+

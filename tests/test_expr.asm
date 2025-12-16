@@ -4,6 +4,18 @@
     org 0x4000
 
 ; Program code
-_main:
-    ld a, 0
+main:
+    ld a, 2
+    push af
+    ld a, 3
+    push af
+    ld a, 4
+    ld l, a
+    pop af
+; Multiplication (A * L)
+    call __mul_a_l
+    ld l, a
+    pop af
+    add a, l
     ret
+

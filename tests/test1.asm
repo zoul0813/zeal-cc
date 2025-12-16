@@ -4,6 +4,7 @@
     org 0x4000
 
 ; Program code
-_main:
-    ld a, 0
+main:
+    ld a, 42
     ret
+

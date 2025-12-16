@@ -324,8 +324,21 @@ static ast_node_t* parse_statement(parser_t* parser) {
     
     if (parser_match(parser, TOK_LBRACE)) {
         ast_node_t* node = ast_node_create(AST_COMPOUND_STMT);
+        if (!node) return NULL;
+        
+        /* Allocate array for statements (max 128 for now) */
+        node->data.compound.statements = (ast_node_t**)cc_malloc(sizeof(ast_node_t*) * 128);
+        if (!node->data.compound.statements) {
+            cc_free(node);
+            return NULL;
+        }
+        node->data.compound.stmt_count = 0;
+        
         while (!parser_check(parser, TOK_RBRACE) && !parser_check(parser, TOK_EOF)) {
-            parse_statement(parser);
+            ast_node_t* stmt = parse_statement(parser);
+            if (stmt && node->data.compound.stmt_count < 128) {
+                node->data.compound.statements[node->data.compound.stmt_count++] = stmt;
+            }
         }
         parser_consume(parser, TOK_RBRACE, "Expected '}'");
         return node;
@@ -385,6 +398,14 @@ ast_node_t* parser_parse(parser_t* parser) {
     ast_node_t* program = ast_node_create(AST_PROGRAM);
     if (!program) return NULL;
     
+    /* Allocate array for declarations (max 128 for now) */
+    program->data.program.declarations = (ast_node_t**)cc_malloc(sizeof(ast_node_t*) * 128);
+    if (!program->data.program.declarations) {
+        cc_free(program);
+        return NULL;
+    }
+    program->data.program.decl_count = 0;
+    
     while (!parser_check(parser, TOK_EOF)) {
         ast_node_t* decl = parse_declaration(parser);
         if (!decl) {
@@ -392,6 +413,11 @@ ast_node_t* parser_parse(parser_t* parser) {
                 parser->error_count++;
             }
             break;
+        }
+        
+        /* Store declaration in program node */
+        if (program->data.program.decl_count < 128) {
+            program->data.program.declarations[program->data.program.decl_count++] = decl;
         }
     }
     
@@ -402,6 +428,22 @@ void ast_node_destroy(ast_node_t* node) {
     if (!node) return;
     
     switch (node->type) {
+        case AST_PROGRAM:
+            if (node->data.program.declarations) {
+                for (size_t i = 0; i < node->data.program.decl_count; i++) {
+                    ast_node_destroy(node->data.program.declarations[i]);
+                }
+                cc_free(node->data.program.declarations);
+            }
+            break;
+        case AST_COMPOUND_STMT:
+            if (node->data.compound.statements) {
+                for (size_t i = 0; i < node->data.compound.stmt_count; i++) {
+                    ast_node_destroy(node->data.compound.statements[i]);
+                }
+                cc_free(node->data.compound.statements);
+            }
+            break;
         case AST_IDENTIFIER:
             if (node->data.identifier.name) {
                 cc_free(node->data.identifier.name);
