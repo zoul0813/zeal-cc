@@ -34,6 +34,13 @@ endif()
 
 add_executable(${target_name}
     "src/main.c"
+    "src/lexer.c"
+    "src/parser.c"
+    "src/codegen.c"
+    "src/symbol.c"
+    "src/common.c"
+    "src/target/zeal8bit/target_args.c"
+    "src/target/zeal8bit/target_io.c"
 )
 
 target_include_directories(${target_name} PRIVATE $ENV{ZVB_SDK_PATH}/include)

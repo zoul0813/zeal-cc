@@ -2,6 +2,7 @@
 #define COMMON_H
 
 #include <stdint.h>
+#include <stddef.h>
 #include <stdbool.h>
 
 #ifdef __SDCC
