@@ -1,0 +1,7 @@
+bin/
+debug/
+*.o
+*.cdb
+*.map
+*.ihx
+src/parser.c.backup
