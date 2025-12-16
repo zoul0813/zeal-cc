@@ -10,3 +10,12 @@ The C Compiler should be able to compile C code written in the C99 standard.
 The compiler should produce appropriate Z80 Assembly files that can later be assembled and linked by Zealasm (source for Zealasm in examples/Zealasm).
 
 A starter CMakeLists.txt is already in the project root - feel free to modify this as needed, but use it as a starting point as the ZOS Toolchain has a few special needs.
+
+## Development Guidelines
+
+### Testing
+- All test files should be in the `tests/` directory
+- Test input files: `tests/*.c`
+- Test output files: `tests/*.asm`, `tests/*.o`, etc.
+- **NEVER write test output to /tmp or any location outside the project**
+- All intermediate and final test artifacts must remain in `tests/` for version control and review

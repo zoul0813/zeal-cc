@@ -165,6 +165,8 @@ main:
 
 ## Testing
 
+**Important**: All test input and output files must remain in the `tests/` directory. Never write test output to `/tmp` or any location outside the project.
+
 Run individual tests:
 ```bash
 ./bin/cc tests/test1.c tests/test1.asm      # Simple return
@@ -173,6 +175,8 @@ Run individual tests:
 ./bin/cc tests/test_mul.c tests/test_mul.asm    # Multiplication
 ./bin/cc tests/test2.c tests/test2.asm          # Multiple functions
 ```
+
+All test artifacts (`.asm`, `.o`, `.bin`, etc.) are stored in `tests/` for version control and review.
 
 ## Architecture
 

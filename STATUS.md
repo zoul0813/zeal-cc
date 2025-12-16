@@ -1,5 +1,14 @@
 # Zeal 8-bit C Compiler - Development Status
 
+## Development Guidelines
+
+### Testing Requirements
+- **All test files MUST be in `tests/` directory**
+- Test input: `tests/*.c`
+- Test output: `tests/*.asm`, `tests/*.o`, etc.
+- **NEVER write to `/tmp` or locations outside project**
+- Keep all artifacts in `tests/` for version control
+
 ## ✅ Completed Components
 
 ### Phase 1: Basic Structure ✓
@@ -19,43 +28,50 @@
 - Proper line/column tracking
 - **TESTED AND WORKING**
 
+### Phase 3: Parser ✓
+- ✅ Operator precedence climbing (factor/term hierarchy)
+- ✅ Binary operators (+, -, *, /, %)
+- ✅ Assignment expressions (x = 5)
+- ✅ Variable declarations (int x; int x = value;)
+- ✅ Function calls (add(x, y))
+- ✅ Compound statements with statement lists
+- ✅ Return statements with expressions
+- ✅ Proper AST construction and traversal
+- ✅ Program node with multiple functions
+- **TESTED AND WORKING**
+
+### Phase 4: Symbol Table ✓
+- ✅ Basic hash table implemented
+- ⏳ Needs full integration with parser
+- ⏳ Needs type checking
+- ⏳ Needs scope management
+
+### Phase 5: Code Generator ✓ (Basic)
+- ✅ Complete AST traversal
+- ✅ Expression code generation with stack manipulation
+- ✅ Binary operators (add, sub, mul, div, mod)
+- ✅ Variable storage and access (global labels)
+- ✅ Function definitions and calls
+- ✅ Return statements with values
+- ✅ Runtime library (__mul_a_l, __div_a_l, __mod_a_l)
+- **GENERATES WORKING Z80 ASSEMBLY**
+
 ## 🚧 In Progress
 
-### Phase 3: Parser (Partially Complete)
-**What Works:**
-- Basic parser structure
-- Token consumption and matching
-- Simple primary expressions (identifiers, numbers, strings)
-- Return statements
-- Compound statements (basic)
-- Function definitions (skeleton)
-
-**What Needs Work:**
-- ❌ Binary operators (a + b, a * b, etc.)
-- ❌ Assignment expressions (x = 5)
-- ❌ Variable declarations (int x;)
-- ❌ Function calls (add(x, y))
-- ❌ Array access
-- ❌ Pointer dereferencing
-- ❌ Control flow (if, while, for)
-- ❌ Operator precedence
-- ❌ Expression parsing (currently infinite loops on complex code)
+### Code Generator Improvements
+- ⏳ Stack-based local variables (currently use global labels)
+- ⏳ Proper function calling convention
+- ⏳ Argument passing via stack/registers
+- ⏳ Control flow (if, while, for)
+- ⏳ Comparison operators
 
 ## ⏳ Not Started
 
-### Phase 4: Symbol Table
-- Basic hash table implemented
-- Needs integration with parser
-- Needs type checking
-- Needs scope management
-
-### Phase 5: Code Generator
-- Stub implementation exists
-- Needs complete AST traversal
-- Needs register allocation
-- Needs proper Z80 instruction emission
-- Needs function call convention
-- Needs stack management
+### Advanced Features
+- ❌ Array access and pointers
+- ❌ Structs and unions
+- ❌ Type checking and semantic analysis
+- ❌ Optimizations
 
 ### Phase 6: Testing
 - Need comprehensive test suite
@@ -71,38 +87,26 @@
 
 ## Next Steps for Iteration
 
-### Immediate Priority: Fix Parser
-1. **Add expression precedence climbing** - Parse binary operators correctly
-2. **Add variable declaration parsing** - Handle `int x;` and `int x = value;`
-3. **Add assignment parsing** - Handle `x = expr;`
-4. **Add function call parsing** - Handle `func(arg1, arg2);`
-5. **Prevent infinite loops** - Better error recovery
-
-### Then: Connect Parser to Code Generator
-1. Traverse AST properly in codegen
-2. Generate Z80 code for:
-   - Variable declarations (stack allocation)
-   - Assignments (ld instructions)
-   - Binary operations (add, sub, mul, div)
-   - Function calls (call/ret with stack)
-   - Return statements with values
-
-### Finally: Integration and Testing
-1. Test with progressively complex programs
-2. Fix bugs iteratively
-3. Add missing features as discovered
+### Immediate Priority
+1. ✅ **Control flow statements** - if/while/for
+2. ✅ **Comparison operators** - ==, !=, <, >, <=, >=
+3. ⏳ **Stack-based variables** - Replace global labels with proper stack frames
+4. ⏳ **Function parameters** - Parse and pass arguments correctly
+5. ⏳ **Calling convention** - Proper argument passing and return values
 
 ## Current Test Results
 
-**Test 1 (Simple):** ✅ PASS
+All tests write output to `tests/` directory only.
+
+**Test 1 (Simple Return):** ✅ PASS
 ```c
 int main() {
     return 42;
 }
 ```
-Generates valid (though minimal) Z80 assembly.
+Generates: `ld a, 42 / ret`
 
-**Test 2 (Complex):** ❌ FAIL (Infinite Loop)
+**Test 2 (Multiple Functions):** ✅ PASS
 ```c
 int add(int a, int b) {
     return a + b;
@@ -116,28 +120,32 @@ int main() {
     return add(x, y);
 }
 ```
-Parser cannot handle:
-- Parameter lists
-- Variable declarations
-- Assignments
-- Binary operators
-- Function calls
+Generates working assembly with function calls and arithmetic.
 
-## Estimated Completion
-
-- **Parser completion:** 2-3 more iterations
-- **Code generator:** 3-4 iterations
-- **Basic working compiler:** 5-7 iterations total
-- **Optimized compiler:** 10-15 iterations total
+**Test 3 (Expression Precedence):** ✅ PASS
+```c
+int main() {
+    return 2 + 3 * 4;  // = 14
+}
+```
+Correctly evaluates multiplication before addition.
 
 ## How to Test Current Build
+
+**Remember: All test output goes to `tests/` directory!**
 
 ```bash
 # Build
 make clean && make
 
-# Test simple program (works)
-./bin/cc tests/test1.c tests/test1.asm
+# Test suite (all output in tests/)
+./bin/cc tests/test1.c tests/test1.asm        # Simple return
+./bin/cc tests/test_expr.c tests/test_expr.asm  # Expression precedence
+./bin/cc tests/test_add.c tests/test_add.asm    # Addition
+./bin/cc tests/test_mul.c tests/test_mul.asm    # Multiplication
+./bin/cc tests/test2.c tests/test2.asm          # Multiple functions
+
+# View generated assembly
 cat tests/test1.asm
 
 # Test complex program (currently fails)
