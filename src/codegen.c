@@ -195,7 +195,7 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
             err = codegen_expression(gen, node->data.binary_op.right);
             if (err != CC_OK) return err;
             
-            /* Pop left operand into L */
+            /* Pop left operand into L (for arithmetic) or B (for comparison) */
             codegen_emit(gen, "    ld l, a\n");
             codegen_emit(gen, "    pop af\n");
             
@@ -222,6 +222,53 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
                     codegen_emit_comment(gen, "Modulo (A % L)");
                     codegen_emit(gen, "    call __mod_a_l\n");
                     break;
+                    
+                /* Comparison operators: result is 1 (true) or 0 (false) */
+                case OP_EQ:
+                    codegen_emit_comment(gen, "Equality test (A == L)");
+                    codegen_emit(gen, "    cp l\n");
+                    codegen_emit(gen, "    ld a, 0\n");
+                    codegen_emit(gen, "    jr nz, $+3\n");
+                    codegen_emit(gen, "    ld a, 1\n");
+                    break;
+                case OP_NE:
+                    codegen_emit_comment(gen, "Inequality test (A != L)");
+                    codegen_emit(gen, "    cp l\n");
+                    codegen_emit(gen, "    ld a, 0\n");
+                    codegen_emit(gen, "    jr z, $+3\n");
+                    codegen_emit(gen, "    ld a, 1\n");
+                    break;
+                case OP_LT:
+                    codegen_emit_comment(gen, "Less than test (A < L)");
+                    codegen_emit(gen, "    cp l\n");
+                    codegen_emit(gen, "    ld a, 0\n");
+                    codegen_emit(gen, "    jr nc, $+3\n");
+                    codegen_emit(gen, "    ld a, 1\n");
+                    break;
+                case OP_GT:
+                    codegen_emit_comment(gen, "Greater than test (A > L)");
+                    codegen_emit(gen, "    sub l\n");
+                    codegen_emit(gen, "    ld a, 0\n");
+                    codegen_emit(gen, "    jr z, $+3\n");
+                    codegen_emit(gen, "    jr c, $+3\n");
+                    codegen_emit(gen, "    ld a, 1\n");
+                    break;
+                case OP_LE:
+                    codegen_emit_comment(gen, "Less or equal test (A <= L)");
+                    codegen_emit(gen, "    sub l\n");
+                    codegen_emit(gen, "    ld a, 0\n");
+                    codegen_emit(gen, "    jr z, $+5\n");
+                    codegen_emit(gen, "    jr nc, $+3\n");
+                    codegen_emit(gen, "    ld a, 1\n");
+                    break;
+                case OP_GE:
+                    codegen_emit_comment(gen, "Greater or equal test (A >= L)");
+                    codegen_emit(gen, "    cp l\n");
+                    codegen_emit(gen, "    ld a, 0\n");
+                    codegen_emit(gen, "    jr c, $+3\n");
+                    codegen_emit(gen, "    ld a, 1\n");
+                    break;
+                    
                 default:
                     return CC_ERROR_CODEGEN;
             }
@@ -297,6 +344,75 @@ static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node) {
                 if (err != CC_OK) return err;
             }
             return CC_OK;
+            
+        case AST_IF_STMT: {
+            /* Evaluate condition */
+            cc_error_t err = codegen_expression(gen, node->data.if_stmt.condition);
+            if (err != CC_OK) return err;
+            
+            /* Test condition result (A register) */
+            codegen_emit(gen, "    or a\n");  /* Test if A is zero */
+            
+            if (node->data.if_stmt.else_branch) {
+                /* if-else: jump to else on false, fall through to then */
+                char* else_label = codegen_new_label(gen);
+                char* end_label = codegen_new_label(gen);
+                
+                codegen_emit(gen, "    jp z, ");
+                codegen_emit(gen, else_label);
+                codegen_emit(gen, "\n");
+                
+                /* Then branch */
+                err = codegen_statement(gen, node->data.if_stmt.then_branch);
+                if (err != CC_OK) {
+                    cc_free(else_label);
+                    cc_free(end_label);
+                    return err;
+                }
+                
+                codegen_emit(gen, "    jp ");
+                codegen_emit(gen, end_label);
+                codegen_emit(gen, "\n");
+                
+                /* Else branch */
+                codegen_emit(gen, else_label);
+                codegen_emit(gen, ":\n");
+                err = codegen_statement(gen, node->data.if_stmt.else_branch);
+                if (err != CC_OK) {
+                    cc_free(else_label);
+                    cc_free(end_label);
+                    return err;
+                }
+                
+                /* End label */
+                codegen_emit(gen, end_label);
+                codegen_emit(gen, ":\n");
+                
+                cc_free(else_label);
+                cc_free(end_label);
+            } else {
+                /* Simple if: jump over then branch on false */
+                char* end_label = codegen_new_label(gen);
+                
+                codegen_emit(gen, "    jp z, ");
+                codegen_emit(gen, end_label);
+                codegen_emit(gen, "\n");
+                
+                /* Then branch */
+                err = codegen_statement(gen, node->data.if_stmt.then_branch);
+                if (err != CC_OK) {
+                    cc_free(end_label);
+                    return err;
+                }
+                
+                /* End label */
+                codegen_emit(gen, end_label);
+                codegen_emit(gen, ":\n");
+                
+                cc_free(end_label);
+            }
+            return CC_OK;
+        }
             
         case AST_ASSIGN:
         case AST_CALL:

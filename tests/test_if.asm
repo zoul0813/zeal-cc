@@ -5,7 +5,30 @@
 
 ; Program code
 main:
+; Variable: 
+; x
+x:
+    defb 0
+    ld a, 5
+    ld (x), a
+; Load variable: 
+; x
+    ld a, (x)
+    push af
+    ld a, 5
+    ld l, a
+    pop af
+; Equality test (A == L)
+    cp l
+    ld a, 0
+    jr nz, $+3
+    ld a, 1
+    or a
+    jp z, L0
     ld a, 42
+    ret
+L0:
+    ld a, 0
     ret
 
 

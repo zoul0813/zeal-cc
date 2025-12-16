@@ -5,7 +5,12 @@
 
 ; Program code
 main:
-    ld a, 42
+    ld a, 10
+    push af
+    ld a, 5
+    ld l, a
+    pop af
+    add a, l
     ret
 
 

@@ -252,8 +252,48 @@ static ast_node_t* parse_term(parser_t* parser) {
     return left;
 }
 
-static ast_node_t* parse_expression(parser_t* parser) {
+/* Comparison operators: ==, !=, <, >, <=, >= */
+static ast_node_t* parse_comparison(parser_t* parser) {
     ast_node_t* left = parse_term(parser);
+    if (!left) return NULL;
+    
+    while (parser_check(parser, TOK_LT) || parser_check(parser, TOK_GT) ||
+           parser_check(parser, TOK_LE) || parser_check(parser, TOK_GE) ||
+           parser_check(parser, TOK_EQ) || parser_check(parser, TOK_NE)) {
+        token_type_t op = parser_current(parser)->type;
+        parser_advance(parser);
+        
+        ast_node_t* right = parse_term(parser);
+        if (!right) {
+            ast_node_destroy(left);
+            return NULL;
+        }
+        
+        ast_node_t* binop = ast_node_create(AST_BINARY_OP);
+        if (!binop) {
+            ast_node_destroy(left);
+            ast_node_destroy(right);
+            return NULL;
+        }
+        
+        /* Map token type to operator */
+        if (op == TOK_LT) binop->data.binary_op.op = OP_LT;
+        else if (op == TOK_GT) binop->data.binary_op.op = OP_GT;
+        else if (op == TOK_LE) binop->data.binary_op.op = OP_LE;
+        else if (op == TOK_GE) binop->data.binary_op.op = OP_GE;
+        else if (op == TOK_EQ) binop->data.binary_op.op = OP_EQ;
+        else binop->data.binary_op.op = OP_NE;
+        
+        binop->data.binary_op.left = left;
+        binop->data.binary_op.right = right;
+        left = binop;
+    }
+    
+    return left;
+}
+
+static ast_node_t* parse_expression(parser_t* parser) {
+    ast_node_t* left = parse_comparison(parser);
     if (!left) return NULL;
     
     /* Assignment is right-associative: a = b = c */
@@ -308,6 +348,41 @@ static ast_node_t* parse_statement(parser_t* parser) {
         }
         
         parser_consume(parser, TOK_SEMICOLON, "Expected ';' after variable declaration");
+        return node;
+    }
+    
+    if (parser_match(parser, TOK_IF)) {
+        ast_node_t* node = ast_node_create(AST_IF_STMT);
+        if (!node) return NULL;
+        
+        if (!parser_consume(parser, TOK_LPAREN, "Expected '(' after 'if'")) {
+            cc_free(node);
+            return NULL;
+        }
+        
+        node->data.if_stmt.condition = parse_expression(parser);
+        if (!node->data.if_stmt.condition) {
+            cc_free(node);
+            return NULL;
+        }
+        
+        if (!parser_consume(parser, TOK_RPAREN, "Expected ')' after if condition")) {
+            ast_node_destroy(node);
+            return NULL;
+        }
+        
+        node->data.if_stmt.then_branch = parse_statement(parser);
+        if (!node->data.if_stmt.then_branch) {
+            ast_node_destroy(node);
+            return NULL;
+        }
+        
+        if (parser_match(parser, TOK_ELSE)) {
+            node->data.if_stmt.else_branch = parse_statement(parser);
+        } else {
+            node->data.if_stmt.else_branch = NULL;
+        }
+        
         return node;
     }
     
@@ -442,6 +517,13 @@ void ast_node_destroy(ast_node_t* node) {
                     ast_node_destroy(node->data.compound.statements[i]);
                 }
                 cc_free(node->data.compound.statements);
+            }
+            break;
+        case AST_IF_STMT:
+            ast_node_destroy(node->data.if_stmt.condition);
+            ast_node_destroy(node->data.if_stmt.then_branch);
+            if (node->data.if_stmt.else_branch) {
+                ast_node_destroy(node->data.if_stmt.else_branch);
             }
             break;
         case AST_IDENTIFIER:

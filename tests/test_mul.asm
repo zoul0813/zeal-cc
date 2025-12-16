@@ -5,7 +5,13 @@
 
 ; Program code
 main:
-    ld a, 42
+    ld a, 5
+    push af
+    ld a, 3
+    ld l, a
+    pop af
+; Multiplication (A * L)
+    call __mul_a_l
     ret
 
 
