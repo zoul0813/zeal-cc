@@ -67,11 +67,11 @@
 ## 🚧 In Progress
 
 ### Known Limitations
-- ❌ Function parameters not properly parsed/passed
+- ❌ Function parameters parsed but not passed (no calling convention)
 - ❌ Stack-based local variables (currently use global labels)
 - ❌ Proper function calling convention
 - ❌ Argument passing via stack/registers
-- ⚠️ Functions with parameters cause infinite loop in parser
+- ⚠️ Parameters/locals are treated as globals in codegen
 
 ## ⏳ Not Started
 
@@ -96,10 +96,10 @@
 ## Next Steps for Iteration
 
 ### Critical Issues to Fix
-1. 🔴 **Function parameters** - Parser hangs on functions with parameters (infinite loop)
-   - Currently: `int add(int a, int b)` causes parser to hang
-   - Need to fix parameter list parsing in `parse_function`
-   - Parameters are parsed but cause infinite loop
+1. 🔴 **Function parameters** - Implement proper passing convention
+   - Currently: parameters parse into AST but are emitted as globals
+   - Need calling convention and parameter load/store in prologue/epilogue
+   - Ensure function calls push args in correct order
 
 2. 🟡 **Stack-based variables** - Replace global labels with proper stack frames
    - Currently all variables are global labels (x:, y:, sum:)
@@ -123,7 +123,7 @@
 
 **All tests write output to `tests/` directory only.**
 
-### Complete Test Suite (8 tests)
+### Complete Test Suite (9 tests)
 
 1. **test1.c** - Simple return value
    ```c
@@ -197,6 +197,13 @@
    }
    ```
    ✅ Generates but parameters not properly passed (uses global labels for a, b)
+
+9. **test_params.c** - Parameter list regression
+   ```c
+   int add(int a, int b) { return a + b; }
+   int main() { return add(2, 3); }
+   ```
+   ✅ Parses parameter list; calling convention still TODO
 
 ## How to Test Current Build
 

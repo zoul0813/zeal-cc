@@ -1,6 +1,7 @@
 #include "common.h"
 
 #ifdef __SDCC
+#include <zos_sys.h>
 #include <zos_vfs.h>
 
 void put_s(const char* str) {
@@ -41,34 +42,39 @@ void cc_warning(const char* msg) {
 #endif
 }
 
+/* Static pool allocator shared by host and target */
+#ifndef CC_POOL_SIZE
+#define CC_POOL_SIZE 16384 /* 16 KB pool: fits in 0x4000-0xC000 user space alongside file_buffer/stack */
+#endif
+char g_memory_pool[CC_POOL_SIZE];
+size_t g_pool_offset = 0;
+size_t g_pool_max = 0;
+
+void cc_reset_pool(void) {
+    g_pool_offset = 0;
+    g_pool_max = 0;
+}
+
 void* cc_malloc(size_t size) {
-#ifdef __SDCC
-    /* On ZOS, we'll use a simple memory pool for now */
-    static char memory_pool[8192];
-    static size_t pool_offset = 0;
-
-    if (pool_offset + size > sizeof(memory_pool)) {
+    if (g_pool_offset + size > sizeof(g_memory_pool)) {
         cc_error("Out of memory");
-        return NULL;
-    }
-
-    void* ptr = &memory_pool[pool_offset];
-    pool_offset += size;
-    return ptr;
-#else
-    void* ptr = malloc(size);
-    if (!ptr) {
-        cc_error("Out of memory");
+#ifndef __SDCC
+        fprintf(stderr, "Pool usage %zu / %zu, request %zu bytes\n",
+                g_pool_offset, (size_t)sizeof(g_memory_pool), size);
+#endif
         exit(1);
     }
+
+    void* ptr = &g_memory_pool[g_pool_offset];
+    g_pool_offset += size;
+    if (g_pool_offset > g_pool_max) {
+        g_pool_max = g_pool_offset;
+    }
     return ptr;
-#endif
 }
 
 void cc_free(void* ptr) {
-#ifndef __SDCC
-    free(ptr);
-#endif
+    (void)ptr;
 }
 
 char* cc_strdup(const char* str) {

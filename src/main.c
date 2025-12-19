@@ -17,6 +17,9 @@ int main(int argc, char** argv) {
     cc_error_t result;
     target_args_t args;
 
+    /* Reset bump allocator so each invocation starts fresh */
+    cc_reset_pool();
+
     /* Initialize defaults */
     g_ctx.verbose = false;
     g_ctx.optimize = false;

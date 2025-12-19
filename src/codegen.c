@@ -5,12 +5,36 @@
 #ifdef __SDCC
 extern void put_s(const char* str);
 extern void put_c(char c);
+extern void put_u8(uint8_t c);
 #else
 #include <stdarg.h>
 #include <stdio.h>
 #endif
 
-#define INITIAL_OUTPUT_CAPACITY 4096
+#define INITIAL_OUTPUT_CAPACITY 2048
+
+/* Helpers */
+static char* codegen_mangle_var(const char* name) {
+    /* Prefix variable names to avoid clashes with registers/single-char labels */
+    const char prefix[] = "_v_";
+    size_t prefix_len = sizeof(prefix) - 1;
+    size_t name_len = 0;
+    while (name[name_len]) {
+        name_len++;
+    }
+    char* mangled = (char*)cc_malloc(prefix_len + name_len + 1);
+    if (!mangled) return NULL;
+    /* Copy prefix */
+    for (size_t i = 0; i < prefix_len; i++) {
+        mangled[i] = prefix[i];
+    }
+    /* Copy name */
+    for (size_t i = 0; i < name_len; i++) {
+        mangled[prefix_len + i] = name[i];
+    }
+    mangled[prefix_len + name_len] = '\0';
+    return mangled;
+}
 
 codegen_t* codegen_create(const char* output_file, symbol_table_t* symbols) {
     codegen_t* gen = (codegen_t*)cc_malloc(sizeof(codegen_t));
@@ -178,9 +202,17 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
             /* Load variable from stack/memory */
             codegen_emit_comment(gen, "Load variable: ");
             codegen_emit_comment(gen, node->data.identifier.name);
-            codegen_emit(gen, "    ld a, (");
-            codegen_emit(gen, node->data.identifier.name);
-            codegen_emit(gen, ")\n");
+            {
+                char* mangled = codegen_mangle_var(node->data.identifier.name);
+                if (!mangled) return CC_ERROR_CODEGEN;
+                codegen_emit(gen, "    ld a, (");
+                codegen_emit(gen, mangled);
+                codegen_emit(gen, ")\n");
+#ifndef __SDCC
+                cc_free(mangled);
+#endif
+            }
+            codegen_emit(gen, "\n");
             return CC_OK;
 
         case AST_BINARY_OP: {
@@ -293,9 +325,14 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
 
             /* Store A to variable */
             if (node->data.assign.lvalue->type == AST_IDENTIFIER) {
+                char* mangled = codegen_mangle_var(node->data.assign.lvalue->data.identifier.name);
+                if (!mangled) return CC_ERROR_CODEGEN;
                 codegen_emit(gen, "    ld (");
-                codegen_emit(gen, node->data.assign.lvalue->data.identifier.name);
+                codegen_emit(gen, mangled);
                 codegen_emit(gen, "), a\n");
+#ifndef __SDCC
+                cc_free(mangled);
+#endif
             }
             return CC_OK;
         }
@@ -324,17 +361,24 @@ static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node) {
             /* Reserve space for variable */
             codegen_emit_comment(gen, "Variable: ");
             codegen_emit_comment(gen, node->data.var_decl.name);
-            codegen_emit(gen, node->data.var_decl.name);
-            codegen_emit(gen, ":\n");
-            codegen_emit(gen, "    .db 0\n");
+            {
+                char* mangled = codegen_mangle_var(node->data.var_decl.name);
+                if (!mangled) return CC_ERROR_CODEGEN;
+                codegen_emit(gen, mangled);
+                codegen_emit(gen, ":\n");
+                codegen_emit(gen, "    .db 0\n");
 
-            /* If there's an initializer, generate assignment */
-            if (node->data.var_decl.initializer) {
-                cc_error_t err = codegen_expression(gen, node->data.var_decl.initializer);
-                if (err != CC_OK) return err;
-                codegen_emit(gen, "    ld (");
-                codegen_emit(gen, node->data.var_decl.name);
-                codegen_emit(gen, "), a\n");
+                /* If there's an initializer, generate assignment */
+                if (node->data.var_decl.initializer) {
+                    cc_error_t err = codegen_expression(gen, node->data.var_decl.initializer);
+                    if (err != CC_OK) return err;
+                    codegen_emit(gen, "    ld (");
+                    codegen_emit(gen, mangled);
+                    codegen_emit(gen, "), a\n");
+                }
+#ifndef __SDCC
+                cc_free(mangled);
+#endif
             }
             return CC_OK;
 
@@ -546,6 +590,22 @@ static cc_error_t codegen_function(codegen_t* gen, ast_node_t* node) {
     codegen_emit(gen, node->data.function.name);
     codegen_emit(gen, ":\n");
 
+    /* Current implementation treats parameters as globals; reserve slots */
+    for (size_t i = 0; i < node->data.function.param_count; i++) {
+        ast_node_t* param = node->data.function.params[i];
+        if (!param || param->type != AST_VAR_DECL) continue;
+        codegen_emit_comment(gen, "Param: ");
+        codegen_emit_comment(gen, param->data.var_decl.name);
+        char* mangled = codegen_mangle_var(param->data.var_decl.name);
+        if (!mangled) return CC_ERROR_CODEGEN;
+        codegen_emit(gen, mangled);
+        codegen_emit(gen, ":\n");
+        codegen_emit(gen, "    .db 0\n");
+#ifndef __SDCC
+        cc_free(mangled);
+#endif
+    }
+
     /* Generate function body */
     if (node->data.function.body) {
         cc_error_t err = codegen_statement(gen, node->data.function.body);
@@ -689,6 +749,7 @@ cc_error_t codegen_write_output(codegen_t* gen) {
 
     if (err != ERR_SUCCESS) {
         cc_error("Could not write output file");
+        put_u8(err);
         return CC_ERROR_CODEGEN;
     }
 

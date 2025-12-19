@@ -1,0 +1,9 @@
+[submodule "examples/Zealasm"]
+	path = examples/Zealasm
+	url = https://github.com/Zeal8bit/Zealasm.git
+[submodule "examples/zeal-coreutils"]
+	path = examples/zeal-coreutils
+	url = https://github.com/zoul0813/zeal-coreutils.git
+[submodule "examples/zshell"]
+	path = examples/zshell
+	url = https://github.com/zoul0813/zeal-zshell.git

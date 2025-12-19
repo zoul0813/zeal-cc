@@ -23,11 +23,11 @@
 #define CC_VERSION_MINOR 1
 #define CC_VERSION_PATCH 0
 
-/* Buffer sizes */
-#define MAX_LINE_LENGTH 256
-#define MAX_IDENTIFIER_LENGTH 64
-#define MAX_STRING_LENGTH 256
-#define MAX_TOKEN_LENGTH 128
+/* Buffer sizes (kept small to match target constraints even on host) */
+#define MAX_LINE_LENGTH 128
+#define MAX_IDENTIFIER_LENGTH 32
+#define MAX_STRING_LENGTH 128
+#define MAX_TOKEN_LENGTH 64
 
 /* Error codes */
 typedef enum {
@@ -66,5 +66,9 @@ void cc_warning(const char* msg);
 void* cc_malloc(size_t size);
 void cc_free(void* ptr);
 char* cc_strdup(const char* str);
+void cc_reset_pool(void);
+extern char g_memory_pool[];
+extern size_t g_pool_offset;
+extern size_t g_pool_max;
 
 #endif /* COMMON_H */

@@ -11,13 +11,15 @@ This is an iterative development project. Currently implemented:
 - ✅ Phase 3: Parser (expressions, variables, assignments, function calls)
 - ✅ Phase 4: Symbol table (basic implementation)
 - ✅ Phase 5: Z80 code generator (expressions, statements, runtime helpers)
-- 🚧 Phase 6: Stack-based variables and calling convention
-- ⏳ Phase 7: Control flow (if, while, for)
+- ✅ Phase 6: Control flow (if, while, for)
+- 🚧 Phase 7: Stack-based variables and calling convention
 - ⏳ Phase 8: Optimizations and documentation
 
 ### Working Features ✅
 - Complete C99 lexer with all token types
 - Recursive descent parser with operator precedence
+- Control flow: if/else, while, and for
+- Comparison operators (==, !=, <, >, <=, >=)
 - Binary arithmetic operators (+, -, *, /, %)
 - Function definitions and calls
 - Variable declarations and assignments
@@ -29,11 +31,11 @@ This is an iterative development project. Currently implemented:
 
 ### In Progress 🚧
 - Stack-based local variables (currently emit as global labels)
-- Function parameters and calling convention
+- Function parameters parsed but no proper calling convention
 - Argument passing for function calls
 
 ### Planned Features ⏳
-- Control flow statements (if, while, for, switch)
+- Switch statement, break/continue, ternary
 - Pointers and arrays
 - Struct and union types
 - More operators (comparison, logical, bitwise)
@@ -174,6 +176,7 @@ Run individual tests:
 ./bin/cc tests/test_add.c tests/test_add.asm    # Addition
 ./bin/cc tests/test_mul.c tests/test_mul.asm    # Multiplication
 ./bin/cc tests/test2.c tests/test2.asm          # Multiple functions
+./bin/cc tests/test_params.c tests/test_params.asm  # Functions with parameters
 ```
 
 All test artifacts (`.asm`, `.o`, `.bin`, etc.) are stored in `tests/` for version control and review.
@@ -188,20 +191,21 @@ All test artifacts (`.asm`, `.o`, `.bin`, etc.) are stored in `tests/` for versi
 
 ## Current Limitations
 
-- Parser is simplified and needs expansion
-- Only basic code generation is implemented
+- Parser is simplified and needs expansion (no pointers/arrays/structs)
+- Only basic code generation is implemented; locals/params are treated as globals
+- Calling convention and stack-based locals not implemented yet
 - No optimization passes yet
 - Limited error reporting
 
 ## Next Steps
 
 We will iterate on this implementation, adding:
-1. Complete recursive descent parser
-2. Full semantic analysis
-3. Comprehensive code generation
+1. Stack-based locals and calling convention for parameters
+2. Semantic analysis and type checking
+3. Comprehensive code generation (pointers, arrays, structs)
 4. Register allocation
 5. Optimization passes
-6. Extended C99 feature support
+6. Extended C99 feature support (switch, logical/bitwise ops, ternary)
 
 ## License
 
