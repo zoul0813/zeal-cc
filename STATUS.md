@@ -72,6 +72,7 @@
 - ❌ Proper function calling convention
 - ❌ Argument passing via stack/registers
 - ⚠️ Parameters/locals are treated as globals in codegen
+- ⚠️ Fixed 12 KB static pool allocator; 512-byte streaming reader; very large sources not supported
 
 ## ⏳ Not Started
 

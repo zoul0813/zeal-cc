@@ -44,7 +44,7 @@ void cc_warning(const char* msg) {
 
 /* Static pool allocator shared by host and target */
 #ifndef CC_POOL_SIZE
-#define CC_POOL_SIZE 16384 /* 16 KB pool: fits in 0x4000-0xC000 user space alongside file_buffer/stack */
+#define CC_POOL_SIZE 12288 /* 12 KB pool; keeps DATA well below 0xE000 file_buffer */
 #endif
 char g_memory_pool[CC_POOL_SIZE];
 size_t g_pool_offset = 0;

@@ -134,9 +134,7 @@ struct ast_node {
         } identifier;
         
         struct {
-            long long int_value;
-            double float_value;
-            bool is_float;
+            int16_t int_value;
         } constant;
         
         struct {

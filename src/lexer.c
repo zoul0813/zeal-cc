@@ -7,7 +7,6 @@
 /* Helper functions */
 static void lexer_advance(lexer_t* lexer);
 static void lexer_skip_whitespace(lexer_t* lexer);
-static void lexer_skip_comment(lexer_t* lexer);
 static bool is_identifier_start(char c);
 static bool is_identifier_char(char c);
 static token_t* token_create(token_type_t type, const char* value, int line, int column);
@@ -51,21 +50,20 @@ static const struct {
     {"while", TOK_WHILE},
     {NULL, TOK_EOF}};
 
-lexer_t* lexer_create(const char* filename, const char* source) {
+lexer_t* lexer_create(const char* filename, target_reader_t* reader) {
     lexer_t* lexer = (lexer_t*)cc_malloc(sizeof(lexer_t));
     if (!lexer) return NULL;
 
     lexer->filename = filename;
-    lexer->source = source;
-    lexer->source_len = 0;
-
-    const char* p = source;
-    while (*p++) lexer->source_len++;
-
-    lexer->pos = 0;
+    lexer->reader = reader;
     lexer->line = 1;
     lexer->column = 1;
-    lexer->current_char = (lexer->source_len > 0) ? source[0] : '\0';
+    lexer->eof = false;
+    lexer->current_char = target_reader_next(lexer->reader);
+    if (lexer->current_char < 0) {
+        lexer->current_char = '\0';
+        lexer->eof = true;
+    }
 
     return lexer;
 }
@@ -77,28 +75,30 @@ void lexer_destroy(lexer_t* lexer) {
 }
 
 static void lexer_advance(lexer_t* lexer) {
-    if (lexer->pos < lexer->source_len) {
-        if (lexer->current_char == '\n') {
-            lexer->line++;
-            lexer->column = 1;
-        } else {
-            lexer->column++;
-        }
-
-        lexer->pos++;
-        if (lexer->pos < lexer->source_len) {
-            lexer->current_char = lexer->source[lexer->pos];
-        } else {
-            lexer->current_char = '\0';
-        }
+    if (lexer->eof) return;
+    if (lexer->current_char == '\n') {
+        lexer->line++;
+        lexer->column = 1;
+    } else {
+        lexer->column++;
+    }
+    int next = target_reader_next(lexer->reader);
+    if (next < 0) {
+        lexer->current_char = '\0';
+        lexer->eof = true;
+    } else {
+        lexer->current_char = next;
     }
 }
 
 static char lexer_peek(lexer_t* lexer, int offset) {
-    size_t peek_pos = lexer->pos + offset;
-    if (peek_pos < lexer->source_len) {
-        return lexer->source[peek_pos];
+    if (lexer->eof) return '\0';
+    if (offset == 1) {
+        int c = target_reader_peek(lexer->reader);
+        if (c < 0) return '\0';
+        return (char)c;
     }
+    /* Only simple lookahead of 1 is supported in streaming mode */
     return '\0';
 }
 
@@ -169,7 +169,6 @@ static token_t* lexer_read_number(lexer_t* lexer) {
     char buffer[MAX_TOKEN_LENGTH];
     size_t len = 0;
     bool is_hex = false;
-    bool is_float = false;
 
     /* Check for hex prefix */
     if (lexer->current_char == '0' &&
@@ -197,11 +196,9 @@ static token_t* lexer_read_number(lexer_t* lexer) {
                 buffer[len++] = lexer->current_char;
                 lexer_advance(lexer);
             } else if (lexer->current_char == '.') {
-                is_float = true;
                 buffer[len++] = lexer->current_char;
                 lexer_advance(lexer);
             } else if (lexer->current_char == 'e' || lexer->current_char == 'E') {
-                is_float = true;
                 buffer[len++] = lexer->current_char;
                 lexer_advance(lexer);
                 if (lexer->current_char == '+' || lexer->current_char == '-') {
@@ -225,37 +222,32 @@ static token_t* lexer_read_number(lexer_t* lexer) {
 
     token_t* token = token_create(TOK_NUMBER, buffer, start_line, start_column);
     if (token) {
-        if (is_float) {
-            /* Parse float - simplified */
-            token->data.float_val = 0.0;
-        } else {
-            /* Parse integer */
-            long long val = 0;
-            size_t i = 0;
+        /* Parse integer */
+        int32_t val = 0;
+        size_t i = 0;
 
-            if (is_hex) {
-                i = 2; /* Skip 0x */
-                while (i < len) {
-                    val = val * 16;
-                    char c = buffer[i];
-                    if (c >= '0' && c <= '9') {
-                        val += c - '0';
-                    } else if (c >= 'a' && c <= 'f') {
-                        val += c - 'a' + 10;
-                    } else if (c >= 'A' && c <= 'F') {
-                        val += c - 'A' + 10;
-                    }
-                    i++;
+        if (is_hex) {
+            i = 2; /* Skip 0x */
+            while (i < len) {
+                val = (int32_t)(val * 16);
+                char c = buffer[i];
+                if (c >= '0' && c <= '9') {
+                    val += (int32_t)(c - '0');
+                } else if (c >= 'a' && c <= 'f') {
+                    val += (int32_t)(c - 'a' + 10);
+                } else if (c >= 'A' && c <= 'F') {
+                    val += (int32_t)(c - 'A' + 10);
                 }
-            } else {
-                while (i < len && buffer[i] >= '0' && buffer[i] <= '9') {
-                    val = val * 10 + (buffer[i] - '0');
-                    i++;
-                }
+                i++;
             }
-
-            token->data.int_val = val;
+        } else {
+            while (i < len && buffer[i] >= '0' && buffer[i] <= '9') {
+                val = (int32_t)(val * 10 + (buffer[i] - '0'));
+                i++;
+            }
         }
+
+        token->int_val = (int16_t)val;
     }
 
     return token;
@@ -387,7 +379,7 @@ static token_t* lexer_read_char(lexer_t* lexer) {
 
     token_t* token = token_create(TOK_CHAR, buffer, start_line, start_column);
     if (token) {
-        token->data.int_val = (long long)c;
+        token->int_val = (int16_t)c;
     }
     return token;
 }

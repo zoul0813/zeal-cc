@@ -6,8 +6,6 @@
 #include "target.h"
 
 int main(int argc, char** argv) {
-    char* source;
-    size_t source_len;
     lexer_t* lexer;
     token_t* tokens;
     parser_t* parser;
@@ -16,6 +14,7 @@ int main(int argc, char** argv) {
     codegen_t* codegen;
     cc_error_t result;
     target_args_t args;
+    target_reader_t* reader;
 
     /* Reset bump allocator so each invocation starts fresh */
     cc_reset_pool();
@@ -46,24 +45,24 @@ int main(int argc, char** argv) {
     target_log_verbose(g_ctx.output_file);
     target_log_verbose("\n");
 
-    /* Read source file */
-    source = target_read_file(g_ctx.input_file, &source_len);
-    if (!source) {
+    /* Open streaming reader */
+    reader = target_reader_open(g_ctx.input_file);
+    if (!reader) {
         return 1;
     }
 
     /* Lexical analysis */
     target_log_verbose("Lexing...\n");
-    lexer = lexer_create(g_ctx.input_file, source);
+    lexer = lexer_create(g_ctx.input_file, reader);
     if (!lexer) {
-        target_cleanup_buffer(source);
+        target_reader_close(reader);
         return 1;
     }
 
     tokens = lexer_tokenize(lexer);
     if (!tokens) {
         lexer_destroy(lexer);
-        target_cleanup_buffer(source);
+        target_reader_close(reader);
         return 1;
     }
 
@@ -73,7 +72,7 @@ int main(int argc, char** argv) {
     if (!parser) {
         token_list_destroy(tokens);
         lexer_destroy(lexer);
-        target_cleanup_buffer(source);
+        target_reader_close(reader);
         return 1;
     }
 
@@ -82,7 +81,7 @@ int main(int argc, char** argv) {
         target_error("Parsing failed\n");
         parser_destroy(parser);
         lexer_destroy(lexer);
-        target_cleanup_buffer(source);
+        target_reader_close(reader);
         return 1;
     }
 
@@ -98,7 +97,7 @@ int main(int argc, char** argv) {
         ast_node_destroy(ast);
         parser_destroy(parser);
         lexer_destroy(lexer);
-        target_cleanup_buffer(source);
+        target_reader_close(reader);
         return 1;
     }
 
@@ -110,7 +109,7 @@ int main(int argc, char** argv) {
         ast_node_destroy(ast);
         parser_destroy(parser);
         lexer_destroy(lexer);
-        target_cleanup_buffer(source);
+        target_reader_close(reader);
         return 1;
     }
 
@@ -124,7 +123,7 @@ int main(int argc, char** argv) {
         ast_node_destroy(ast);
         parser_destroy(parser);
         lexer_destroy(lexer);
-        target_cleanup_buffer(source);
+        target_reader_close(reader);
         return 1;
     }
 
@@ -139,7 +138,7 @@ int main(int argc, char** argv) {
     ast_node_destroy(ast);
     parser_destroy(parser);
     lexer_destroy(lexer);
-    target_cleanup_buffer(source);
+    target_reader_close(reader);
 
     return 0;
 }

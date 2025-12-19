@@ -6,59 +6,68 @@
 #include "target.h"
 
 /* Global buffer for file reading - ZOS doesn't have malloc */
-/* Use smaller buffer size like other ZOS programs */
-static __at(0xC000) char file_buffer[1024];
+/* Place buffer higher to free space for DATA; stack still has headroom */
+#define FILE_BUFFER_SIZE 512
+static __at(0xE000) char file_buffer[FILE_BUFFER_SIZE];
 
-char* target_read_file(const char* filename, size_t* out_size) {
+struct target_reader {
     zos_dev_t dev;
-    zos_err_t err;
-    uint16_t size;
-    uint16_t total_read = 0;
+    uint16_t buf_len;
+    uint16_t pos;
+};
 
-    /* Debug: show what file we're trying to open */
-    put_s("Opening: ");
-    put_s(filename);
-    put_c('\n');
-
-    dev = open(filename, O_RDONLY);
+target_reader_t* target_reader_open(const char* filename) {
+    zos_dev_t dev = open(filename, O_RDONLY);
     if (dev < 0) {
-        put_s("Error: Could not open file (dev=");
-        put_u8((uint8_t)(-dev));
-        put_s(")\n");
         return NULL;
     }
-
-    put_s("File opened, reading...\n");
-
-    /* Read in chunks - ZOS read() supports up to 1024 bytes */
-    size = sizeof(file_buffer) - 1;
-    err = read(dev, file_buffer, &size);
-
-    if (err != ERR_SUCCESS) {
+    target_reader_t* r = (target_reader_t*)cc_malloc(sizeof(target_reader_t));
+    if (!r) {
         close(dev);
-        put_s("Error: Could not read file (err=");
-        put_u8(err);
-        put_s(", size=");
-        put_u16(size);
-        put_s(")\n");
         return NULL;
     }
-
-    close(dev);
-
-    put_s("Read successful, size=");
-    put_u16(size);
-    put_c('\n');
-
-    file_buffer[size] = '\0';
-    *out_size = size;
-
-    return file_buffer;
+    r->dev = dev;
+    r->buf_len = 0;
+    r->pos = 0;
+    return r;
 }
 
-void target_cleanup_buffer(char* buffer) {
-    /* ZOS uses static buffer, no cleanup needed */
-    (void)buffer;
+static int target_reader_fill(target_reader_t* r) {
+    r->buf_len = FILE_BUFFER_SIZE;
+    zos_err_t err = read(r->dev, file_buffer, &r->buf_len);
+    r->pos = 0;
+    if (err != ERR_SUCCESS || r->buf_len == 0) {
+        return -1;
+    }
+    return 0;
+}
+
+int target_reader_next(target_reader_t* reader) {
+    if (!reader) return -1;
+    if (reader->pos >= reader->buf_len) {
+        if (target_reader_fill(reader) < 0) {
+            return -1;
+        }
+    }
+    return (uint8_t)file_buffer[reader->pos++];
+}
+
+int target_reader_peek(target_reader_t* reader) {
+    if (!reader) return -1;
+    if (reader->pos >= reader->buf_len) {
+        if (target_reader_fill(reader) < 0) {
+            return -1;
+        }
+    }
+    return (uint8_t)file_buffer[reader->pos];
+}
+
+void target_reader_close(target_reader_t* reader) {
+    if (!reader) return;
+    if (reader->dev >= 0) {
+        close(reader->dev);
+    }
+    cc_free(reader);
 }
 
 void target_log(const char* message) {
@@ -72,4 +81,26 @@ void target_error(const char* message) {
 void target_log_verbose(const char* message) {
     /* ZOS doesn't support verbose mode, always log */
     put_s(message);
+}
+
+target_output_t target_output_open(const char* filename) {
+    zos_dev_t dev = open(filename, O_WRONLY | O_CREAT | O_TRUNC);
+    if (dev < 0) {
+        return NULL;
+    }
+    return (target_output_t)dev;
+}
+
+void target_output_close(target_output_t handle) {
+    if (handle == 0) return;
+    zos_dev_t dev = (zos_dev_t)handle;
+    close(dev);
+}
+
+int target_output_write(target_output_t handle, const char* data, uint16_t len) {
+    if (handle == 0 || !data || len == 0) return -1;
+    zos_dev_t dev = (zos_dev_t)handle;
+    uint16_t size = len;
+    zos_err_t err = write(dev, data, &size);
+    return (err == ERR_SUCCESS && size == len) ? 0 : -1;
 }

@@ -26,8 +26,8 @@
 /* Buffer sizes (kept small to match target constraints even on host) */
 #define MAX_LINE_LENGTH 128
 #define MAX_IDENTIFIER_LENGTH 32
-#define MAX_STRING_LENGTH 128
-#define MAX_TOKEN_LENGTH 64
+#define MAX_STRING_LENGTH 96
+#define MAX_TOKEN_LENGTH 48
 
 /* Error codes */
 typedef enum {

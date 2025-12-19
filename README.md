@@ -18,6 +18,7 @@ This is an iterative development project. Currently implemented:
 ### Working Features ✅
 - Complete C99 lexer with all token types
 - Recursive descent parser with operator precedence
+- Streaming file input on both host and ZOS (512-byte buffered reader)
 - Control flow: if/else, while, and for
 - Comparison operators (==, !=, <, >, <=, >=)
 - Binary arithmetic operators (+, -, *, /, %)
@@ -194,6 +195,8 @@ All test artifacts (`.asm`, `.o`, `.bin`, etc.) are stored in `tests/` for versi
 - Parser is simplified and needs expansion (no pointers/arrays/structs)
 - Only basic code generation is implemented; locals/params are treated as globals
 - Calling convention and stack-based locals not implemented yet
+- Fixed 12 KB static pool allocator; no dynamic malloc on target
+- 512-byte input reader buffer; very large source files are not supported
 - No optimization passes yet
 - Limited error reporting
 

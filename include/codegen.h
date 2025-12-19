@@ -4,13 +4,12 @@
 #include "common.h"
 #include "parser.h"
 #include "symbol.h"
+#include "target.h"
 
 /* Code generator structure */
 typedef struct {
     const char* output_file;
-    char* output_buffer;
-    size_t output_size;
-    size_t output_capacity;
+    target_output_t output_handle;
     
     symbol_table_t* global_symbols;
     symbol_table_t* current_scope;

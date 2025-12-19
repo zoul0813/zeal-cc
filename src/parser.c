@@ -81,7 +81,7 @@ static ast_node_t* parse_primary(parser_t* parser) {
     token_t* tok = parser_current(parser);
 
     if (tok->type == TOK_IDENTIFIER) {
-        char* name = cc_strdup(tok->value);
+        char* name = tok->value;
         int line = tok->line;
         int column = tok->column;
         parser_advance(parser);
@@ -139,8 +139,6 @@ static ast_node_t* parse_primary(parser_t* parser) {
             node->data.identifier.name = name;
             node->line = line;
             node->column = column;
-        } else {
-            cc_free(name);
         }
         return node;
     }
@@ -149,8 +147,7 @@ static ast_node_t* parse_primary(parser_t* parser) {
         parser_advance(parser);
         ast_node_t* node = ast_node_create(AST_CONSTANT);
         if (node) {
-            node->data.constant.int_value = tok->data.int_val;
-            node->data.constant.is_float = false;
+            node->data.constant.int_value = tok->int_val;
             node->line = tok->line;
             node->column = tok->column;
         }
@@ -346,7 +343,7 @@ static ast_node_t* parse_statement(parser_t* parser) {
             return NULL;
         }
 
-        node->data.var_decl.name = cc_strdup(name_tok->value);
+        node->data.var_decl.name = name_tok->value;
         node->data.var_decl.initializer = NULL;
 
         /* Check for initializer: int x = 5; */
@@ -491,8 +488,8 @@ static ast_node_t* parse_statement(parser_t* parser) {
         ast_node_t* node = ast_node_create(AST_COMPOUND_STMT);
         if (!node) return NULL;
 
-        /* Allocate array for statements (max 64 for now to reduce footprint) */
-        node->data.compound.statements = (ast_node_t**)cc_malloc(sizeof(ast_node_t*) * 64);
+        /* Allocate array for statements (max 32 for now to reduce footprint) */
+        node->data.compound.statements = (ast_node_t**)cc_malloc(sizeof(ast_node_t*) * 32);
         if (!node->data.compound.statements) {
             cc_free(node);
             return NULL;
@@ -500,9 +497,9 @@ static ast_node_t* parse_statement(parser_t* parser) {
         node->data.compound.stmt_count = 0;
 
         while (!parser_check(parser, TOK_RBRACE) && !parser_check(parser, TOK_EOF) &&
-               node->data.compound.stmt_count < 64) {
+               node->data.compound.stmt_count < 32) {
             ast_node_t* stmt = parse_statement(parser);
-            if (stmt && node->data.compound.stmt_count < 128) {
+            if (stmt && node->data.compound.stmt_count < 32) {
                 node->data.compound.statements[node->data.compound.stmt_count++] = stmt;
             }
         }
@@ -541,7 +538,7 @@ static ast_node_t* parse_parameter(parser_t* parser) {
         return NULL;
     }
 
-    param->data.var_decl.name = cc_strdup(name_tok->value);
+    param->data.var_decl.name = name_tok->value;
     param->data.var_decl.var_type = NULL;
     param->data.var_decl.initializer = NULL;
     param->line = name_tok->line;
@@ -553,8 +550,10 @@ static ast_node_t* parse_function(parser_t* parser) {
     ast_node_t* node = ast_node_create(AST_FUNCTION);
     if (!node) return NULL;
 
-    if (parser_match(parser, TOK_INT) || parser_match(parser, TOK_VOID)) {
-        /* Got type */
+    /* Consume return type (limited) without double-matching */
+    token_type_t rettok = parser_current(parser)->type;
+    if (rettok == TOK_INT || rettok == TOK_VOID) {
+        parser_advance(parser);
     }
 
     token_t* name_tok = parser_current(parser);
@@ -563,9 +562,9 @@ static ast_node_t* parse_function(parser_t* parser) {
         return NULL;
     }
 
-    node->data.function.name = cc_strdup(name_tok->value);
+    node->data.function.name = name_tok->value;
     node->data.function.return_type = NULL;
-    node->data.function.params = (ast_node_t**)cc_malloc(sizeof(ast_node_t*) * 16);
+    node->data.function.params = (ast_node_t**)cc_malloc(sizeof(ast_node_t*) * 8);
     node->data.function.param_count = 0;
     if (!node->data.function.params) {
         ast_node_destroy(node);
@@ -583,7 +582,7 @@ static ast_node_t* parse_function(parser_t* parser) {
         parser_advance(parser); /* consume 'void' in (void) */
     } else {
         while (!parser_check(parser, TOK_RPAREN) && !parser_check(parser, TOK_EOF)) {
-            if (node->data.function.param_count >= 16) {
+            if (node->data.function.param_count >= 8) {
                 cc_error("Too many function parameters");
                 parser->error_count++;
                 break;
@@ -635,7 +634,7 @@ ast_node_t* parser_parse(parser_t* parser) {
     if (!program) return NULL;
 
     /* Allocate array for declarations (max 128 for now) */
-    program->data.program.declarations = (ast_node_t**)cc_malloc(sizeof(ast_node_t*) * 64);
+    program->data.program.declarations = (ast_node_t**)cc_malloc(sizeof(ast_node_t*) * 32);
     if (!program->data.program.declarations) {
         cc_free(program);
         return NULL;
@@ -652,7 +651,7 @@ ast_node_t* parser_parse(parser_t* parser) {
         }
 
         /* Store declaration in program node */
-        if (program->data.program.decl_count < 64) {
+        if (program->data.program.decl_count < 32) {
             program->data.program.declarations[program->data.program.decl_count++] = decl;
         }
     }
@@ -704,14 +703,8 @@ void ast_node_destroy(ast_node_t* node) {
             ast_node_destroy(node->data.for_stmt.body);
             break;
         case AST_IDENTIFIER:
-            if (node->data.identifier.name) {
-                cc_free(node->data.identifier.name);
-            }
             break;
         case AST_FUNCTION:
-            if (node->data.function.name) {
-                cc_free(node->data.function.name);
-            }
             if (node->data.function.params) {
                 for (size_t i = 0; i < node->data.function.param_count; i++) {
                     ast_node_destroy(node->data.function.params[i]);
@@ -737,9 +730,6 @@ void ast_node_destroy(ast_node_t* node) {
             }
             break;
         case AST_VAR_DECL:
-            if (node->data.var_decl.name) {
-                cc_free(node->data.var_decl.name);
-            }
             if (node->data.var_decl.initializer) {
                 ast_node_destroy(node->data.var_decl.initializer);
             }

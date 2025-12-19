@@ -2,6 +2,7 @@
 #define LEXER_H
 
 #include "common.h"
+#include "target.h"
 
 /* Token types */
 typedef enum {
@@ -107,26 +108,22 @@ struct token {
     char value[MAX_TOKEN_LENGTH];
     int line;
     int column;
-    union {
-        long long int_val;
-        double float_val;
-    } data;
+    int16_t int_val;
     token_t* next;
 };
 
 /* Lexer structure */
 typedef struct {
     const char* filename;
-    const char* source;
-    size_t source_len;
-    size_t pos;
+    target_reader_t* reader;
+    int current_char;
+    bool eof;
     int line;
     int column;
-    char current_char;
 } lexer_t;
 
 /* Lexer functions */
-lexer_t* lexer_create(const char* filename, const char* source);
+lexer_t* lexer_create(const char* filename, target_reader_t* reader);
 void lexer_destroy(lexer_t* lexer);
 token_t* lexer_next_token(lexer_t* lexer);
 token_t* lexer_tokenize(lexer_t* lexer);

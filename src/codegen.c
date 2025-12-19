@@ -1,6 +1,7 @@
 #include "codegen.h"
 
 #include "common.h"
+#include "target.h"
 
 #ifdef __SDCC
 extern void put_s(const char* str);
@@ -11,29 +12,12 @@ extern void put_u8(uint8_t c);
 #include <stdio.h>
 #endif
 
-#define INITIAL_OUTPUT_CAPACITY 2048
+#define INITIAL_OUTPUT_CAPACITY 1024
 
 /* Helpers */
-static char* codegen_mangle_var(const char* name) {
-    /* Prefix variable names to avoid clashes with registers/single-char labels */
-    const char prefix[] = "_v_";
-    size_t prefix_len = sizeof(prefix) - 1;
-    size_t name_len = 0;
-    while (name[name_len]) {
-        name_len++;
-    }
-    char* mangled = (char*)cc_malloc(prefix_len + name_len + 1);
-    if (!mangled) return NULL;
-    /* Copy prefix */
-    for (size_t i = 0; i < prefix_len; i++) {
-        mangled[i] = prefix[i];
-    }
-    /* Copy name */
-    for (size_t i = 0; i < name_len; i++) {
-        mangled[prefix_len + i] = name[i];
-    }
-    mangled[prefix_len + name_len] = '\0';
-    return mangled;
+static void codegen_emit_mangled_var(codegen_t* gen, const char* name) {
+    codegen_emit(gen, "_v_");
+    codegen_emit(gen, name);
 }
 
 codegen_t* codegen_create(const char* output_file, symbol_table_t* symbols) {
@@ -41,15 +25,11 @@ codegen_t* codegen_create(const char* output_file, symbol_table_t* symbols) {
     if (!gen) return NULL;
 
     gen->output_file = output_file;
-    gen->output_capacity = INITIAL_OUTPUT_CAPACITY;
-    gen->output_buffer = (char*)cc_malloc(gen->output_capacity);
-    if (!gen->output_buffer) {
+    gen->output_handle = target_output_open(output_file);
+    if (!gen->output_handle) {
         cc_free(gen);
         return NULL;
     }
-
-    gen->output_size = 0;
-    gen->output_buffer[0] = '\0';
 
     gen->global_symbols = symbols;
     gen->current_scope = symbols;
@@ -68,23 +48,20 @@ codegen_t* codegen_create(const char* output_file, symbol_table_t* symbols) {
 
 void codegen_destroy(codegen_t* gen) {
     if (!gen) return;
-
-    if (gen->output_buffer) {
-        cc_free(gen->output_buffer);
+    if (gen->output_handle) {
+        target_output_close(gen->output_handle);
     }
-
     cc_free(gen);
 }
 
 void codegen_emit(codegen_t* gen, const char* fmt, ...) {
-    if (!gen || !gen->output_buffer) return;
-
-    /* Simple string append for now */
+    if (!gen || !gen->output_handle || !fmt) return;
+    size_t len = 0;
     const char* p = fmt;
-    while (*p && gen->output_size < gen->output_capacity - 1) {
-        gen->output_buffer[gen->output_size++] = *p++;
+    while (p[len]) len++;
+    if (len > 0) {
+        target_output_write(gen->output_handle, fmt, (uint16_t)len);
     }
-    gen->output_buffer[gen->output_size] = '\0';
 }
 
 void codegen_emit_comment(codegen_t* gen, const char* fmt, ...) {
@@ -94,18 +71,18 @@ void codegen_emit_comment(codegen_t* gen, const char* fmt, ...) {
 }
 
 char* codegen_new_label(codegen_t* gen) {
-    static char label[32];
-    label[0] = 'L';
-
-    /* Convert label counter to string */
+    static char labels[8][16];
+    static int slot = 0;
+    char* label = labels[slot++ & 7];
     int n = gen->label_counter++;
-    int i = 1;
+    int i = 0;
+    label[i++] = 'L';
     if (n == 0) {
         label[i++] = '0';
     } else {
-        char temp[16];
+        char temp[8];
         int j = 0;
-        while (n > 0) {
+        while (n > 0 && j < (int)sizeof(temp)) {
             temp[j++] = '0' + (n % 10);
             n /= 10;
         }
@@ -114,22 +91,22 @@ char* codegen_new_label(codegen_t* gen) {
         }
     }
     label[i] = '\0';
-
-    return cc_strdup(label);
+    return label;
 }
 
 char* codegen_new_string_label(codegen_t* gen) {
-    static char label[32];
-    label[0] = 'S';
-
+    static char labels[8][16];
+    static int slot = 0;
+    char* label = labels[slot++ & 7];
     int n = gen->string_counter++;
-    int i = 1;
+    int i = 0;
+    label[i++] = 'S';
     if (n == 0) {
         label[i++] = '0';
     } else {
-        char temp[16];
+        char temp[8];
         int j = 0;
-        while (n > 0) {
+        while (n > 0 && j < (int)sizeof(temp)) {
             temp[j++] = '0' + (n % 10);
             n /= 10;
         }
@@ -138,8 +115,7 @@ char* codegen_new_string_label(codegen_t* gen) {
         }
     }
     label[i] = '\0';
-
-    return cc_strdup(label);
+    return label;
 }
 
 void codegen_emit_prologue(codegen_t* gen, const char* func_name) {
@@ -202,16 +178,9 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
             /* Load variable from stack/memory */
             codegen_emit_comment(gen, "Load variable: ");
             codegen_emit_comment(gen, node->data.identifier.name);
-            {
-                char* mangled = codegen_mangle_var(node->data.identifier.name);
-                if (!mangled) return CC_ERROR_CODEGEN;
-                codegen_emit(gen, "    ld a, (");
-                codegen_emit(gen, mangled);
-                codegen_emit(gen, ")\n");
-#ifndef __SDCC
-                cc_free(mangled);
-#endif
-            }
+            codegen_emit(gen, "    ld a, (");
+            codegen_emit_mangled_var(gen, node->data.identifier.name);
+            codegen_emit(gen, ")\n");
             codegen_emit(gen, "\n");
             return CC_OK;
 
@@ -325,14 +294,9 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
 
             /* Store A to variable */
             if (node->data.assign.lvalue->type == AST_IDENTIFIER) {
-                char* mangled = codegen_mangle_var(node->data.assign.lvalue->data.identifier.name);
-                if (!mangled) return CC_ERROR_CODEGEN;
                 codegen_emit(gen, "    ld (");
-                codegen_emit(gen, mangled);
+                codegen_emit_mangled_var(gen, node->data.assign.lvalue->data.identifier.name);
                 codegen_emit(gen, "), a\n");
-#ifndef __SDCC
-                cc_free(mangled);
-#endif
             }
             return CC_OK;
         }
@@ -361,24 +325,17 @@ static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node) {
             /* Reserve space for variable */
             codegen_emit_comment(gen, "Variable: ");
             codegen_emit_comment(gen, node->data.var_decl.name);
-            {
-                char* mangled = codegen_mangle_var(node->data.var_decl.name);
-                if (!mangled) return CC_ERROR_CODEGEN;
-                codegen_emit(gen, mangled);
-                codegen_emit(gen, ":\n");
-                codegen_emit(gen, "    .db 0\n");
+            codegen_emit_mangled_var(gen, node->data.var_decl.name);
+            codegen_emit(gen, ":\n");
+            codegen_emit(gen, "    .db 0\n");
 
-                /* If there's an initializer, generate assignment */
-                if (node->data.var_decl.initializer) {
-                    cc_error_t err = codegen_expression(gen, node->data.var_decl.initializer);
-                    if (err != CC_OK) return err;
-                    codegen_emit(gen, "    ld (");
-                    codegen_emit(gen, mangled);
-                    codegen_emit(gen, "), a\n");
-                }
-#ifndef __SDCC
-                cc_free(mangled);
-#endif
+            /* If there's an initializer, generate assignment */
+            if (node->data.var_decl.initializer) {
+                cc_error_t err = codegen_expression(gen, node->data.var_decl.initializer);
+                if (err != CC_OK) return err;
+                codegen_emit(gen, "    ld (");
+                codegen_emit_mangled_var(gen, node->data.var_decl.name);
+                codegen_emit(gen, "), a\n");
             }
             return CC_OK;
 
@@ -596,14 +553,9 @@ static cc_error_t codegen_function(codegen_t* gen, ast_node_t* node) {
         if (!param || param->type != AST_VAR_DECL) continue;
         codegen_emit_comment(gen, "Param: ");
         codegen_emit_comment(gen, param->data.var_decl.name);
-        char* mangled = codegen_mangle_var(param->data.var_decl.name);
-        if (!mangled) return CC_ERROR_CODEGEN;
-        codegen_emit(gen, mangled);
+        codegen_emit_mangled_var(gen, param->data.var_decl.name);
         codegen_emit(gen, ":\n");
         codegen_emit(gen, "    .db 0\n");
-#ifndef __SDCC
-        cc_free(mangled);
-#endif
     }
 
     /* Generate function body */
@@ -727,44 +679,7 @@ cc_error_t codegen_generate(codegen_t* gen, ast_node_t* ast) {
 }
 
 cc_error_t codegen_write_output(codegen_t* gen) {
-    if (!gen || !gen->output_buffer) {
-        return CC_ERROR_INTERNAL;
-    }
-
-#ifdef __SDCC
-    /* ZOS file writing */
-    zos_dev_t dev;
-    zos_err_t err;
-    uint16_t size;
-
-    dev = open(gen->output_file, O_WRONLY | O_CREAT | O_TRUNC);
-    if (dev < 0) {
-        cc_error("Could not create output file");
-        return CC_ERROR_FILE_NOT_FOUND;
-    }
-
-    size = (uint16_t)gen->output_size;
-    err = write(dev, gen->output_buffer, &size);
-    close(dev);
-
-    if (err != ERR_SUCCESS) {
-        cc_error("Could not write output file");
-        put_u8(err);
-        return CC_ERROR_CODEGEN;
-    }
-
+    /* Streaming write already performed; nothing to do */
+    (void)gen;
     return CC_OK;
-#else
-    /* Desktop file writing */
-    FILE* file = fopen(gen->output_file, "w");
-    if (!file) {
-        cc_error("Could not create output file");
-        return CC_ERROR_FILE_NOT_FOUND;
-    }
-
-    fwrite(gen->output_buffer, 1, gen->output_size, file);
-    fclose(file);
-
-    return CC_OK;
-#endif
 }

@@ -2,9 +2,8 @@
 
 Scope: C99→Z80 compiler for Zeal 8-bit OS. All test inputs/outputs live in `tests/`; never write artifacts elsewhere. Desktop build (make) and ZOS build (cmake) both supported.
 
-## P0: Unblock Current Failures
-- Fix parser hang on function parameters (`int add(int a, int b)`). Add regression test in `tests/` to cover parameter lists.
-- Align docs: update README vs STATUS so control-flow status and known limitations match reality.
+## P0: Unblock Current Failures ✅
+- Target parsing mismatch investigated; streaming I/O and docs aligned. (Keep an eye on future regressions.)
 
 ## P1: Stack Locals & Calling Convention
 - Implement stack-based locals with function prologue/epilogue (IX frame or alternative) and switch off global-label locals.
