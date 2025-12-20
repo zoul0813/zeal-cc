@@ -176,11 +176,15 @@ Run individual tests:
 ./bin/cc tests/test_expr.c tests/test_expr.asm  # Expression precedence
 ./bin/cc tests/test_add.c tests/test_add.asm    # Addition
 ./bin/cc tests/test_mul.c tests/test_mul.asm    # Multiplication
+./bin/cc tests/test_div.c tests/test_div.asm    # Division
+./bin/cc tests/test_mod.c tests/test_mod.asm    # Modulo
 ./bin/cc tests/test2.c tests/test2.asm          # Multiple functions
 ./bin/cc tests/test_params.c tests/test_params.asm  # Functions with parameters
 ```
 
 All test artifacts (`.asm`, `.o`, `.bin`, etc.) are stored in `tests/` for version control and review.
+
+**Note**: When adding a new test source in `tests/`, also update `test.zs` so the Zeal headless script runs the new case on target hardware.
 
 ## Architecture
 

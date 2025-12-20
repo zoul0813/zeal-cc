@@ -127,10 +127,10 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    target_log("Compilation successful!\n");
-    target_log_verbose("Generated: ");
-    target_log_verbose(g_ctx.output_file);
-    target_log_verbose("\n");
+    target_log(g_ctx.input_file);
+    target_log(" -> ");
+    target_log(g_ctx.output_file);
+    target_log("\n");
 
     /* Cleanup */
     codegen_destroy(codegen);

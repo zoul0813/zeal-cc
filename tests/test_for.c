@@ -9,5 +9,5 @@ int main() {
         sum = sum + i;
     }
     
-    return sum;  /* Should return 0+1+2+3+4 = 10 */
+    return sum;  /* Should return 10 (0x0A) */
 }

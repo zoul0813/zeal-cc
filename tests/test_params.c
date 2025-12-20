@@ -3,5 +3,5 @@ int add(int a, int b) {
 }
 
 int main() {
-    return add(2, 3);
+    return add(2, 3);  /* Should return 5 (0x05) */
 }

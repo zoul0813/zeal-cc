@@ -64,19 +64,14 @@ void codegen_emit(codegen_t* gen, const char* fmt, ...) {
     }
 }
 
-void codegen_emit_comment(codegen_t* gen, const char* fmt, ...) {
-    codegen_emit(gen, "; ");
-    codegen_emit(gen, fmt);
-    codegen_emit(gen, "\n");
-}
-
 char* codegen_new_label(codegen_t* gen) {
     static char labels[8][16];
     static int slot = 0;
     char* label = labels[slot++ & 7];
     int n = gen->label_counter++;
     int i = 0;
-    label[i++] = 'L';
+    label[i++] = '_';
+    label[i++] = 'l';
     if (n == 0) {
         label[i++] = '0';
     } else {
@@ -100,7 +95,8 @@ char* codegen_new_string_label(codegen_t* gen) {
     char* label = labels[slot++ & 7];
     int n = gen->string_counter++;
     int i = 0;
-    label[i++] = 'S';
+    label[i++] = '_';
+    label[i++] = 's';
     if (n == 0) {
         label[i++] = '0';
     } else {
@@ -176,11 +172,11 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
 
         case AST_IDENTIFIER:
             /* Load variable from stack/memory */
-            codegen_emit_comment(gen, "Load variable: ");
-            codegen_emit_comment(gen, node->data.identifier.name);
             codegen_emit(gen, "    ld a, (");
             codegen_emit_mangled_var(gen, node->data.identifier.name);
-            codegen_emit(gen, ")\n");
+            codegen_emit(gen, ")");
+            codegen_emit(gen, "  ; Load variable: ");
+            codegen_emit(gen, node->data.identifier.name);
             codegen_emit(gen, "\n");
             return CC_OK;
 
@@ -211,64 +207,110 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
                     break;
                 case OP_MUL:
                     /* Z80 doesn't have mul, need to call helper */
-                    codegen_emit_comment(gen, "Multiplication (A * L)");
+                    codegen_emit(gen, "; Multiplication (A * L)\n");
                     codegen_emit(gen, "    call __mul_a_l\n");
                     break;
                 case OP_DIV:
                     /* Z80 doesn't have div, need to call helper */
-                    codegen_emit_comment(gen, "Division (A / L)");
+                    codegen_emit(gen, "; Division (A / L)\n");
                     codegen_emit(gen, "    call __div_a_l\n");
                     break;
                 case OP_MOD:
                     /* Modulo operation */
-                    codegen_emit_comment(gen, "Modulo (A % L)");
+                    codegen_emit(gen, "; Modulo (A % L)\n");
                     codegen_emit(gen, "    call __mod_a_l\n");
                     break;
 
                 /* Comparison operators: result is 1 (true) or 0 (false) */
                 case OP_EQ:
-                    codegen_emit_comment(gen, "Equality test (A == L)");
+                    codegen_emit(gen, "; Equality test (A == L)\n");
                     codegen_emit(gen, "    cp l\n");
                     codegen_emit(gen, "    ld a, 0\n");
-                    codegen_emit(gen, "    jr nz, $+3\n");
-                    codegen_emit(gen, "    ld a, 1\n");
+                    {
+                        char* end = codegen_new_label(gen);
+                        codegen_emit(gen, "    jr nz, ");
+                        codegen_emit(gen, end);
+                        codegen_emit(gen, "\n");
+                        codegen_emit(gen, "    ld a, 1\n");
+                        codegen_emit(gen, end);
+                        codegen_emit(gen, ":\n");
+                    }
                     break;
                 case OP_NE:
-                    codegen_emit_comment(gen, "Inequality test (A != L)");
+                    codegen_emit(gen, "; Inequality test (A != L)\n");
                     codegen_emit(gen, "    cp l\n");
                     codegen_emit(gen, "    ld a, 0\n");
-                    codegen_emit(gen, "    jr z, $+3\n");
-                    codegen_emit(gen, "    ld a, 1\n");
+                    {
+                        char* end = codegen_new_label(gen);
+                        codegen_emit(gen, "    jr z, ");
+                        codegen_emit(gen, end);
+                        codegen_emit(gen, "\n");
+                        codegen_emit(gen, "    ld a, 1\n");
+                        codegen_emit(gen, end);
+                        codegen_emit(gen, ":\n");
+                    }
                     break;
                 case OP_LT:
-                    codegen_emit_comment(gen, "Less than test (A < L)");
+                    codegen_emit(gen, "; Less than test (A < L)\n");
                     codegen_emit(gen, "    cp l\n");
                     codegen_emit(gen, "    ld a, 0\n");
-                    codegen_emit(gen, "    jr nc, $+3\n");
-                    codegen_emit(gen, "    ld a, 1\n");
+                    {
+                        char* end = codegen_new_label(gen);
+                        codegen_emit(gen, "    jr nc,");
+                        codegen_emit(gen, end);
+                        codegen_emit(gen, "\n");
+                        codegen_emit(gen, "    ld a, 1\n");
+                        codegen_emit(gen, end);
+                        codegen_emit(gen, ":\n");
+                    }
                     break;
                 case OP_GT:
-                    codegen_emit_comment(gen, "Greater than test (A > L)");
+                    codegen_emit(gen, "; Greater than test (A > L)\n");
                     codegen_emit(gen, "    sub l\n");
                     codegen_emit(gen, "    ld a, 0\n");
-                    codegen_emit(gen, "    jr z, $+3\n");
-                    codegen_emit(gen, "    jr c, $+3\n");
-                    codegen_emit(gen, "    ld a, 1\n");
+                    {
+                        char* end = codegen_new_label(gen);
+                        codegen_emit(gen, "    jr z, ");
+                        codegen_emit(gen, end);
+                        codegen_emit(gen, "\n");
+                        codegen_emit(gen, "    jr c, ");
+                        codegen_emit(gen, end);
+                        codegen_emit(gen, "\n");
+                        codegen_emit(gen, "    ld a, 1\n");
+                        codegen_emit(gen, end);
+                        codegen_emit(gen, ":\n");
+                    }
                     break;
                 case OP_LE:
-                    codegen_emit_comment(gen, "Less or equal test (A <= L)");
+                    codegen_emit(gen, "; Less or equal test (A <= L)\n");
                     codegen_emit(gen, "    sub l\n");
                     codegen_emit(gen, "    ld a, 0\n");
-                    codegen_emit(gen, "    jr z, $+5\n");
-                    codegen_emit(gen, "    jr nc, $+3\n");
-                    codegen_emit(gen, "    ld a, 1\n");
+                    {
+                        char* end = codegen_new_label(gen);
+                        codegen_emit(gen, "    jr z, ");
+                        codegen_emit(gen, end);
+                        codegen_emit(gen, "\n");
+                        codegen_emit(gen, "    jr nc,");
+                        codegen_emit(gen, end);
+                        codegen_emit(gen, "\n");
+                        codegen_emit(gen, "    ld a, 1\n");
+                        codegen_emit(gen, end);
+                        codegen_emit(gen, ":\n");
+                    }
                     break;
                 case OP_GE:
-                    codegen_emit_comment(gen, "Greater or equal test (A >= L)");
+                    codegen_emit(gen, "; Greater or equal test (A >= L)\n");
                     codegen_emit(gen, "    cp l\n");
                     codegen_emit(gen, "    ld a, 0\n");
-                    codegen_emit(gen, "    jr c, $+3\n");
-                    codegen_emit(gen, "    ld a, 1\n");
+                    {
+                        char* end = codegen_new_label(gen);
+                        codegen_emit(gen, "    jr c, ");
+                        codegen_emit(gen, end);
+                        codegen_emit(gen, "\n");
+                        codegen_emit(gen, "    ld a, 1\n");
+                        codegen_emit(gen, end);
+                        codegen_emit(gen, ":\n");
+                    }
                     break;
 
                 default:
@@ -279,8 +321,9 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
 
         case AST_CALL: {
             /* Function call - for now, simple calling convention */
-            codegen_emit_comment(gen, "Call function: ");
-            codegen_emit_comment(gen, node->data.call.name);
+            codegen_emit(gen, "; Call function: ");
+            codegen_emit(gen, node->data.call.name);
+            codegen_emit(gen, "\n");
             codegen_emit(gen, "    call ");
             codegen_emit(gen, node->data.call.name);
             codegen_emit(gen, "\n");
@@ -323,8 +366,9 @@ static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node) {
 
         case AST_VAR_DECL:
             /* Reserve space for variable */
-            codegen_emit_comment(gen, "Variable: ");
-            codegen_emit_comment(gen, node->data.var_decl.name);
+            codegen_emit(gen, "; Variable: ");
+            codegen_emit(gen, node->data.var_decl.name);
+            codegen_emit(gen, "\n");
             codegen_emit_mangled_var(gen, node->data.var_decl.name);
             codegen_emit(gen, ":\n");
             codegen_emit(gen, "    .db 0\n");
@@ -435,7 +479,7 @@ static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node) {
 
             /* Test condition (A register) */
             codegen_emit(gen, "    or a\n");
-            codegen_emit(gen, "    jp z, ");
+            codegen_emit(gen, "    jp z,");
             codegen_emit(gen, end_label);
             codegen_emit(gen, "\n");
 
@@ -492,7 +536,7 @@ static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node) {
 
                 /* Test condition */
                 codegen_emit(gen, "    or a\n");
-                codegen_emit(gen, "    jp z, ");
+                codegen_emit(gen, "    jp z,");
                 codegen_emit(gen, end_label);
                 codegen_emit(gen, "\n");
             }
@@ -551,8 +595,9 @@ static cc_error_t codegen_function(codegen_t* gen, ast_node_t* node) {
     for (size_t i = 0; i < node->data.function.param_count; i++) {
         ast_node_t* param = node->data.function.params[i];
         if (!param || param->type != AST_VAR_DECL) continue;
-        codegen_emit_comment(gen, "Param: ");
-        codegen_emit_comment(gen, param->data.var_decl.name);
+        codegen_emit(gen, "; Param: ");
+        codegen_emit(gen, param->data.var_decl.name);
+        codegen_emit(gen, "\n");
         codegen_emit_mangled_var(gen, param->data.var_decl.name);
         codegen_emit(gen, ":\n");
         codegen_emit(gen, "    .db 0\n");
@@ -574,60 +619,77 @@ static cc_error_t codegen_function(codegen_t* gen, ast_node_t* node) {
 
 static void codegen_emit_runtime(codegen_t* gen) {
     codegen_emit(gen, "\n");
-    codegen_emit_comment(gen, "Runtime library functions");
-    codegen_emit(gen, "\n");
+    codegen_emit(gen, "; Runtime library functions\n\n");
 
-    /* Multiply A by L */
-    codegen_emit(gen, "__mul_a_l:\n");
-    codegen_emit(gen, "    ld b, 0\n");
-    codegen_emit(gen, "    or a\n");
-    codegen_emit(gen, "    ret z\n");
-    codegen_emit(gen, "__mul_loop:\n");
-    codegen_emit(gen, "    add a, b\n");
-    codegen_emit(gen, "    ld b, a\n");
-    codegen_emit(gen, "    dec l\n");
-    codegen_emit(gen, "    ret z\n");
-    codegen_emit(gen, "    ld a, b\n");
-    codegen_emit(gen, "    jr __mul_loop\n");
-    codegen_emit(gen, "\n");
-
-    /* Divide A by L */
-    codegen_emit(gen, "__div_a_l:\n");
-    codegen_emit(gen, "    ld b, 0\n");
-    codegen_emit(gen, "    ld c, a\n");
-    codegen_emit(gen, "__div_loop:\n");
-    codegen_emit(gen, "    ld a, c\n");
-    codegen_emit(gen, "    cp l\n");
-    codegen_emit(gen, "    ret c\n");
-    codegen_emit(gen, "    sub l\n");
-    codegen_emit(gen, "    ld c, a\n");
-    codegen_emit(gen, "    inc b\n");
-    codegen_emit(gen, "    jr __div_loop\n");
-    codegen_emit(gen, "\n");
-
-    /* Modulo A by L */
-    codegen_emit(gen, "__mod_a_l:\n");
-    codegen_emit(gen, "    call __div_a_l\n");
-    codegen_emit(gen, "    ld a, c\n");
-    codegen_emit(gen, "    ret\n");
+    codegen_emit(gen,
+        "; Multiply A by L\n"
+        "__mul_a_l:\n"
+        "    ld b, l      ; multiplier (loop counter)\n"
+        "    ld c, a      ; multiplicand\n"
+        "    ld a, b\n"
+        "    or c\n"
+        "    ret z        ; short-circuit if either operand is zero\n"
+        "    ld a, 0      ; result accumulator\n"
+        "__mul_loop:\n"
+        "    add a, c\n"
+        "    djnz __mul_loop\n"
+        "    ret\n"
+        "\n"
+        "; Divide A by L\n"
+        "__div_a_l:\n"
+        "    ld c, a      ; dividend\n"
+        "    ld a, l\n"
+        "    or a\n"
+        "    ret z        ; divide by zero -> 0\n"
+        "    ld b, 0      ; quotient\n"
+        "__div_loop:\n"
+        "    ld a, c\n"
+        "    cp l\n"
+        "    jr c, __div_done\n"
+        "    sub l\n"
+        "    ld c, a\n"
+        "    inc b\n"
+        "    jr __div_loop\n"
+        "__div_done:\n"
+        "    ld a, b      ; result = quotient\n"
+        "    ret\n"
+        "\n"
+        "; Modulo A by L\n"
+        "__mod_a_l:\n"
+        "    ld b, l      ; divisor\n"
+        "    ld c, a      ; remainder working copy\n"
+        "    ld a, b\n"
+        "    or a\n"
+        "    ret z        ; divide by zero -> 0\n"
+        "__mod_loop:\n"
+        "    ld a, c\n"
+        "    cp b\n"
+        "    jr c, __mod_done\n"
+        "    sub b\n"
+        "    ld c, a\n"
+        "    jr __mod_loop\n"
+        "__mod_done:\n"
+        "    ld a, c\n"
+        "    ret\n"
+    );
 }
 
 // Helper: emit contents of a file to the output buffer
 static void codegen_emit_crt0(codegen_t* gen) {
-    codegen_emit(gen, "; Zeal 8-bit OS crt0.asm - minimal startup for user programs\n");
-    codegen_emit(gen, "; Provides _start entry, calls _main, then exits via syscall\n");
-    // codegen_emit(gen, "\n");
-    // codegen_emit(gen, "    .globl _start\n");
-    // codegen_emit(gen, "    .globl _main\n");
-    codegen_emit(gen, "\n");
-    codegen_emit(gen, "_start:\n");
-    codegen_emit(gen, "    call main    ; Call user main()\n");
-    codegen_emit(gen, "    ld h, a      ; Move return value from A to H (compiler ABI)\n");
-    codegen_emit(gen, "    ld l, 15     ; EXIT syscall\n");
-    codegen_emit(gen, "    rst 0x8      ; ZOS exit syscall (returns to shell)\n");
-    codegen_emit(gen, "    halt\n");
-    codegen_emit(gen, "\n");
-    codegen_emit(gen, "; End of crt0.asm\n");
+    codegen_emit(gen,
+        "; Zeal 8-bit OS crt0.asm - minimal startup for user programs\n"
+        "; Provides _start entry, calls _main, then exits via syscall\n"
+        "\n"
+        "; Start of crt0.asm\n"
+        "_start:\n"
+        "    call main    ; Call user main()\n"
+        "    ld h, a      ; Move return value from A to H (compiler ABI)\n"
+        "    ld l, 15     ; EXIT syscall\n"
+        "    rst 0x8      ; ZOS exit syscall (returns to shell)\n"
+        "    halt\n"
+        "\n"
+        "; End of crt0.asm\n"
+    );
 }
 
 cc_error_t codegen_generate(codegen_t* gen, ast_node_t* ast) {
@@ -636,9 +698,8 @@ cc_error_t codegen_generate(codegen_t* gen, ast_node_t* ast) {
     }
 
     // Emit file header
-    codegen_emit_comment(gen, "Generated by Zeal 8-bit C Compiler");
-    codegen_emit_comment(gen, "Target: Z80");
-    codegen_emit(gen, "\n");
+    codegen_emit(gen, "; Generated by Zeal 8-bit C Compiler\n");
+    codegen_emit(gen, "; Target: Z80\n\n");
     // Emit standard header for ZOS
     codegen_emit(gen, "    org 0x4000\n");
     codegen_emit(gen, "\n");
@@ -647,7 +708,7 @@ cc_error_t codegen_generate(codegen_t* gen, ast_node_t* ast) {
     codegen_emit_crt0(gen);
     codegen_emit(gen, "\n");
 
-    codegen_emit_comment(gen, "Program code");
+    codegen_emit(gen, "; Program code\n");
 
     /* Process AST - handle both PROGRAM node and direct FUNCTION node */
     if (ast->type == AST_PROGRAM) {

@@ -53,6 +53,68 @@ test_compile() {
     print_result "$test_name" $?
 }
 
+ensure_reset_in_test_zs() {
+    if [ -f "test.zs" ]; then
+        # Remove trailing blanks, drop commented "; reset", ensure final line is "reset"
+        tmpfile=$(mktemp)
+        awk '{
+            sub(/\r$/, "");
+            lines[NR] = $0;
+        }
+        END {
+            n = NR;
+            while (n > 0 && lines[n] ~ /^[[:space:]]*$/) n--;
+            while (n > 0 && lines[n] ~ /^[[:space:]]*;?[[:space:]]*reset[[:space:]]*$/) n--;
+            for (i = 1; i <= n; i++) print lines[i];
+            print "reset";
+        }' test.zs > "$tmpfile" && mv "$tmpfile" test.zs
+    fi
+}
+
+comment_reset_in_test_zs() {
+    if [ -f "test.zs" ]; then
+        tmpfile=$(mktemp)
+        awk '{
+            sub(/\r$/, "");
+            lines[NR] = $0;
+        }
+        END {
+            n = NR;
+            while (n > 0 && lines[n] ~ /^[[:space:]]*$/) n--;
+            while (n > 0 && lines[n] ~ /^[[:space:]]*;?[[:space:]]*reset[[:space:]]*$/) n--;
+            for (i = 1; i <= n; i++) print lines[i];
+            print "; reset";
+        }' test.zs > "$tmpfile" && mv "$tmpfile" test.zs
+    fi
+}
+
+run_headless_emulator() {
+    local img="$1"
+    local eeprom="$2"
+    local test_name="$3"
+
+    if ! command -v zeal-native >/dev/null 2>&1; then
+        echo -e "${YELLOW}⚠${NC}  Skipping $test_name (zeal-native not found)"
+        return
+    fi
+
+    if [ ! -f "$img" ] || [ ! -f "$eeprom" ]; then
+        echo -e "${YELLOW}⚠${NC}  Skipping $test_name (image(s) missing)"
+        return
+    fi
+
+    local log
+    log=$(zeal-native --headless --no-reset -r "$img" -e "$eeprom" 2>&1)
+    local status=$?
+
+    if echo "$log" | grep -qi "error occurred"; then
+        echo "$log"
+        print_result "$test_name" 1
+    else
+        print_result "$test_name" $status
+    fi
+}
+
 # Start testing
 echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║     Zeal C Compiler Test Suite        ║${NC}"
@@ -117,6 +179,12 @@ if [ -f "debug/cc.cdb" ]; then
 else
     print_result "ZOS debug symbols exist" 1
 fi
+
+# Test 5: Zeal-native headless smoke test (if available)
+print_header "Zeal-native Headless Smoke Test"
+ensure_reset_in_test_zs
+run_headless_emulator ".zeal8bit/headless.img" ".zeal8bit/eeprom.img" "zeal-native headless boot"
+comment_reset_in_test_zs
 
 # Print summary
 print_header "Test Summary"

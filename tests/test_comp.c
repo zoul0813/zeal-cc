@@ -14,5 +14,5 @@ int factorial(int n) {
 int main() {
     int x;
     x = 5;
-    return factorial(x);
+    return factorial(x);  /* Should return 120 (0x78) */
 }
