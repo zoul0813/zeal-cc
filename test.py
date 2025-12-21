@@ -139,15 +139,23 @@ def run_headless_emulator(img: str, eeprom: str, test_name: str) -> None:
         print(f"{YELLOW}⚠{NC}  Skipping {test_name} (image(s) missing)")
         return
 
-    proc = subprocess.run(
-        ["zeal-native", "--headless", "--no-reset", "-r", img, "-e", eeprom],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        check=False,
-    )
-    log = proc.stdout
-    status = proc.returncode
+    try:
+        proc = subprocess.run(
+            ["zeal-native", "--headless", "--no-reset", "-r", img, "-e", eeprom],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        log = proc.stdout
+        status = proc.returncode
+    except subprocess.TimeoutExpired as exc:
+        print(f"{RED}X{NC} {test_name} timed out after 30s (possible hang/reset loop)")
+        if exc.stdout:
+            print(exc.stdout)
+        print_result(test_name, 1)
+        return
 
     if "error occurred" in log.lower():
         print(log)
@@ -202,9 +210,12 @@ def main() -> int:
     print_result("ZOS debug symbols exist", 0 if Path("debug/cc.cdb").exists() else 1)
 
     print_header("Zeal-native Headless Smoke Test")
-    ensure_reset_in_test_zs()
-    run_headless_emulator(".zeal8bit/headless.img", ".zeal8bit/eeprom.img", "zeal-native headless boot")
-    comment_reset_in_test_zs()
+    if zos_status == 0:
+        ensure_reset_in_test_zs()
+        run_headless_emulator(".zeal8bit/headless.img", ".zeal8bit/eeprom.img", "zeal-native headless boot")
+        comment_reset_in_test_zs()
+    else:
+        print(f"{YELLOW}⚠{NC}  Skipping zeal-native headless boot (ZOS build failed)")
 
     print_header("Test Summary")
     print(f"Total tests run:    {BLUE}{TESTS_RUN}{NC}")
