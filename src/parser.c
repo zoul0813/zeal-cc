@@ -104,16 +104,30 @@ static ast_node_t* parse_primary(parser_t* parser) {
 
             /* Parse arguments */
             if (!parser_check(parser, TOK_RPAREN)) {
-                /* Simple arg parsing - just count for now */
+                /* Parse and store args (fixed capacity for now) */
+                ast_node_t** args = (ast_node_t**)cc_malloc(sizeof(ast_node_t*) * 8);
+                if (!args) {
+                    ast_node_destroy(call);
+                    return NULL;
+                }
                 int arg_count = 0;
                 do {
                     ast_node_t* arg = parse_expression(parser);
                     if (!arg) {
+                        for (int i = 0; i < arg_count; i++) {
+                            ast_node_destroy(args[i]);
+                        }
+                        cc_free(args);
                         ast_node_destroy(call);
                         return NULL;
                     }
-                    ast_node_destroy(arg); /* Not storing args yet */
-                    arg_count++;
+                    if (arg_count >= 8) {
+                        cc_error("Too many call arguments");
+                        parser->error_count++;
+                        ast_node_destroy(arg);
+                        break;
+                    }
+                    args[arg_count++] = arg;
 
                     if (parser_check(parser, TOK_COMMA)) {
                         parser_advance(parser);
@@ -122,6 +136,7 @@ static ast_node_t* parse_primary(parser_t* parser) {
                     }
                 } while (!parser_check(parser, TOK_RPAREN) && !parser_check(parser, TOK_EOF));
 
+                call->data.call.args = args;
                 call->data.call.arg_count = arg_count;
             }
 
@@ -743,7 +758,10 @@ void ast_node_destroy(ast_node_t* node) {
                 cc_free(node->data.call.name);
             }
             if (node->data.call.args) {
-                /* Would need to free arg array if we stored it */
+                for (size_t i = 0; i < node->data.call.arg_count; i++) {
+                    ast_node_destroy(node->data.call.args[i]);
+                }
+                cc_free(node->data.call.args);
             }
             break;
         default:

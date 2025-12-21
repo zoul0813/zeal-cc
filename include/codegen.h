@@ -23,8 +23,17 @@ typedef struct {
     bool reg_hl_used;
     bool reg_de_used;
     bool reg_bc_used;
-    
+
     int stack_offset;
+    const char* local_vars[64];
+    size_t local_var_count;
+    bool defer_var_storage;
+    const char* param_names[8];
+    int param_offsets[8];
+    size_t param_count;
+    char* function_end_label;
+    bool return_direct;
+    bool use_function_end_label;
 } codegen_t;
 
 /* Code generator functions */

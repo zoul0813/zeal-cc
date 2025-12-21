@@ -3,6 +3,7 @@
 ## Development Guidelines
 
 ### Testing Requirements
+
 - **All test files MUST be in `tests/` directory**
 - Test input: `tests/*.c`
 - Test output: `tests/*.asm`, `tests/*.o`, etc.
@@ -12,13 +13,15 @@
 ## ✅ Completed Components
 
 ### Phase 1: Basic Structure ✓
+
 - Project directory structure created
-- CMakeLists.txt configured for both ZOS and desktop builds
+- CMakeLists.txt configured for ZOS builds (includes `zde cmake` flow and verbose target)
 - Makefile for desktop testing
 - Header files with complete type definitions
 - Version management system
 
 ### Phase 2: Lexer/Tokenizer ✓
+
 - Complete C99 token support
 - Keywords recognition
 - Operators (single and multi-character)
@@ -29,6 +32,7 @@
 - **TESTED AND WORKING**
 
 ### Phase 3: Parser ✓ COMPLETE
+
 - ✅ Operator precedence climbing (factor/term hierarchy)
 - ✅ Binary operators (+, -, *, /, %)
 - ✅ Comparison operators (==, !=, <, >, <=, >=)
@@ -45,18 +49,21 @@
 - **FULLY TESTED AND WORKING**
 
 ### Phase 4: Symbol Table ✓
+
 - ✅ Basic hash table implemented
 - ⏳ Needs full integration with parser
 - ⏳ Needs type checking
 - ⏳ Needs scope management
 
 ### Phase 5: Code Generator ✓ FUNCTIONAL
+
 - ✅ Complete AST traversal
 - ✅ Expression code generation with stack manipulation
 - ✅ Binary operators (add, sub, mul, div, mod)
 - ✅ Comparison operators with proper Z80 flags
 - ✅ Variable storage and access (global labels)
 - ✅ Function definitions and calls
+- ✅ Stack-based argument passing
 - ✅ Return statements with values
 - ✅ If/else with conditional jumps (JP Z, JP NZ)
 - ✅ While loops with loop/end labels
@@ -66,67 +73,55 @@
 
 ## 🚧 In Progress
 
-### Known Limitations
-- ❌ Function parameters parsed but not passed (no calling convention)
+### Phase 5: Code Generator (incomplete tasks)
+
 - ❌ Stack-based local variables (currently use global labels)
-- ❌ Proper function calling convention
-- ❌ Argument passing via stack/registers
-- ⚠️ Parameters/locals are treated as globals in codegen
-- ⚠️ Fixed 12 KB static pool allocator; 512-byte streaming reader; very large sources not supported
+- ❌ Parameters/locals are treated as globals in codegen
 
 ## ⏳ Not Started
 
 ### Advanced Features
+
 - ❌ Array access and pointers
 - ❌ Structs and unions
 - ❌ Type checking and semantic analysis
 - ❌ Optimizations
 
 ### Phase 6: Testing
-- ⚠️ Host regression suite in `tests/test*.c` compiles; target run pending after recent changes
-- ⚠️ `test.zs` currently omits `test_comp.c` (factorial); add to run on target
-- ⚠️ Need regression tests and ZOS integration runs
+
+- ✅ Host regression suite in `tests/test*.c` compiles; target run passes
+- ✅ ZOS regression suite in `tests/test*.c` compiles; target run passes
 
 ### Phase 7: Optimizations
+
 - ❌ Not started
 
 ### Phase 8: Documentation
-- ⚠️ README/SCOPE updated; fuller docs still needed
+
+- ⚠️ README/SCOPE/USAGE updated; fuller docs still needed
 
 ## Next Steps for Iteration
 
 ### Critical Issues to Fix
-1. 🔴 **Function parameters** - Implement proper passing convention
-   - Currently: parameters parse into AST but are emitted as globals
-   - Need calling convention and parameter load/store in prologue/epilogue
-   - Ensure function calls push args in correct order
 
-2. 🟡 **Stack-based variables** - Replace global labels with proper stack frames
+1. 🟡 **Stack-based variables** - Replace global labels with proper stack frames
    - Currently all variables are global labels (x:, y:, sum:)
    - Should use: `ld (ix+offset), a` for local variables
    - Requires: Function prologue/epilogue with IX register
 
-3. 🟡 **Calling convention** - Proper argument passing
-   - Need to pass arguments via stack or registers
-   - Standard Z80 calling convention
-   - Return values via A (8-bit) or HL (16-bit)
-
-4. 🟡 **Target rebuild & tests**
-   - Rebuild ZOS binary after API renames/modulo fix
-   - Run `test.zs` (add `test_comp`) and verify `test_mod` returns 0x01 on target
-
 ### Completed Features ✅
+
 1. ✅ **Control flow statements** - if/else, while, for loops
 2. ✅ **Comparison operators** - ==, !=, <, >, <=, >=
 3. ✅ **Binary arithmetic** - +, -, *, /, %
 4. ✅ **Variable declarations and assignments**
-5. ✅ **Basic function calls** (without parameter passing)
+5. ✅ **Function calls with stack-based arguments**
 6. ✅ **Runtime library** for mul/div/mod
 
 ## Current Test Status
 
 - ✅ Host: `tests/test*.c` compile to `.asm` (includes add/expr/mul/div/mod/params/for/while/if/test1/test2/test_comp).
-- ⚠️ Target: rerun after ZOS rebuild and update `test.zs` (add `test_comp`); ensure `test_mod` now returns 0x01 on target.
+- ✅ Target: headless run passes; update `test.zs` to include `test_comp` so it runs on target.
 
 **All tests write output to `tests/` only.**
 
@@ -139,9 +134,9 @@
 make clean && make
 
 # Run all tests
-for f in tests/test*.c; do 
-    echo "✓ $f" 
-    ./bin/cc "$f" "${f%.c}.asm" 
+for f in tests/test*.c; do
+    echo "✓ $f"
+    ./bin/cc "$f" "${f%.c}.asm"
 done
 
 # Individual tests (all output in tests/)
@@ -149,10 +144,14 @@ done
 ./bin/cc tests/test_expr.c tests/test_expr.asm  # Expression precedence
 ./bin/cc tests/test_add.c tests/test_add.asm    # Addition
 ./bin/cc tests/test_mul.c tests/test_mul.asm    # Multiplication
+./bin/cc tests/test_div.c tests/test_div.asm    # Division
+./bin/cc tests/test_mod.c tests/test_mod.asm    # Modulo
 ./bin/cc tests/test_if.c tests/test_if.asm      # If statement
 ./bin/cc tests/test_while.c tests/test_while.asm  # While loop
 ./bin/cc tests/test_for.c tests/test_for.asm    # For loop
 ./bin/cc tests/test2.c tests/test2.asm          # Multiple functions
+./bin/cc tests/test_params.c tests/test_params.asm  # Function parameters
+./bin/cc tests/test_comp.c tests/test_comp.asm  # Comprehensive test
 
 # View generated assembly
 cat tests/test1.asm
@@ -161,18 +160,15 @@ cat tests/test1.asm
 ## Git Commit History
 
 Recent commits:
-- `3ade4fa` - Add comprehensive test (simplified version)
-- `0f2f8ec` - Add complete control flow: while and for loops
-- `8b7a361` - Add if statements and comparison operators
-- `41531e6` - Document test directory policy
-- `c1e160e` - Add runtime library and update documentation
-- `45b7e45` - Codegen Phase 1: Expression and statement code generation
-- `c924b4b` - Parser Phase 3: Add expression parsing, variables, assignments, function calls
-- `33e2c22` - Initial compiler structure with working lexer
 
-# Test complex program (currently fails)
-./bin/cc tests/test2.c tests/test2.asm
-```
+- `3c0f0c8` - Implement stack-based (IX) function arguments, add `#ifdef VERBOSE` for log_verbose, update `test2.c`
+- `616de03` - Improve test.py
+- `dbbabf7` - Remove `test.sh`, update TESTING.md, add docs/ with usage/limitations/calling convention
+- `a0de6b1` - Add return-code checks to Zeal tests and Python runner
+- `1230668` - Rename target_ prefix and update README/SCOPE/STATUS
+- `ac4d22b` - Refactor main error handling to reduce binary size
+- `ddfac99` - Codegen refactor, runtime fixes, label rules, tests + TESTING.md
+- `76dbc0d` - Stream input from 512-byte reader; align host/target IO and memory layout
 
 ## Architecture Notes
 

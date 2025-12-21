@@ -11,6 +11,10 @@ ZOS target (SDCC):
 ```
 zde cmake
 ```
+Verbose build (defines `VERBOSE` for `#ifdef VERBOSE`):
+```
+zde cmake --target verbose
+```
 
 ## Run
 

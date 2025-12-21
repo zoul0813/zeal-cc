@@ -41,9 +41,10 @@ before codegen changes.
 - `IX` reserved for stack frame once locals/params are implemented.
 
 ## Current Behavior (Not Final)
-- Parameters are emitted as globals and not passed at call sites.
+- Parameters are passed on the stack at call sites.
 - Locals are emitted as global labels.
-- Function calls emit `call` without any argument setup.
+- Function calls push arguments then emit `call`.
+- No stack frame is emitted yet; `IX` is not used for locals/params.
 
 When the calling convention is implemented, both call sites and function
 prologues will change to match the rules above.

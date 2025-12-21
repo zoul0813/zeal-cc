@@ -9,7 +9,7 @@ The C Compiler should be able to compile C code written in the C99 standard.
 
 The compiler should produce appropriate Z80 Assembly files that can later be assembled and linked by Zealasm (source for Zealasm in examples/Zealasm). Source reading is streaming-only (512-byte buffered) to fit target RAM limits; no full-file loads.
 
-A starter CMakeLists.txt is already in the project root - feel free to modify this as needed, but use it as a starting point as the ZOS Toolchain has a few special needs.
+A starter CMakeLists.txt is already in the project root - feel free to modify this as needed, but use it as a starting point as the ZOS Toolchain has a few special needs. Use `zde cmake` to build the ZOS target; `zde cmake --target verbose` enables the `VERBOSE` compile define for `#ifdef VERBOSE`.
 
 ## Development Guidelines
 

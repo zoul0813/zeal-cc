@@ -5,6 +5,8 @@
 #include "symbol.h"
 #include "target.h"
 
+// #define VERBOSE 1
+
 int main(int argc, char** argv) {
     int err = 1;
     lexer_t* lexer = NULL;
@@ -40,11 +42,13 @@ int main(int argc, char** argv) {
     g_ctx.output_file = args.output_file;
 
     /* Log compilation start */
+#ifdef VERBOSE
     log_verbose("Compiling ");
     log_verbose(g_ctx.input_file);
     log_verbose(" -> ");
     log_verbose(g_ctx.output_file);
     log_verbose("\n");
+#endif
 
     /* Open streaming reader */
     reader = reader_open(g_ctx.input_file);
@@ -53,7 +57,9 @@ int main(int argc, char** argv) {
     }
 
     /* Lexical analysis */
+#ifdef VERBOSE
     log_verbose("Lexing...\n");
+#endif
     lexer = lexer_create(g_ctx.input_file, reader);
     if (!lexer) {
         goto cleanup_reader;
@@ -65,7 +71,9 @@ int main(int argc, char** argv) {
     }
 
     /* Parsing */
+#ifdef VERBOSE
     log_verbose("Parsing...\n");
+#endif
     parser = parser_create(tokens);
     if (!parser) {
         goto cleanup_tokenlist;
@@ -78,14 +86,18 @@ int main(int argc, char** argv) {
     }
 
     /* Symbol table creation */
+#ifdef VERBOSE
     log_verbose("Building symbol table...\n");
+#endif
     symbols = symbol_table_create(NULL);
     if (!symbols) {
         goto cleanup_ast;
     }
 
     /* Code generation */
+#ifdef VERBOSE
     log_verbose("Generating Z80 assembly...\n");
+#endif
     codegen = codegen_create(g_ctx.output_file, symbols);
     if (!codegen) {
         goto cleanup_symtab;
@@ -98,7 +110,9 @@ int main(int argc, char** argv) {
     }
 
     /* Write output */
+#ifdef VERBOSE
     log_verbose("Writing output...\n");
+#endif
     result = codegen_write_output(codegen);
     if (result != CC_OK) {
         log_error("Failed to write output\n");

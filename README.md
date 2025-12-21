@@ -32,8 +32,6 @@ This is an iterative development project. Currently implemented:
 
 ### In Progress 🚧
 - Stack-based local variables (currently emit as global labels)
-- Function parameters parsed but no proper calling convention
-- Argument passing for function calls
 - Target build uses 12 KB static pool; file buffer at 0xE000 (512 B)
 
 ### Planned Features ⏳
@@ -58,9 +56,12 @@ This will compile the compiler for your desktop (macOS/Linux) using GCC.
 ### ZOS Build (target platform)
 
 ```bash
-mkdir -p build && cd build
-cmake ..
-make
+zde cmake
+```
+
+Verbose build (defines `VERBOSE` for `#ifdef VERBOSE`):
+```bash
+zde cmake --target verbose
 ```
 
 This requires:
@@ -200,7 +201,7 @@ All test artifacts (`.asm`, `.o`, `.bin`, etc.) are stored in `tests/` for versi
 
 - Parser is simplified and needs expansion (no pointers/arrays/structs)
 - Only basic code generation is implemented; locals/params are treated as globals
-- Calling convention and stack-based locals not implemented yet
+- Stack-based locals not implemented yet
 - Fixed 12 KB static pool allocator; no dynamic malloc on target
 - 512-byte input reader buffer; very large source files are not supported
 - No optimization passes yet
