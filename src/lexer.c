@@ -152,13 +152,11 @@ static token_t* token_create(token_type_t type, const char* value, int line, int
     token->line = line;
     token->column = column;
     token->next = NULL;
+    token->value = NULL;
 
-    /* Copy value */
-    size_t i;
-    for (i = 0; i < MAX_TOKEN_LENGTH - 1 && value && value[i]; i++) {
-        token->value[i] = value[i];
+    if (type == TOK_IDENTIFIER || type == TOK_STRING || type == TOK_CHAR) {
+        token->value = cc_strdup(value ? value : "");
     }
-    token->value[i] = '\0';
 
     return token;
 }
@@ -631,6 +629,9 @@ token_t* lexer_tokenize(lexer_t* lexer) {
 
 void token_destroy(token_t* token) {
     if (token) {
+        if (token->value) {
+            cc_free(token->value);
+        }
         cc_free(token);
     }
 }

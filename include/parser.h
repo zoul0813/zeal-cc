@@ -63,8 +63,6 @@ typedef enum {
 /* AST node */
 struct ast_node {
     ast_node_type_t type;
-    int line;
-    int column;
     
     union {
         struct {
@@ -147,22 +145,21 @@ struct ast_node {
             ast_node_t* initializer;
         } var_decl;
     } data;
-    
-    type_t* expr_type;
-    ast_node_t* next;
 };
 
 /* Parser structure */
 typedef struct {
-    token_t* tokens;
+    lexer_t* lexer;
     token_t* current;
+    token_t* next;
     int error_count;
 } parser_t;
 
 /* Parser functions */
-parser_t* parser_create(token_t* tokens);
+parser_t* parser_create(lexer_t* lexer);
 void parser_destroy(parser_t* parser);
 ast_node_t* parser_parse(parser_t* parser);
+ast_node_t* parser_parse_next(parser_t* parser);
 void ast_node_destroy(ast_node_t* node);
 const char* ast_node_type_to_string(ast_node_type_t type);
 

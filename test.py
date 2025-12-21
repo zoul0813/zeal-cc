@@ -131,6 +131,17 @@ def parse_return_results(log: str):
     return results
 
 
+def parse_compile_failures(log: str):
+    failures = []
+    fail_re = re.compile(r"Failed to compile\s+(\S+)")
+    for raw in log.splitlines():
+        line = raw.rstrip("\r").lstrip()
+        match = fail_re.search(line)
+        if match:
+            failures.append(match.group(1))
+    return failures
+
+
 def run_headless_emulator(img: str, eeprom: str, test_name: str) -> None:
     if shutil.which("zeal-native") is None:
         print(f"{YELLOW}⚠{NC}  Skipping {test_name} (zeal-native not found)")
@@ -163,6 +174,12 @@ def run_headless_emulator(img: str, eeprom: str, test_name: str) -> None:
         return
 
     print_result(test_name, status)
+
+    failures = parse_compile_failures(log)
+    if failures:
+        for path in failures:
+            msg = f"{path} failed to compile on target"
+            print_result(msg, 1)
 
     results = parse_return_results(log)
     if results:

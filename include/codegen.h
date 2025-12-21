@@ -40,6 +40,9 @@ typedef struct {
 codegen_t* codegen_create(const char* output_file, symbol_table_t* symbols);
 void codegen_destroy(codegen_t* gen);
 cc_error_t codegen_generate(codegen_t* gen, ast_node_t* ast);
+cc_error_t codegen_generate_function(codegen_t* gen, ast_node_t* func);
+void codegen_emit_preamble(codegen_t* gen);
+void codegen_emit_runtime(codegen_t* gen);
 cc_error_t codegen_write_output(codegen_t* gen);
 
 /* Helper functions */

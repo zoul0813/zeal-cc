@@ -105,7 +105,7 @@ typedef enum {
 /* Token structure */
 struct token {
     token_type_t type;
-    char value[MAX_TOKEN_LENGTH];
+    char* value;
     int line;
     int column;
     int16_t int_val;
