@@ -110,9 +110,99 @@ run_headless_emulator() {
     if echo "$log" | grep -qi "error occurred"; then
         echo "$log"
         print_result "$test_name" 1
+        return
+    fi
+
+    local return_fail=0
+    local return_report
+    return_report=$(parse_return_results "$log")
+    if [ -n "$return_report" ]; then
+        echo "$return_report"
+        if echo "$return_report" | grep -q "^RETURN_MISMATCH"; then
+            return_fail=1
+        fi
+    fi
+
+    if [ $return_fail -ne 0 ]; then
+        print_result "$test_name" 1
     else
         print_result "$test_name" $status
     fi
+}
+
+expected_return_hex() {
+    case "$1" in
+        test1) echo "0C" ;;
+        test2) echo "0F" ;;
+        test_add) echo "0F" ;;
+        test_comp) echo "78" ;;
+        test_div) echo "03" ;;
+        test_expr) echo "1C" ;;
+        test_for) echo "0A" ;;
+        test_if) echo "2A" ;;
+        test_mod) echo "01" ;;
+        test_mul) echo "0F" ;;
+        test_params) echo "05" ;;
+        test_while) echo "0A" ;;
+        *) echo "" ;;
+    esac
+}
+
+parse_return_results() {
+    local log="$1"
+    local lines=""
+    local mismatches=0
+    local output=""
+    local exec_file=""
+    local line
+    local hex
+
+    while IFS= read -r line; do
+        line=${line%$'\r'}
+        line=${line## }
+        case "$line" in
+            *Exec\ \'*\')
+                exec_file=${line#*Exec \'}
+                exec_file=${exec_file%\'}
+                ;;
+            *Returned\ \$*)
+                hex=${line#*Returned \$}
+                hex=${hex%% *}
+                if [ -n "$exec_file" ] && [ -n "$hex" ]; then
+                    lines="${lines}${exec_file} ${hex}"$'\n'
+                    exec_file=""
+                fi
+                ;;
+        esac
+    done <<< "$log"
+
+    if [ -z "$lines" ]; then
+        return 0
+    fi
+
+    while IFS= read -r line; do
+        [ -z "$line" ] && continue
+        local path hex base expected
+        path=$(echo "$line" | awk '{print $1}')
+        hex=$(echo "$line" | awk '{print $2}')
+        base=$(basename "$path" .bin)
+        expected=$(expected_return_hex "$base")
+        hex=$(echo "$hex" | tr '[:lower:]' '[:upper:]')
+        if [ -n "$expected" ] && [ "$hex" != "$expected" ]; then
+            output="${output}RETURN_MISMATCH ${base}: expected \$${expected}, got \$${hex}\n"
+            mismatches=1
+        else
+            output="${output}RETURN_OK ${base}: \$${hex}\n"
+        fi
+    done <<< "$lines"
+
+    if [ $mismatches -ne 0 ]; then
+        printf "%b" "$output"
+        return 0
+    fi
+
+    printf "%b" "$output"
+    return 0
 }
 
 # Start testing
