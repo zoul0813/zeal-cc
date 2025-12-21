@@ -8,7 +8,7 @@
 !!! Make sure you have the "headless" version of Zeal Native, and `--headless --no-reset` is supported !!!
 !!! Make sure you have the latest version of ZShell, commit 1961d0d1a3a6d6d6a3bde3188bed61a5d18008af or newer !!!
 
-`test.sh` will automatically add a `reset` at the end of test.zs for automated testing
+`test.py` will automatically add a `reset` at the end of test.zs for automated testing
 
 
 The contents of my ./.zeal8bit folder in the repo looks like this
