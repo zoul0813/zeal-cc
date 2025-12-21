@@ -186,7 +186,6 @@ Run individual tests:
 ./bin/cc tests/assign.c tests/assign.asm  # Assignment chaining
 ./bin/cc tests/compares.c tests/compares.asm  # Comparisons
 ./bin/cc tests/math.c tests/math.asm  # Math ops
-./bin/cc tests/mod.c tests/mod.asm    # Modulo
 ./bin/cc tests/if.c tests/if.asm      # If statement
 ./bin/cc tests/while.c tests/while.asm  # While loop
 ./bin/cc tests/for.c tests/for.asm    # For loop
@@ -220,7 +219,8 @@ All test artifacts (`.asm`, `.o`, `.bin`, etc.) are stored in `tests/` for versi
 - 512-byte input reader buffer; very large source files are not supported
 - No optimization passes yet
 - Limited error reporting
-- Not yet supported in codegen: do/while, unary ops, string literals, char literals
+- Not yet supported in codegen: do/while, unary ops, string literals, char literals, ternary operator, arrays, pointers, structs
+- Not yet supported in codegen: ternary operator (?:)
 
 ## Next Steps
 

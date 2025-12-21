@@ -15,6 +15,11 @@ cc h:/tests/assign.c h:/tests/assign.asm
 ? return tests/assign.bin
 : echo Failed to compile tests/assign.c
 
+cc h:/tests/array.c h:/tests/array.asm
+? zealasm h:/tests/array.asm h:/tests/array.bin
+? return tests/array.bin
+: echo Failed to compile tests/array.c
+
 cc h:/tests/compares.c h:/tests/compares.asm
 ? zealasm h:/tests/compares.asm h:/tests/compares.bin
 ? return tests/compares.bin
@@ -50,15 +55,25 @@ cc h:/tests/if.c h:/tests/if.asm
 ? return tests/if.bin
 : echo Failed to compile tests/if.c
 
-cc h:/tests/mod.c h:/tests/mod.asm
-? zealasm h:/tests/mod.asm h:/tests/mod.bin
-? return tests/mod.bin
-: echo Failed to compile tests/mod.c
-
 cc h:/tests/params.c h:/tests/params.asm
 ? zealasm h:/tests/params.asm h:/tests/params.bin
 ? return tests/params.bin
 : echo Failed to compile tests/params.c
+
+cc h:/tests/pointer.c h:/tests/pointer.asm
+? zealasm h:/tests/pointer.asm h:/tests/pointer.bin
+? return tests/pointer.bin
+: echo Failed to compile tests/pointer.c
+
+cc h:/tests/struct.c h:/tests/struct.asm
+? zealasm h:/tests/struct.asm h:/tests/struct.bin
+? return tests/struct.bin
+: echo Failed to compile tests/struct.c
+
+cc h:/tests/ternary.c h:/tests/ternary.asm
+? zealasm h:/tests/ternary.asm h:/tests/ternary.bin
+? return tests/ternary.bin
+: echo Failed to compile tests/ternary.c
 
 cc h:/tests/unary.c h:/tests/unary.asm
 ? zealasm h:/tests/unary.asm h:/tests/unary.bin

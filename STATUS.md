@@ -122,9 +122,9 @@
 
 ## Current Test Status
 
-- ✅ Host: `tests/*.c` compile to `.asm` (includes simple_return/locals_params/assign/compares/comp/expr/for/if/math/mod/params/while/do_while/unary/string/char).
+- ✅ Host: `tests/*.c` compile to `.asm` (includes simple_return/locals_params/assign/array/compares/comp/expr/for/if/math/params/pointer/struct/while/do_while/unary/string/char/ternary).
 - ✅ Target: headless run passes; `test.zs` includes current tests.
-- ⚠️ Expected-fail tests (tracked in `test.py`): do_while, unary, string, char.
+- ⚠️ Expected-fail tests (tracked in `test.py`): array, pointer, struct, do_while, unary, string, char, ternary.
 
 **All tests write output to `tests/` only.**
 
@@ -148,7 +148,6 @@ done
 ./bin/cc tests/assign.c tests/assign.asm  # Assignment chaining
 ./bin/cc tests/compares.c tests/compares.asm  # Comparisons
 ./bin/cc tests/math.c tests/math.asm  # Math ops
-./bin/cc tests/mod.c tests/mod.asm    # Modulo
 ./bin/cc tests/if.c tests/if.asm      # If statement
 ./bin/cc tests/while.c tests/while.asm  # While loop
 ./bin/cc tests/do_while.c tests/do_while.asm  # Do/while (expected fail)

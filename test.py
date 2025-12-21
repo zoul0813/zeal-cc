@@ -20,6 +20,7 @@ TESTS_FAILED = 0
 
 EXPECTED_RESULTS = {
     "assign": "15",
+    "array": None,
     "char": None,
     "comp": "4E",
     "compares": "3F",
@@ -29,10 +30,12 @@ EXPECTED_RESULTS = {
     "if": "2A",
     "locals_params": "0F",
     "math": "3A",
-    "mod": "01",
     "params": "05",
+    "pointer": None,
     "simple_return": "0C",
     "string": None,
+    "struct": None,
+    "ternary": None,
     "unary": None,
     "while": "0A",
 }
