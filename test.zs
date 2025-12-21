@@ -1,64 +1,84 @@
 cd h:/
 
-cc h:/tests/test1.c h:/tests/test1.asm
-? zealasm h:/tests/test1.asm h:/tests/test1.bin
-? return tests/test1.bin
-: echo Failed to compile tests/test1.c
+cc h:/tests/simple_return.c h:/tests/simple_return.asm
+? zealasm h:/tests/simple_return.asm h:/tests/simple_return.bin
+? return tests/simple_return.bin
+: echo Failed to compile tests/simple_return.c
 
-cc h:/tests/test2.c h:/tests/test2.asm
-? zealasm h:/tests/test2.asm h:/tests/test2.bin
-? return tests/test2.bin
-: echo Failed to compile tests/test2.c
+cc h:/tests/locals_params.c h:/tests/locals_params.asm
+? zealasm h:/tests/locals_params.asm h:/tests/locals_params.bin
+? return tests/locals_params.bin
+: echo Failed to compile tests/locals_params.c
 
-cc h:/tests/test_add.c h:/tests/test_add.asm
-? zealasm h:/tests/test_add.asm h:/tests/test_add.bin
-? return tests/test_add.bin
-: echo Failed to compile tests/test_add.c
+cc h:/tests/assign.c h:/tests/assign.asm
+? zealasm h:/tests/assign.asm h:/tests/assign.bin
+? return tests/assign.bin
+: echo Failed to compile tests/assign.c
 
-cc h:/tests/test_expr.c h:/tests/test_expr.asm
-? zealasm h:/tests/test_expr.asm h:/tests/test_expr.bin
-? return tests/test_expr.bin
-: echo Failed to compile tests/test_expr.c
+cc h:/tests/compares.c h:/tests/compares.asm
+? zealasm h:/tests/compares.asm h:/tests/compares.bin
+? return tests/compares.bin
+: echo Failed to compile tests/compares.c
 
-cc h:/tests/test_for.c h:/tests/test_for.asm
-? zealasm h:/tests/test_for.asm h:/tests/test_for.bin
-? return tests/test_for.bin
-: echo Failed to compile tests/test_for.c
+cc h:/tests/do_while.c h:/tests/do_while.asm
+? zealasm h:/tests/do_while.asm h:/tests/do_while.bin
+? return tests/do_while.bin
+: echo Failed to compile tests/do_while.c
 
-cc h:/tests/test_if.c h:/tests/test_if.asm
-? zealasm h:/tests/test_if.asm h:/tests/test_if.bin
-? return tests/test_if.bin
-: echo Failed to compile tests/test_if.c
+cc h:/tests/math.c h:/tests/math.asm
+? zealasm h:/tests/math.asm h:/tests/math.bin
+? return tests/math.bin
+: echo Failed to compile tests/math.c
 
-cc h:/tests/test_mul.c h:/tests/test_mul.asm
-? zealasm h:/tests/test_mul.asm h:/tests/test_mul.bin
-? return tests/test_mul.bin
-: echo Failed to compile tests/test_mul.c
+cc h:/tests/expr.c h:/tests/expr.asm
+? zealasm h:/tests/expr.asm h:/tests/expr.bin
+? return tests/expr.bin
+: echo Failed to compile tests/expr.c
 
-cc h:/tests/test_div.c h:/tests/test_div.asm
-? zealasm h:/tests/test_div.asm h:/tests/test_div.bin
-? return tests/test_div.bin
-: echo Failed to compile tests/test_div.c
+cc h:/tests/string.c h:/tests/string.asm
+? zealasm h:/tests/string.asm h:/tests/string.bin
+? return tests/string.bin
+: echo Failed to compile tests/string.c
 
-cc h:/tests/test_mod.c h:/tests/test_mod.asm
-? zealasm h:/tests/test_mod.asm h:/tests/test_mod.bin
-? return tests/test_mod.bin
-: echo Failed to compile tests/test_mod.c
+cc h:/tests/for.c h:/tests/for.asm
+? zealasm h:/tests/for.asm h:/tests/for.bin
+? return tests/for.bin
+: echo Failed to compile tests/for.c
 
-cc h:/tests/test_params.c h:/tests/test_params.asm
-? zealasm h:/tests/test_params.asm h:/tests/test_params.bin
-? return tests/test_params.bin
-: echo Failed to compile tests/test_params.c
+cc h:/tests/if.c h:/tests/if.asm
+? zealasm h:/tests/if.asm h:/tests/if.bin
+? return tests/if.bin
+: echo Failed to compile tests/if.c
 
-cc h:/tests/test_while.c h:/tests/test_while.asm
-? zealasm h:/tests/test_while.asm h:/tests/test_while.bin
-? return tests/test_while.bin
-: echo Failed to compile tests/test_while.c
+cc h:/tests/mod.c h:/tests/mod.asm
+? zealasm h:/tests/mod.asm h:/tests/mod.bin
+? return tests/mod.bin
+: echo Failed to compile tests/mod.c
 
-cc h:/tests/test_comp.c h:/tests/test_comp.asm
-? zealasm h:/tests/test_comp.asm h:/tests/test_comp.bin
-? return tests/test_comp.bin
-: echo Failed to compile tests/test_comp.c
+cc h:/tests/params.c h:/tests/params.asm
+? zealasm h:/tests/params.asm h:/tests/params.bin
+? return tests/params.bin
+: echo Failed to compile tests/params.c
+
+cc h:/tests/unary.c h:/tests/unary.asm
+? zealasm h:/tests/unary.asm h:/tests/unary.bin
+? return tests/unary.bin
+: echo Failed to compile tests/unary.c
+
+cc h:/tests/while.c h:/tests/while.asm
+? zealasm h:/tests/while.asm h:/tests/while.bin
+? return tests/while.bin
+: echo Failed to compile tests/while.c
+
+cc h:/tests/comp.c h:/tests/comp.asm
+? zealasm h:/tests/comp.asm h:/tests/comp.bin
+? return tests/comp.bin
+: echo Failed to compile tests/comp.c
+
+cc h:/tests/char.c h:/tests/char.asm
+? zealasm h:/tests/char.asm h:/tests/char.bin
+? return tests/char.bin
+: echo Failed to compile tests/char.c
 
 echo !!! Complete !!!
 

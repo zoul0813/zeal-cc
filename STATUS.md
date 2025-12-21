@@ -63,7 +63,7 @@
 - ✅ Comparison operators with proper Z80 flags
 - ✅ Variable storage and access (global labels)
 - ✅ Function definitions and calls
-- ✅ Stack-based argument passing
+- ✅ Stack-based argument passing (IX frame for params)
 - ✅ Return statements with values
 - ✅ If/else with conditional jumps (JP Z, JP NZ)
 - ✅ While loops with loop/end labels
@@ -76,7 +76,9 @@
 ### Phase 5: Code Generator (incomplete tasks)
 
 - ❌ Stack-based local variables (currently use global labels)
-- ❌ Parameters/locals are treated as globals in codegen
+- ❌ Local variable storage in stack frames (no local allocation yet)
+- ❌ 16-bit locals/params and return values (8-bit only today)
+- ❌ Pointer/array addressing and dereference codegen
 
 ## ⏳ Not Started
 
@@ -89,8 +91,8 @@
 
 ### Phase 6: Testing
 
-- ✅ Host regression suite in `tests/test*.c` compiles; target run passes
-- ✅ ZOS regression suite in `tests/test*.c` compiles; target run passes
+- ✅ Host regression suite in `tests/*.c` compiles; target run passes
+- ✅ ZOS regression suite in `tests/*.c` compiles; target run passes
 
 ### Phase 7: Optimizations
 
@@ -120,8 +122,9 @@
 
 ## Current Test Status
 
-- ✅ Host: `tests/test*.c` compile to `.asm` (includes add/expr/mul/div/mod/params/for/while/if/test1/test2/test_comp).
-- ✅ Target: headless run passes; update `test.zs` to include `test_comp` so it runs on target.
+- ✅ Host: `tests/*.c` compile to `.asm` (includes simple_return/locals_params/assign/compares/comp/expr/for/if/math/mod/params/while/do_while/unary/string/char).
+- ✅ Target: headless run passes; `test.zs` includes current tests.
+- ⚠️ Expected-fail tests (tracked in `test.py`): do_while, unary, string, char.
 
 **All tests write output to `tests/` only.**
 
@@ -134,41 +137,45 @@
 make clean && make
 
 # Run all tests
-for f in tests/test*.c; do
+for f in tests/*.c; do
     echo "✓ $f"
     ./bin/cc "$f" "${f%.c}.asm"
 done
 
 # Individual tests (all output in tests/)
-./bin/cc tests/test1.c tests/test1.asm        # Simple return
-./bin/cc tests/test_expr.c tests/test_expr.asm  # Expression precedence
-./bin/cc tests/test_add.c tests/test_add.asm    # Addition
-./bin/cc tests/test_mul.c tests/test_mul.asm    # Multiplication
-./bin/cc tests/test_div.c tests/test_div.asm    # Division
-./bin/cc tests/test_mod.c tests/test_mod.asm    # Modulo
-./bin/cc tests/test_if.c tests/test_if.asm      # If statement
-./bin/cc tests/test_while.c tests/test_while.asm  # While loop
-./bin/cc tests/test_for.c tests/test_for.asm    # For loop
-./bin/cc tests/test2.c tests/test2.asm          # Multiple functions
-./bin/cc tests/test_params.c tests/test_params.asm  # Function parameters
-./bin/cc tests/test_comp.c tests/test_comp.asm  # Comprehensive test
+./bin/cc tests/simple_return.c tests/simple_return.asm        # Simple return
+./bin/cc tests/expr.c tests/expr.asm  # Expression precedence
+./bin/cc tests/assign.c tests/assign.asm  # Assignment chaining
+./bin/cc tests/compares.c tests/compares.asm  # Comparisons
+./bin/cc tests/math.c tests/math.asm  # Math ops
+./bin/cc tests/mod.c tests/mod.asm    # Modulo
+./bin/cc tests/if.c tests/if.asm      # If statement
+./bin/cc tests/while.c tests/while.asm  # While loop
+./bin/cc tests/do_while.c tests/do_while.asm  # Do/while (expected fail)
+./bin/cc tests/unary.c tests/unary.asm  # Unary ops (expected fail)
+./bin/cc tests/string.c tests/string.asm  # String literals (expected fail)
+./bin/cc tests/char.c tests/char.asm    # Char literals (expected fail)
+./bin/cc tests/for.c tests/for.asm    # For loop
+./bin/cc tests/locals_params.c tests/locals_params.asm          # Locals + params
+./bin/cc tests/params.c tests/params.asm  # Function parameters
+./bin/cc tests/comp.c tests/comp.asm  # Comprehensive test
 
 # View generated assembly
-cat tests/test1.asm
+cat tests/simple_return.asm
 ```
 
 ## Git Commit History
 
 Recent commits:
 
-- `3c0f0c8` - Implement stack-based (IX) function arguments, add `#ifdef VERBOSE` for log_verbose, update `test2.c`
+- `250bdda` - Ensure bin/zealasm exists for headless runs (copied from .zeal8bit/zealasm)
+- `1d74350` - Streamed codegen, allocator updates, improved test.py (detect "Failed to compile"), expanded comp test
+- `6e3f14d` - Implement stack-based (IX) function arguments, add `#ifdef VERBOSE` for log_verbose, update locals_params.c, docs
 - `616de03` - Improve test.py
-- `dbbabf7` - Remove `test.sh`, update TESTING.md, add docs/ with usage/limitations/calling convention
+- `dbbabf7` - Remove test.sh, update TESTING.md, add docs/ usage/limitations/calling convention
 - `a0de6b1` - Add return-code checks to Zeal tests and Python runner
 - `1230668` - Rename target_ prefix and update README/SCOPE/STATUS
 - `ac4d22b` - Refactor main error handling to reduce binary size
-- `ddfac99` - Codegen refactor, runtime fixes, label rules, tests + TESTING.md
-- `76dbc0d` - Stream input from 512-byte reader; align host/target IO and memory layout
 
 ## Architecture Notes
 
@@ -180,4 +187,4 @@ The compiler follows a traditional multi-pass design:
 4. **Annotated AST → Code Generator → Z80 Assembly**
 5. **Assembly → Zealasm → Binary**
 
-We are currently stuck at step 2 (Parser) for complex programs.
+We are currently generating Z80 assembly in step 4, without semantic analysis (step 3).

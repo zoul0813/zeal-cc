@@ -386,14 +386,22 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
                         "  ld a, 0\n");
                     {
                         char* end = codegen_new_label(gen);
+                        char* set = codegen_new_label(gen);
                         codegen_emit(gen, "  jr z, ");
-                        codegen_emit(gen, end);
+                        codegen_emit(gen, set);
                         codegen_emit(gen,
                             "\n"
-                            "  jr nc,");
-                        codegen_emit(gen, end);
+                            "  jr c, ");
+                        codegen_emit(gen, set);
                         codegen_emit(gen,
                             "\n"
+                            "  jr ");
+                        codegen_emit(gen, end);
+                        codegen_emit(gen,
+                            "\n");
+                        codegen_emit(gen, set);
+                        codegen_emit(gen,
+                            ":\n"
                             "  ld a, 1\n");
                         codegen_emit(gen, end);
                         codegen_emit(gen, ":\n");

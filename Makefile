@@ -40,8 +40,8 @@ clean:
 
 test: $(TARGET)
 	@echo "Testing compiler..."
-	@./$(TARGET) tests/test1.c tests/test1.asm
+	@./$(TARGET) tests/simple_return.c tests/simple_return.asm
 	@echo "Test output:"
-	@cat tests/test1.asm
+	@cat tests/simple_return.asm
 
 .PHONY: all clean test

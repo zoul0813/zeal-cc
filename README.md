@@ -12,7 +12,7 @@ This is an iterative development project. Currently implemented:
 - ✅ Phase 4: Symbol table (basic implementation)
 - ✅ Phase 5: Z80 code generator (expressions, statements, runtime helpers)
 - ✅ Phase 6: Control flow (if, while, for)
-- 🚧 Phase 7: Stack-based variables and calling convention
+- 🚧 Phase 7: Stack-based locals and full calling convention
 - ⏳ Phase 8: Optimizations and documentation
 
 ### Working Features ✅
@@ -23,6 +23,7 @@ This is an iterative development project. Currently implemented:
 - Comparison operators (==, !=, <, >, <=, >=)
 - Binary arithmetic operators (+, -, *, /, %)
 - Function definitions and calls
+- Stack-based argument passing (IX frame for params)
 - Variable declarations and assignments
 - Return statements with expressions
 - Compound statements (blocks)
@@ -35,10 +36,12 @@ This is an iterative development project. Currently implemented:
 - Target build uses 12 KB static pool; file buffer at 0xE000 (512 B)
 
 ### Planned Features ⏳
-- Switch statement, break/continue, ternary
+- Switch statement, break/continue, do/while, ternary
+- Unary operators
+- String and char literal support in codegen
 - Pointers and arrays
 - Struct and union types
-- More operators (comparison, logical, bitwise)
+- More operators (logical, bitwise)
 - Type checking and semantic analysis
 - Optimizations (constant folding, dead code elimination)
 - Preprocessor support
@@ -86,7 +89,7 @@ The compiler generates Z80 assembly compatible with Zealasm.
 ## Examples
 
 ### Simple Return Value
-**Input (test1.c):**
+**Input (simple_return.c):**
 ```c
 int main() {
     return 42;
@@ -107,7 +110,7 @@ main:
 ```
 
 ### Expression with Operator Precedence
-**Input (test_expr.c):**
+**Input (expr.c):**
 ```c
 int main() {
     return 2 + 3 * 4;  /* Correctly evaluates to 14 */
@@ -133,7 +136,7 @@ main:
 ```
 
 ### Multiple Functions
-**Input (test2.c):**
+**Input (locals_params.c):**
 ```c
 int add(int a, int b) {
     return a + b;
@@ -151,12 +154,16 @@ int main() {
 **Generated Assembly:**
 ```asm
 add:
-    ld a, (a)
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld a, (ix+4)
     push af
-    ld a, (b)
+    ld a, (ix+6)
     ld l, a
     pop af
     add a, l
+    pop ix
     ret
 
 main:
@@ -174,20 +181,27 @@ main:
 
 Run individual tests:
 ```bash
-./bin/cc tests/test1.c tests/test1.asm      # Simple return
-./bin/cc tests/test_expr.c tests/test_expr.asm  # Expression precedence
-./bin/cc tests/test_add.c tests/test_add.asm    # Addition
-./bin/cc tests/test_mul.c tests/test_mul.asm    # Multiplication
-./bin/cc tests/test_div.c tests/test_div.asm    # Division
-./bin/cc tests/test_mod.c tests/test_mod.asm    # Modulo
-./bin/cc tests/test2.c tests/test2.asm          # Multiple functions
-./bin/cc tests/test_params.c tests/test_params.asm  # Functions with parameters
-./bin/cc tests/test_comp.c tests/test_comp.asm  # Factorial comprehensive
+./bin/cc tests/simple_return.c tests/simple_return.asm      # Simple return
+./bin/cc tests/expr.c tests/expr.asm  # Expression precedence
+./bin/cc tests/assign.c tests/assign.asm  # Assignment chaining
+./bin/cc tests/compares.c tests/compares.asm  # Comparisons
+./bin/cc tests/math.c tests/math.asm  # Math ops
+./bin/cc tests/mod.c tests/mod.asm    # Modulo
+./bin/cc tests/if.c tests/if.asm      # If statement
+./bin/cc tests/while.c tests/while.asm  # While loop
+./bin/cc tests/for.c tests/for.asm    # For loop
+./bin/cc tests/locals_params.c tests/locals_params.asm          # Locals + params
+./bin/cc tests/params.c tests/params.asm  # Functions with parameters
+./bin/cc tests/comp.c tests/comp.asm  # Factorial comprehensive
+./bin/cc tests/do_while.c tests/do_while.asm  # Do/while (expected fail)
+./bin/cc tests/unary.c tests/unary.asm  # Unary ops (expected fail)
+./bin/cc tests/string.c tests/string.asm  # String literals (expected fail)
+./bin/cc tests/char.c tests/char.asm    # Char literals (expected fail)
 ```
 
 All test artifacts (`.asm`, `.o`, `.bin`, etc.) are stored in `tests/` for version control and review.
 
-**Note**: When adding a new test source in `tests/`, also update `test.zs` so the Zeal headless script runs the new case on target hardware (currently `test_comp` is not in `test.zs`).
+**Note**: When adding a new test source in `tests/`, also update `test.zs` so the Zeal headless script runs the new case on target hardware. Expected failures are tracked in `test.py`.
 
 ## Architecture
 
@@ -200,12 +214,13 @@ All test artifacts (`.asm`, `.o`, `.bin`, etc.) are stored in `tests/` for versi
 ## Current Limitations
 
 - Parser is simplified and needs expansion (no pointers/arrays/structs)
-- Only basic code generation is implemented; locals/params are treated as globals
-- Stack-based locals not implemented yet
+- Only basic code generation is implemented; locals are treated as globals
+- Stack-based locals not implemented yet (params use IX frame)
 - Fixed 12 KB static pool allocator; no dynamic malloc on target
 - 512-byte input reader buffer; very large source files are not supported
 - No optimization passes yet
 - Limited error reporting
+- Not yet supported in codegen: do/while, unary ops, string literals, char literals
 
 ## Next Steps
 

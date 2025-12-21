@@ -18,6 +18,25 @@ TESTS_RUN = 0
 TESTS_PASSED = 0
 TESTS_FAILED = 0
 
+EXPECTED_RESULTS = {
+    "assign": "15",
+    "char": None,
+    "comp": "4E",
+    "compares": "3F",
+    "do_while": None,
+    "expr": "1C",
+    "for": "0A",
+    "if": "2A",
+    "locals_params": "0F",
+    "math": "3A",
+    "mod": "01",
+    "params": "05",
+    "simple_return": "0C",
+    "string": None,
+    "unary": None,
+    "while": "0A",
+}
+
 
 def print_header(title: str) -> None:
     print(f"\n{BLUE}========================================{NC}")
@@ -34,6 +53,12 @@ def print_result(test_name: str, result: int) -> None:
     else:
         print(f"{RED}✗{NC} {test_name}")
         TESTS_FAILED += 1
+
+def print_expected_fail(test_name: str) -> None:
+    global TESTS_RUN, TESTS_PASSED
+    TESTS_RUN += 1
+    print(f"{YELLOW}⚠{NC} {test_name}")
+    TESTS_PASSED += 1
 
 
 def run_cmd(cmd, quiet=False):
@@ -52,6 +77,14 @@ def test_compile(compiler: str, test_file: Path, test_name: str) -> None:
     asm_file = test_file.with_suffix(".asm")
     result = run_cmd([compiler, str(test_file), str(asm_file)])
     status = 1 if result is None else result.returncode
+    stem = test_file.stem
+    expected = EXPECTED_RESULTS.get(stem)
+    if stem in EXPECTED_RESULTS and expected is None:
+        if status == 0:
+            print_result(f"{test_name} (unexpected pass)", 1)
+        else:
+            print_expected_fail(f"{test_name} (expected fail)")
+        return
     print_result(test_name, status)
 
 
@@ -81,23 +114,6 @@ def comment_reset_in_test_zs() -> None:
     path.write_text("\n".join(lines) + "\n")
 
 
-def expected_return_hex(base: str) -> str:
-    return {
-        "test1": "0C",
-        "test2": "0F",
-        "test_add": "0F",
-        "test_comp": "4E",
-        "test_div": "03",
-        "test_expr": "1C",
-        "test_for": "0A",
-        "test_if": "2A",
-        "test_mod": "01",
-        "test_mul": "0F",
-        "test_params": "05",
-        "test_while": "0A",
-    }.get(base, "")
-
-
 def parse_return_results(log: str):
     exec_file = ""
     pairs = []
@@ -122,10 +138,12 @@ def parse_return_results(log: str):
     results = []
     for path, hex_val in pairs:
         base = Path(path).stem
-        expected = expected_return_hex(base)
+        expected = EXPECTED_RESULTS.get(base, "")
         hex_val = hex_val.upper()
         ok = True
-        if expected and hex_val != expected:
+        if base in EXPECTED_RESULTS and expected is None:
+            ok = False
+        elif expected and hex_val != expected:
             ok = False
         results.append((path, expected, hex_val, ok))
     return results
@@ -188,11 +206,21 @@ def run_headless_emulator(img: str, eeprom: str, test_name: str) -> None:
         for path in failures:
             if Path(path).stem in returned:
                 continue
-            msg = f"{path} failed to compile on target"
-            print_result(msg, 1)
+            stem = Path(path).stem
+            expected = EXPECTED_RESULTS.get(stem)
+            if stem in EXPECTED_RESULTS and expected is None:
+                msg = f"{path} failed to compile on target (expected)"
+                print_expected_fail(msg)
+            else:
+                msg = f"{path} failed to compile on target"
+                print_result(msg, 1)
 
     if results:
         for path, expected, actual, ok in results:
+            if Path(path).stem in EXPECTED_RESULTS and expected is None:
+                msg = f"{path} returned ${actual} (unexpected pass)"
+                print_result(msg, 1)
+                continue
             if expected:
                 msg = f"{path} expected ${expected}, got ${actual}"
             else:
