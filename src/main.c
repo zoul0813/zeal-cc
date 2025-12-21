@@ -6,6 +6,7 @@
 #include "target.h"
 
 int main(int argc, char** argv) {
+    int err = 1;
     lexer_t* lexer;
     token_t* tokens;
     parser_t* parser;
@@ -55,34 +56,25 @@ int main(int argc, char** argv) {
     target_log_verbose("Lexing...\n");
     lexer = lexer_create(g_ctx.input_file, reader);
     if (!lexer) {
-        target_reader_close(reader);
-        return 1;
+        goto cleanup_target;
     }
 
     tokens = lexer_tokenize(lexer);
     if (!tokens) {
-        lexer_destroy(lexer);
-        target_reader_close(reader);
-        return 1;
+        goto cleanup_lexer;
     }
 
     /* Parsing */
     target_log_verbose("Parsing...\n");
     parser = parser_create(tokens);
     if (!parser) {
-        token_list_destroy(tokens);
-        lexer_destroy(lexer);
-        target_reader_close(reader);
-        return 1;
+        goto cleanup_tokenlist;
     }
 
     ast = parser_parse(parser);
     if (!ast || parser->error_count > 0) {
         target_error("Parsing failed\n");
-        parser_destroy(parser);
-        lexer_destroy(lexer);
-        target_reader_close(reader);
-        return 1;
+        goto cleanup_parser;
     }
 
     /* Symbol table creation */
@@ -93,24 +85,13 @@ int main(int argc, char** argv) {
     target_log_verbose("Generating Z80 assembly...\n");
     codegen = codegen_create(g_ctx.output_file, symbols);
     if (!codegen) {
-        symbol_table_destroy(symbols);
-        ast_node_destroy(ast);
-        parser_destroy(parser);
-        lexer_destroy(lexer);
-        target_reader_close(reader);
-        return 1;
+        goto cleanup_symtab;
     }
 
     result = codegen_generate(codegen, ast);
     if (result != CC_OK) {
         target_error("Code generation failed\n");
-        codegen_destroy(codegen);
-        symbol_table_destroy(symbols);
-        ast_node_destroy(ast);
-        parser_destroy(parser);
-        lexer_destroy(lexer);
-        target_reader_close(reader);
-        return 1;
+        goto cleanup_codegen;
     }
 
     /* Write output */
@@ -118,13 +99,7 @@ int main(int argc, char** argv) {
     result = codegen_write_output(codegen);
     if (result != CC_OK) {
         target_error("Failed to write output\n");
-        codegen_destroy(codegen);
-        symbol_table_destroy(symbols);
-        ast_node_destroy(ast);
-        parser_destroy(parser);
-        lexer_destroy(lexer);
-        target_reader_close(reader);
-        return 1;
+        goto cleanup_codegen;
     }
 
     target_log(g_ctx.input_file);
@@ -132,13 +107,21 @@ int main(int argc, char** argv) {
     target_log(g_ctx.output_file);
     target_log("\n");
 
+    err = 0;
     /* Cleanup */
+cleanup_codegen:
     codegen_destroy(codegen);
+cleanup_symtab:
     symbol_table_destroy(symbols);
+cleanup_ast:
     ast_node_destroy(ast);
+cleanup_parser:
     parser_destroy(parser);
+cleanup_tokenlist:
+    token_list_destroy(tokens);
+cleanup_lexer:
     lexer_destroy(lexer);
+cleanup_target:
     target_reader_close(reader);
-
-    return 0;
+    return err;
 }
