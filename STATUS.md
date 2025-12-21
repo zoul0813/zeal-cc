@@ -83,16 +83,15 @@
 - ❌ Optimizations
 
 ### Phase 6: Testing
-- Need comprehensive test suite
-- Need regression tests
-- Need ZOS integration testing
+- ⚠️ Host regression suite in `tests/test*.c` compiles; target run pending after recent changes
+- ⚠️ `test.zs` currently omits `test_comp.c` (factorial); add to run on target
+- ⚠️ Need regression tests and ZOS integration runs
 
 ### Phase 7: Optimizations
-- Not started
+- ❌ Not started
 
 ### Phase 8: Documentation
-- Basic README exists
-- Need complete documentation
+- ⚠️ README/SCOPE updated; fuller docs still needed
 
 ## Next Steps for Iteration
 
@@ -112,6 +111,10 @@
    - Standard Z80 calling convention
    - Return values via A (8-bit) or HL (16-bit)
 
+4. 🟡 **Target rebuild & tests**
+   - Rebuild ZOS binary after API renames/modulo fix
+   - Run `test.zs` (add `test_comp`) and verify `test_mod` returns 0x01 on target
+
 ### Completed Features ✅
 1. ✅ **Control flow statements** - if/else, while, for loops
 2. ✅ **Comparison operators** - ==, !=, <, >, <=, >=
@@ -120,91 +123,12 @@
 5. ✅ **Basic function calls** (without parameter passing)
 6. ✅ **Runtime library** for mul/div/mod
 
-## Current Test Results - ALL PASSING ✅
+## Current Test Status
 
-**All tests write output to `tests/` directory only.**
+- ✅ Host: `tests/test*.c` compile to `.asm` (includes add/expr/mul/div/mod/params/for/while/if/test1/test2/test_comp).
+- ⚠️ Target: rerun after ZOS rebuild and update `test.zs` (add `test_comp`); ensure `test_mod` now returns 0x01 on target.
 
-### Complete Test Suite (9 tests)
-
-1. **test1.c** - Simple return value
-   ```c
-   int main() { return 42; }
-   ```
-   ✅ Generates: `ld a, 42 / ret`
-
-2. **test_expr.c** - Operator precedence
-   ```c
-   int main() { return 2 + 3 * 4; }  // = 14
-   ```
-   ✅ Correctly evaluates multiplication before addition
-
-3. **test_add.c** - Addition operator
-   ```c
-   int main() { return 10 + 5; }  // = 15
-   ```
-   ✅ Generates: `ld a, 10 / push af / ld a, 5 / ld l, a / pop af / add a, l`
-
-4. **test_mul.c** - Multiplication
-   ```c
-   int main() { return 5 * 3; }  // = 15
-   ```
-   ✅ Generates call to runtime `__mul_a_l` helper
-
-5. **test_if.c** - Conditional logic
-   ```c
-   int main() {
-       int x;
-       x = 5;
-       if (x == 5) { return 42; }
-       return 0;
-   }
-   ```
-   ✅ Generates comparison and conditional jumps (JP Z)
-
-6. **test_while.c** - While loop
-   ```c
-   int main() {
-       int x, sum;
-       x = 0; sum = 0;
-       while (x < 5) {
-           sum = sum + x;
-           x = x + 1;
-       }
-       return sum;  // = 10
-   }
-   ```
-   ✅ Generates loop labels and conditional jumps
-
-7. **test_for.c** - For loop
-   ```c
-   int main() {
-       int i, sum;
-       sum = 0;
-       for (i = 0; i < 5; i = i + 1) {
-           sum = sum + i;
-       }
-       return sum;  // = 10
-   }
-   ```
-   ✅ Generates init/condition/increment/body loop structure
-
-8. **test2.c** - Multiple functions (NO PARAMETERS)
-   ```c
-   int add(int a, int b) { return a + b; }
-   int main() {
-       int x, y;
-       x = 5; y = 10;
-       return add(x, y);
-   }
-   ```
-   ✅ Generates but parameters not properly passed (uses global labels for a, b)
-
-9. **test_params.c** - Parameter list regression
-   ```c
-   int add(int a, int b) { return a + b; }
-   int main() { return add(2, 3); }
-   ```
-   ✅ Parses parameter list; calling convention still TODO
+**All tests write output to `tests/` only.**
 
 ## How to Test Current Build
 

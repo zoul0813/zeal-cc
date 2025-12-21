@@ -5,8 +5,8 @@
 #include "common.h"
 #include "target.h"
 
-target_args_t target_parse_args(int argc, char** argv) {
-    target_args_t result = {0};
+args_t parse_args(int argc, char** argv) {
+    args_t result = {0};
 
     if (argc < 2) {
         result.error = 1;

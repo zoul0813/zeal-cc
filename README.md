@@ -18,7 +18,7 @@ This is an iterative development project. Currently implemented:
 ### Working Features ✅
 - Complete C99 lexer with all token types
 - Recursive descent parser with operator precedence
-- Streaming file input on both host and ZOS (512-byte buffered reader)
+- Streaming file input on both host and ZOS (512-byte buffered reader; no full-file loads)
 - Control flow: if/else, while, and for
 - Comparison operators (==, !=, <, >, <=, >=)
 - Binary arithmetic operators (+, -, *, /, %)
@@ -34,6 +34,7 @@ This is an iterative development project. Currently implemented:
 - Stack-based local variables (currently emit as global labels)
 - Function parameters parsed but no proper calling convention
 - Argument passing for function calls
+- Target build uses 12 KB static pool; file buffer at 0xE000 (512 B)
 
 ### Planned Features ⏳
 - Switch statement, break/continue, ternary
@@ -180,11 +181,12 @@ Run individual tests:
 ./bin/cc tests/test_mod.c tests/test_mod.asm    # Modulo
 ./bin/cc tests/test2.c tests/test2.asm          # Multiple functions
 ./bin/cc tests/test_params.c tests/test_params.asm  # Functions with parameters
+./bin/cc tests/test_comp.c tests/test_comp.asm  # Factorial comprehensive
 ```
 
 All test artifacts (`.asm`, `.o`, `.bin`, etc.) are stored in `tests/` for version control and review.
 
-**Note**: When adding a new test source in `tests/`, also update `test.zs` so the Zeal headless script runs the new case on target hardware.
+**Note**: When adding a new test source in `tests/`, also update `test.zs` so the Zeal headless script runs the new case on target hardware (currently `test_comp` is not in `test.zs`).
 
 ## Architecture
 

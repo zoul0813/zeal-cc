@@ -115,7 +115,7 @@ struct token {
 /* Lexer structure */
 typedef struct {
     const char* filename;
-    target_reader_t* reader;
+    reader_t* reader;
     int current_char;
     bool eof;
     int line;
@@ -123,7 +123,7 @@ typedef struct {
 } lexer_t;
 
 /* Lexer functions */
-lexer_t* lexer_create(const char* filename, target_reader_t* reader);
+lexer_t* lexer_create(const char* filename, reader_t* reader);
 void lexer_destroy(lexer_t* lexer);
 token_t* lexer_next_token(lexer_t* lexer);
 token_t* lexer_tokenize(lexer_t* lexer);

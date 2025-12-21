@@ -10,18 +10,18 @@
 #define FILE_BUFFER_SIZE 512
 static __at(0xE000) char file_buffer[FILE_BUFFER_SIZE];
 
-struct target_reader {
+struct reader {
     zos_dev_t dev;
     uint16_t buf_len;
     uint16_t pos;
 };
 
-target_reader_t* target_reader_open(const char* filename) {
+reader_t* reader_open(const char* filename) {
     zos_dev_t dev = open(filename, O_RDONLY);
     if (dev < 0) {
         return NULL;
     }
-    target_reader_t* r = (target_reader_t*)cc_malloc(sizeof(target_reader_t));
+    reader_t* r = (reader_t*)cc_malloc(sizeof(reader_t));
     if (!r) {
         close(dev);
         return NULL;
@@ -32,7 +32,7 @@ target_reader_t* target_reader_open(const char* filename) {
     return r;
 }
 
-static int target_reader_fill(target_reader_t* r) {
+static int reader_fill(reader_t* r) {
     r->buf_len = FILE_BUFFER_SIZE;
     zos_err_t err = read(r->dev, file_buffer, &r->buf_len);
     r->pos = 0;
@@ -42,27 +42,27 @@ static int target_reader_fill(target_reader_t* r) {
     return 0;
 }
 
-int target_reader_next(target_reader_t* reader) {
+int reader_next(reader_t* reader) {
     if (!reader) return -1;
     if (reader->pos >= reader->buf_len) {
-        if (target_reader_fill(reader) < 0) {
+        if (reader_fill(reader) < 0) {
             return -1;
         }
     }
     return (uint8_t)file_buffer[reader->pos++];
 }
 
-int target_reader_peek(target_reader_t* reader) {
+int reader_peek(reader_t* reader) {
     if (!reader) return -1;
     if (reader->pos >= reader->buf_len) {
-        if (target_reader_fill(reader) < 0) {
+        if (reader_fill(reader) < 0) {
             return -1;
         }
     }
     return (uint8_t)file_buffer[reader->pos];
 }
 
-void target_reader_close(target_reader_t* reader) {
+void reader_close(reader_t* reader) {
     if (!reader) return;
     if (reader->dev >= 0) {
         close(reader->dev);
@@ -70,34 +70,34 @@ void target_reader_close(target_reader_t* reader) {
     cc_free(reader);
 }
 
-void target_log(const char* message) {
+void log_msg(const char* message) {
     put_s(message);
 }
 
-void target_error(const char* message) {
+void log_error(const char* message) {
     put_s(message);
 }
 
-void target_log_verbose(const char* message) {
+void log_verbose(const char* message) {
     /* ZOS doesn't support verbose mode, always log */
     put_s(message);
 }
 
-target_output_t target_output_open(const char* filename) {
+output_t output_open(const char* filename) {
     zos_dev_t dev = open(filename, O_WRONLY | O_CREAT | O_TRUNC);
     if (dev < 0) {
         return NULL;
     }
-    return (target_output_t)dev;
+    return (output_t)dev;
 }
 
-void target_output_close(target_output_t handle) {
+void output_close(output_t handle) {
     if (handle == 0) return;
     zos_dev_t dev = (zos_dev_t)handle;
     close(dev);
 }
 
-int target_output_write(target_output_t handle, const char* data, uint16_t len) {
+int output_write(output_t handle, const char* data, uint16_t len) {
     if (handle == 0 || !data || len == 0) return -1;
     zos_dev_t dev = (zos_dev_t)handle;
     uint16_t size = len;

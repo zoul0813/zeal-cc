@@ -50,7 +50,7 @@ static const struct {
     {"while", TOK_WHILE},
     {NULL, TOK_EOF}};
 
-lexer_t* lexer_create(const char* filename, target_reader_t* reader) {
+lexer_t* lexer_create(const char* filename, reader_t* reader) {
     lexer_t* lexer = (lexer_t*)cc_malloc(sizeof(lexer_t));
     if (!lexer) return NULL;
 
@@ -59,7 +59,7 @@ lexer_t* lexer_create(const char* filename, target_reader_t* reader) {
     lexer->line = 1;
     lexer->column = 1;
     lexer->eof = false;
-    lexer->current_char = target_reader_next(lexer->reader);
+    lexer->current_char = reader_next(lexer->reader);
     if (lexer->current_char < 0) {
         lexer->current_char = '\0';
         lexer->eof = true;
@@ -82,7 +82,7 @@ static void lexer_advance(lexer_t* lexer) {
     } else {
         lexer->column++;
     }
-    int next = target_reader_next(lexer->reader);
+    int next = reader_next(lexer->reader);
     if (next < 0) {
         lexer->current_char = '\0';
         lexer->eof = true;
@@ -94,7 +94,7 @@ static void lexer_advance(lexer_t* lexer) {
 static char lexer_peek(lexer_t* lexer, int offset) {
     if (lexer->eof) return '\0';
     if (offset == 1) {
-        int c = target_reader_peek(lexer->reader);
+        int c = reader_peek(lexer->reader);
         if (c < 0) return '\0';
         return (char)c;
     }

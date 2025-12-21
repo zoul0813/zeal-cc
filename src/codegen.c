@@ -25,7 +25,7 @@ codegen_t* codegen_create(const char* output_file, symbol_table_t* symbols) {
     if (!gen) return NULL;
 
     gen->output_file = output_file;
-    gen->output_handle = target_output_open(output_file);
+    gen->output_handle = output_open(output_file);
     if (!gen->output_handle) {
         cc_free(gen);
         return NULL;
@@ -49,7 +49,7 @@ codegen_t* codegen_create(const char* output_file, symbol_table_t* symbols) {
 void codegen_destroy(codegen_t* gen) {
     if (!gen) return;
     if (gen->output_handle) {
-        target_output_close(gen->output_handle);
+        output_close(gen->output_handle);
     }
     cc_free(gen);
 }
@@ -60,7 +60,7 @@ void codegen_emit(codegen_t* gen, const char* fmt, ...) {
     const char* p = fmt;
     while (p[len]) len++;
     if (len > 0) {
-        target_output_write(gen->output_handle, fmt, (uint16_t)len);
+        output_write(gen->output_handle, fmt, (uint16_t)len);
     }
 }
 

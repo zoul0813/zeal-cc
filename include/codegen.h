@@ -9,7 +9,7 @@
 /* Code generator structure */
 typedef struct {
     const char* output_file;
-    target_output_t output_handle;
+    output_t output_handle;
     
     symbol_table_t* global_symbols;
     symbol_table_t* current_scope;
@@ -35,7 +35,6 @@ cc_error_t codegen_write_output(codegen_t* gen);
 
 /* Helper functions */
 void codegen_emit(codegen_t* gen, const char* fmt, ...);
-void codegen_emit_comment(codegen_t* gen, const char* fmt, ...);
 char* codegen_new_label(codegen_t* gen);
 char* codegen_new_string_label(codegen_t* gen);
 void codegen_emit_prologue(codegen_t* gen, const char* func_name);
