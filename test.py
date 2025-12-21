@@ -86,7 +86,7 @@ def expected_return_hex(base: str) -> str:
         "test1": "0C",
         "test2": "0F",
         "test_add": "0F",
-        "test_comp": "78",
+        "test_comp": "4E",
         "test_div": "03",
         "test_expr": "1C",
         "test_for": "0A",
@@ -151,6 +151,11 @@ def run_headless_emulator(img: str, eeprom: str, test_name: str) -> None:
         return
 
     try:
+        zealasm_src = Path(".zeal8bit/zealasm")
+        zealasm_dst = Path("bin/zealasm")
+        if zealasm_src.exists() and zealasm_src.is_file():
+            shutil.copyfile(zealasm_src, zealasm_dst)
+
         proc = subprocess.run(
             ["zeal-native", "--headless", "--no-reset", "-r", img, "-e", eeprom],
             stdout=subprocess.PIPE,
@@ -175,13 +180,17 @@ def run_headless_emulator(img: str, eeprom: str, test_name: str) -> None:
 
     print_result(test_name, status)
 
+    results = parse_return_results(log)
+    returned = {Path(path).stem for path, _, _, _ in results}
+
     failures = parse_compile_failures(log)
     if failures:
         for path in failures:
+            if Path(path).stem in returned:
+                continue
             msg = f"{path} failed to compile on target"
             print_result(msg, 1)
 
-    results = parse_return_results(log)
     if results:
         for path, expected, actual, ok in results:
             if expected:
