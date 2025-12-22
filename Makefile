@@ -16,24 +16,24 @@ else
 endif
 
 # Source files
-SRCS = src/cc/main.c src/common/common.c src/common/ast_read.c src/common/ast_write.c src/parser/lexer.c src/parser/parser.c src/common/symbol.c src/codegen/codegen.c src/codegen/codegen_strings.c \
+SRCS = src/cc/main.c src/common/common.c src/common/ast_read.c src/common/ast_write.c src/parser/lexer.c src/parser/parser.c src/common/type.c src/common/symbol_table.c src/codegen/codegen.c src/codegen/codegen_strings.c \
        src/target/modern/target_args.c src/target/modern/target_io.c
 OBJS = $(SRCS:.c=.o)
 
 # Output binary with architecture suffix
 TARGET = bin/cc_$(ARCH)
 
-PARSE_SRCS = src/parser/main.c src/common/common.c src/common/ast_write.c src/parser/lexer.c src/parser/parser.c src/common/symbol.c \
+PARSE_SRCS = src/parser/main.c src/common/common.c src/common/ast_write.c src/parser/lexer.c src/parser/parser.c src/common/type.c \
              src/target/modern/target_args.c src/target/modern/target_io.c
 PARSE_OBJS = $(PARSE_SRCS:.c=.o)
 PARSE_TARGET = bin/cc_parse_$(ARCH)
 
 CODEGEN_SRCS = src/codegen/main.c src/codegen/codegen.c src/codegen/codegen_strings.c src/common/common.c src/common/ast_read.c src/common/ast_reader.c \
-               src/common/symbol.c src/target/modern/target_args.c src/target/modern/target_io.c
+               src/common/symbol_table.c src/common/type.c src/target/modern/target_args.c src/target/modern/target_io.c
 CODEGEN_OBJS = $(CODEGEN_SRCS:.c=.o)
 CODEGEN_TARGET = bin/cc_codegen_$(ARCH)
 
-AST_DUMP_SRCS = src/tools/ast_dump.c src/common/common.c src/common/ast_read.c src/common/ast_reader.c src/common/symbol.c \
+AST_DUMP_SRCS = src/tools/ast_dump.c src/common/common.c src/common/ast_read.c src/common/ast_reader.c src/common/symbol_table.c src/common/type.c \
                 src/target/modern/target_io.c
 AST_DUMP_OBJS = $(AST_DUMP_SRCS:.c=.o)
 AST_DUMP_TARGET = bin/ast_dump_$(ARCH)

@@ -106,21 +106,10 @@ typedef struct symbol_table {
 /* Symbol table functions */
 symbol_table_t* symbol_table_create(symbol_table_t* parent);
 void symbol_table_destroy(symbol_table_t* table);
-symbol_t* symbol_table_insert(symbol_table_t* table, const char* name, symbol_kind_t kind);
-symbol_t* symbol_table_lookup(symbol_table_t* table, const char* name);
-symbol_t* symbol_table_lookup_current(symbol_table_t* table, const char* name);
-
-/* Symbol functions */
-symbol_t* symbol_create(const char* name, symbol_kind_t kind);
-void symbol_destroy(symbol_t* symbol);
 
 /* Type functions */
 type_t* type_create(type_kind_t kind);
 void type_destroy(type_t* type);
 type_t* type_create_pointer(type_t* base);
-type_t* type_create_array(type_t* element, size_t length);
-bool type_equals(const type_t* a, const type_t* b);
-size_t type_sizeof(const type_t* type);
-const char* type_to_string(const type_t* type);
 
 #endif /* SYMBOL_H */
