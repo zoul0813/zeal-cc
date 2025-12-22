@@ -21,7 +21,7 @@ TESTS_FAILED = 0
 EXPECTED_RESULTS = {
     "assign": "15",
     "array": None,
-    "char": None,
+    "char": "41",
     "comp": "4E",
     "compares": "3F",
     "do_while": None,

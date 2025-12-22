@@ -179,6 +179,16 @@ static ast_node_t* parse_primary(parser_t* parser) {
         return node;
     }
 
+    if (tok->type == TOK_CHAR) {
+        int16_t value = tok->int_val;
+        parser_advance(parser);
+        ast_node_t* node = ast_node_create(AST_CONSTANT);
+        if (node) {
+            node->data.constant.int_value = value;
+        }
+        return node;
+    }
+
     if (tok->type == TOK_STRING) {
         char* value = tok->value;
         tok->value = NULL;
@@ -593,7 +603,7 @@ static ast_node_t* parse_function(parser_t* parser) {
 
     /* Consume return type (limited) without double-matching */
     token_type_t rettok = parser_current(parser)->type;
-    if (rettok == TOK_INT || rettok == TOK_VOID) {
+    if (rettok == TOK_INT || rettok == TOK_VOID || rettok == TOK_CHAR_KW) {
         parser_advance(parser);
     }
 

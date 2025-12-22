@@ -116,4 +116,4 @@ cc h:/tests/char.c h:/tests/char.asm
 
 echo !!! Complete !!!
 
-reset
+; reset

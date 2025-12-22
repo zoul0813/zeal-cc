@@ -1,14 +1,15 @@
 # Limitations and Constraints
 
 ## Supported C Subset
-- Only `int` is supported. No `float`/`double`.
+- Only `int` and `char` are supported. No `float`/`double`.
+- `long` (32-bit) is currently unsupported.
 - Expressions: `+ - * / %` and comparisons `== != < > <= >=`.
 - Statements: `if/else`, `while`, `for`, `return`, compound blocks.
-- Functions: definitions and calls are supported, but parameters are not
-  passed yet (see calling convention).
+- Functions: definitions and calls are supported; parameters are passed on the
+  stack with an `IX` frame (see calling convention).
 
 ## Not Implemented Yet
-- Calling convention and stack-based locals.
+- Stack-based locals.
 - Pointers, arrays, structs, unions.
 - Type checking and semantic analysis.
 - Optimizations.

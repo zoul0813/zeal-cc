@@ -124,7 +124,7 @@
 
 - ✅ Host: `tests/*.c` compile to `.asm` (includes simple_return/locals_params/assign/array/compares/comp/expr/for/if/math/params/pointer/struct/while/do_while/unary/string/char/ternary).
 - ✅ Target: headless run passes; `test.zs` includes current tests.
-- ⚠️ Expected-fail tests (tracked in `test.py`): array, pointer, struct, do_while, unary, string, char, ternary.
+- ⚠️ Expected-fail tests (tracked in `test.py`): array, pointer, struct, do_while, unary, string, ternary.
 
 **All tests write output to `tests/` only.**
 
@@ -153,7 +153,7 @@ done
 ./bin/cc tests/do_while.c tests/do_while.asm  # Do/while (expected fail)
 ./bin/cc tests/unary.c tests/unary.asm  # Unary ops (expected fail)
 ./bin/cc tests/string.c tests/string.asm  # String literals (expected fail)
-./bin/cc tests/char.c tests/char.asm    # Char literals (expected fail)
+./bin/cc tests/char.c tests/char.asm    # Char literals
 ./bin/cc tests/for.c tests/for.asm    # For loop
 ./bin/cc tests/locals_params.c tests/locals_params.asm          # Locals + params
 ./bin/cc tests/params.c tests/params.asm  # Function parameters

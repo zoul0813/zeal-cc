@@ -37,7 +37,7 @@ All tests and artifacts must stay in `tests/`. Never write outputs to `/tmp`.
 
 Run desktop tests:
 ```
-./test.sh
+./test.py
 ```
 
 Headless target testing uses `test.zs`. If you add a new test, update
