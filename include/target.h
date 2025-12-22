@@ -16,7 +16,7 @@ typedef struct {
 } args_t;
 
 #ifdef __SDCC
-typedef uint16_t output_t;
+typedef int16_t output_t;
 #else
 typedef void* output_t;
 #endif

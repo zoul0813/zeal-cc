@@ -289,7 +289,7 @@ static char* codegen_new_label_persist(codegen_t* gen) {
 static const char* codegen_get_string_label(codegen_t* gen, const char* value) {
     if (!gen || !value) return NULL;
     for (size_t i = 0; i < gen->string_count; i++) {
-        if (gen->string_literals[i] && strcmp(gen->string_literals[i], value) == 0) {
+        if (gen->string_literals[i] && str_cmp(gen->string_literals[i], value) == 0) {
             return gen->string_labels[i];
         }
     }
@@ -318,7 +318,11 @@ codegen_t* codegen_create(const char* output_file, symbol_table_t* symbols) {
 
     gen->output_file = output_file;
     gen->output_handle = output_open(output_file);
+#ifdef __SDCC
+    if (gen->output_handle < 0) {
+#else
     if (!gen->output_handle) {
+#endif
         cc_free(gen);
         return NULL;
     }

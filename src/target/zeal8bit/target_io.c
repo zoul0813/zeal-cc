@@ -111,19 +111,19 @@ void log_verbose(const char* message) {
 output_t output_open(const char* filename) {
     zos_dev_t dev = open(filename, O_WRONLY | O_CREAT | O_TRUNC);
     if (dev < 0) {
-        return NULL;
+        return (output_t)-1;
     }
     return (output_t)dev;
 }
 
 void output_close(output_t handle) {
-    if (handle == 0) return;
+    if (handle < 0) return;
     zos_dev_t dev = (zos_dev_t)handle;
     close(dev);
 }
 
 int8_t output_write(output_t handle, const char* data, uint16_t len) {
-    if (handle == 0 || !data || len == 0) return -1;
+    if (handle < 0 || !data || len == 0) return -1;
     zos_dev_t dev = (zos_dev_t)handle;
     uint16_t size = len;
     zos_err_t err = write(dev, data, &size);
@@ -131,7 +131,7 @@ int8_t output_write(output_t handle, const char* data, uint16_t len) {
 }
 
 int8_t output_seek(output_t handle, uint32_t offset) {
-    if (handle == 0) return -1;
+    if (handle < 0) return -1;
     zos_dev_t dev = (zos_dev_t)handle;
     int32_t pos = (int32_t)offset;
     zos_err_t err = seek(dev, &pos, SEEK_SET);
@@ -139,7 +139,7 @@ int8_t output_seek(output_t handle, uint32_t offset) {
 }
 
 uint32_t output_tell(output_t handle) {
-    if (handle == 0) return 0;
+    if (handle < 0) return 0;
     zos_dev_t dev = (zos_dev_t)handle;
     int32_t pos = 0;
     zos_err_t err = seek(dev, &pos, SEEK_CUR);

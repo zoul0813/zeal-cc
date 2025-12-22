@@ -278,7 +278,11 @@ int main(int argc, char** argv) {
     if (!parser) goto cleanup_lexer;
 
     writer.out = output_open(args.output_file);
+#ifdef __SDCC
+    if (writer.out < 0) goto cleanup_parser;
+#else
     if (!writer.out) goto cleanup_parser;
+#endif
 
     if (ast_write_header(&writer) < 0) {
         log_error("Failed to write AST header\n");

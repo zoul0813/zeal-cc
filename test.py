@@ -123,7 +123,7 @@ def clean_test_artifacts() -> None:
     tests_dir = Path("tests")
     if not tests_dir.exists():
         return
-    for pattern in ("*.asm", "*.bin"):
+    for pattern in ("*.asm", "*.bin", "*.ast"):
         for path in tests_dir.glob(pattern):
             path.unlink(missing_ok=True)
 

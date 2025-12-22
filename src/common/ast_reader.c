@@ -5,12 +5,7 @@
 #include "common.h"
 #include "symbol.h"
 
-#ifdef __SDCC
-#include <core.h>
-#else
-#include <string.h>
-#define mem_set memset
-#endif
+#include "cc_compat.h"
 
 #define AST_HEADER_SIZE 16
 

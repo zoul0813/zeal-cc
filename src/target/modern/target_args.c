@@ -1,8 +1,8 @@
 /* Modern/Desktop target implementation - argument parsing */
 #include <stdio.h>
-#include <string.h>
 
 #include "common.h"
+#include "cc_compat.h"
 #include "target.h"
 
 args_t parse_args(int argc, char** argv) {
@@ -16,11 +16,11 @@ args_t parse_args(int argc, char** argv) {
     /* Parse options */
     int16_t arg_idx = 1;
     while (arg_idx < argc && argv[arg_idx][0] == '-') {
-        if (strcmp(argv[arg_idx], "-v") == 0 || strcmp(argv[arg_idx], "--verbose") == 0) {
+        if (str_cmp(argv[arg_idx], "-v") == 0 || str_cmp(argv[arg_idx], "--verbose") == 0) {
             g_ctx.verbose = true;
-        } else if (strcmp(argv[arg_idx], "-O") == 0 || strcmp(argv[arg_idx], "--optimize") == 0) {
+        } else if (str_cmp(argv[arg_idx], "-O") == 0 || str_cmp(argv[arg_idx], "--optimize") == 0) {
             g_ctx.optimize = true;
-        } else if (strcmp(argv[arg_idx], "-h") == 0 || strcmp(argv[arg_idx], "--help") == 0) {
+        } else if (str_cmp(argv[arg_idx], "-h") == 0 || str_cmp(argv[arg_idx], "--help") == 0) {
             printf("Zeal 8-bit C Compiler v%d.%d.%d\n",
                    CC_VERSION_MAJOR, CC_VERSION_MINOR, CC_VERSION_PATCH);
             printf("Usage: cc [options] <input.c> <output.asm>\n");

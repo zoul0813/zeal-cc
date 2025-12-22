@@ -3,8 +3,7 @@
 #include "common.h"
 #include "symbol.h"
 #include "target.h"
-
-#include <string.h>
+#include "cc_compat.h"
 
 int main(int argc, char** argv) {
     int8_t err = 1;
@@ -16,7 +15,7 @@ int main(int argc, char** argv) {
     codegen_t* codegen = NULL;
     cc_error_t result;
 
-    memset(&ast, 0, sizeof(ast));
+    mem_set(&ast, 0, sizeof(ast));
     cc_reset_pool();
 
     g_ctx.verbose = false;
