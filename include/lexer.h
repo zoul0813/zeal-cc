@@ -108,7 +108,7 @@ struct token {
     char* value;
     int line;
     int column;
-    int16_t int_val;
+    int32_t int_val;
     token_t* next;
 };
 

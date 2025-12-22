@@ -25,12 +25,23 @@ typedef struct {
     bool reg_bc_used;
 
     int stack_offset;
-    const char* local_vars[64];
+    const char* local_var_names[64];
+    size_t local_var_sizes[64];
     size_t local_var_count;
     bool defer_var_storage;
     const char* param_names[8];
+    size_t param_sizes[8];
     int param_offsets[8];
     size_t param_count;
+    const char* temp_names[64];
+    size_t temp_sizes[64];
+    size_t temp_count;
+    size_t current_return_size;
+    const char* func_names[32];
+    size_t func_return_sizes[32];
+    size_t func_param_counts[32];
+    size_t func_param_sizes[32][8];
+    size_t func_count;
     char* function_end_label;
     bool return_direct;
     bool use_function_end_label;

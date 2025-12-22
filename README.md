@@ -30,6 +30,8 @@ This is an iterative development project. Currently implemented:
 - Runtime library for mul/div/mod
 - Expression evaluation with correct precedence
 - Multiple functions per file
+- `char` type and character literals
+- `long` type with 32-bit storage and arithmetic
 
 ### In Progress 🚧
 - Stack-based local variables (currently emit as global labels)
@@ -38,7 +40,7 @@ This is an iterative development project. Currently implemented:
 ### Planned Features ⏳
 - Switch statement, break/continue, do/while, ternary
 - Unary operators
-- String and char literal support in codegen
+- String literal support in codegen
 - Pointers and arrays
 - Struct and union types
 - More operators (logical, bitwise)
@@ -195,7 +197,8 @@ Run individual tests:
 ./bin/cc tests/do_while.c tests/do_while.asm  # Do/while (expected fail)
 ./bin/cc tests/unary.c tests/unary.asm  # Unary ops (expected fail)
 ./bin/cc tests/string.c tests/string.asm  # String literals (expected fail)
-./bin/cc tests/char.c tests/char.asm    # Char literals (expected fail)
+./bin/cc tests/char.c tests/char.asm    # Char literals
+./bin/cc tests/long.c tests/long.asm    # Long type
 ```
 
 All test artifacts (`.asm`, `.o`, `.bin`, etc.) are stored in `tests/` for version control and review.
@@ -219,7 +222,7 @@ All test artifacts (`.asm`, `.o`, `.bin`, etc.) are stored in `tests/` for versi
 - 512-byte input reader buffer; very large source files are not supported
 - No optimization passes yet
 - Limited error reporting
-- Not yet supported in codegen: do/while, unary ops, string literals, char literals, ternary operator, arrays, pointers, structs
+- Not yet supported in codegen: do/while, unary ops, string literals, ternary operator, arrays, pointers, structs
 - Not yet supported in codegen: ternary operator (?:)
 
 ## Next Steps

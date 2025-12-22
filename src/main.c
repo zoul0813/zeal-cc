@@ -91,31 +91,20 @@ int main(int argc, char** argv) {
         goto cleanup_symtab;
     }
 
-    codegen_emit_preamble(codegen);
-    while (1) {
-        ast = parser_parse_next(parser);
-        if (!ast) {
-            break;
-        }
-        if (ast->type == AST_FUNCTION) {
-            result = codegen_generate_function(codegen, ast);
-            if (result != CC_OK) {
-                log_error("Code generation failed\n");
-                ast_node_destroy(ast);
-                ast = NULL;
-                goto cleanup_codegen;
-            }
-        }
-        ast_node_destroy(ast);
-        ast = NULL;
-    }
-
-    if (parser->error_count > 0) {
+    ast = parser_parse(parser);
+    if (!ast || parser->error_count > 0) {
         log_error("Parsing failed\n");
+        ast_node_destroy(ast);
         goto cleanup_codegen;
     }
 
-    codegen_emit_runtime(codegen);
+    result = codegen_generate(codegen, ast);
+    if (result != CC_OK) {
+        log_error("Code generation failed\n");
+        ast_node_destroy(ast);
+        goto cleanup_codegen;
+    }
+    ast_node_destroy(ast);
 
     /* Write output */
 #ifdef VERBOSE

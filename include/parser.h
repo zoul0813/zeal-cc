@@ -132,7 +132,7 @@ struct ast_node {
         } identifier;
         
         struct {
-            int16_t int_value;
+            int32_t int_value;
         } constant;
         
         struct {

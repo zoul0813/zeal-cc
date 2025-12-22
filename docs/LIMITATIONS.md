@@ -1,7 +1,8 @@
 # Limitations and Constraints
 
 ## Supported C Subset
-- Only `int` is supported. No `float`/`double`.
+- Only `int`, `char`, and `long` are supported. No `float`/`double`.
+- `long` uses 32-bit storage and arithmetic; results still return via 8-bit `A` when exiting.
 - Expressions: `+ - * / %` and comparisons `== != < > <= >=`.
 - Statements: `if/else`, `while`, `for`, `return`, compound blocks.
 - Functions: definitions and calls are supported, but parameters are not

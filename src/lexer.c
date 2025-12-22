@@ -245,7 +245,7 @@ static token_t* lexer_read_number(lexer_t* lexer) {
             }
         }
 
-        token->int_val = (int16_t)val;
+        token->int_val = (int32_t)val;
     }
 
     return token;
@@ -377,7 +377,7 @@ static token_t* lexer_read_char(lexer_t* lexer) {
 
     token_t* token = token_create(TOK_CHAR, buffer, start_line, start_column);
     if (token) {
-        token->int_val = (int16_t)c;
+        token->int_val = (int32_t)c;
     }
     return token;
 }

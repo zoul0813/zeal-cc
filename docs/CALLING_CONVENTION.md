@@ -6,8 +6,8 @@ via an `IX` frame, while locals are still emitted as globals.
 
 ## Goals
 - Simple stack-based argument passing.
-- 8-bit return values in `A`, 16-bit return values in `HL`.
-- Support 16-bit arguments (passed on stack as 2 bytes).
+- 8-bit return values in `A`, 16-bit return values in `HL`, 32-bit return values in `DEHL`.
+- Support 16-bit arguments (passed on stack as 2 bytes) and 32-bit arguments (passed as 4 bytes).
 - Minimal prologue/epilogue overhead.
 
 ## Current Convention
@@ -16,6 +16,7 @@ via an `IX` frame, while locals are still emitted as globals.
 - Evaluate arguments right-to-left.
 - Push each argument on the stack.
 - 8-bit args are widened to 16-bit and pushed as `HL`.
+- 32-bit args are pushed as 4 bytes (high word first, then low word).
 - Emit `call <function>`.
 - Caller cleans the stack after return.
 
@@ -25,9 +26,10 @@ via an `IX` frame, while locals are still emitted as globals.
 - Parameters accessed via fixed offsets from `IX`.
   - 8-bit params load from a single byte.
 - 16-bit params are not supported yet.
+- 32-bit params are supported for `long`.
 - Return value:
   - 8-bit in `A`
-- 16-bit return values are not supported yet.
+  - 32-bit in `DEHL`
 - Epilogue restores registers and returns via `ret`.
 
 ### Registers

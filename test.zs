@@ -95,6 +95,11 @@ cc h:/tests/char.c h:/tests/char.asm
 ? return tests/char.bin
 : echo Failed to compile tests/char.c
 
+cc h:/tests/long.c h:/tests/long.asm
+? zealasm h:/tests/long.asm h:/tests/long.bin
+? return tests/long.bin
+: echo Failed to compile tests/long.c
+
 echo !!! Complete !!!
 
 ; reset

@@ -119,12 +119,14 @@
 4. ✅ **Variable declarations and assignments**
 5. ✅ **Function calls with stack-based arguments**
 6. ✅ **Runtime library** for mul/div/mod
+7. ✅ **Char literals and `char` type parsing**
+8. ✅ **`long` type parsing and 32-bit codegen**
 
 ## Current Test Status
 
 - ✅ Host: `tests/*.c` compile to `.asm` (includes simple_return/locals_params/assign/array/compares/comp/expr/for/if/math/params/pointer/struct/while/do_while/unary/string/char/ternary).
 - ✅ Target: headless run passes; `test.zs` includes current tests.
-- ⚠️ Expected-fail tests (tracked in `test.py`): array, pointer, struct, do_while, unary, string, char, ternary.
+- ⚠️ Expected-fail tests (tracked in `test.py`): array, pointer, struct, do_while, unary, string, ternary.
 
 **All tests write output to `tests/` only.**
 

@@ -11,6 +11,7 @@ static ast_node_t* parse_function(parser_t* parser);
 static ast_node_t* parse_declaration(parser_t* parser);
 static ast_node_t* parse_parameter(parser_t* parser);
 static ast_node_t* ast_node_create(ast_node_type_t type);
+static type_t* parse_type_spec(parser_t* parser);
 
 parser_t* parser_create(lexer_t* lexer) {
     parser_t* parser = (parser_t*)cc_malloc(sizeof(parser_t));
@@ -82,6 +83,27 @@ static ast_node_t* ast_node_create(ast_node_type_t type) {
 
     node->type = type;
     return node;
+}
+
+static type_t* parse_type_spec(parser_t* parser) {
+    token_type_t type = parser_current(parser)->type;
+    if (type == TOK_INT) {
+        parser_advance(parser);
+        return type_create(TYPE_INT);
+    }
+    if (type == TOK_LONG) {
+        parser_advance(parser);
+        return type_create(TYPE_LONG);
+    }
+    if (type == TOK_CHAR_KW) {
+        parser_advance(parser);
+        return type_create(TYPE_CHAR);
+    }
+    if (type == TOK_VOID) {
+        parser_advance(parser);
+        return type_create(TYPE_VOID);
+    }
+    return NULL;
 }
 
 static ast_node_t* parse_primary(parser_t* parser) {
@@ -170,7 +192,17 @@ static ast_node_t* parse_primary(parser_t* parser) {
     }
 
     if (tok->type == TOK_NUMBER) {
-        int16_t value = tok->int_val;
+        int32_t value = tok->int_val;
+        parser_advance(parser);
+        ast_node_t* node = ast_node_create(AST_CONSTANT);
+        if (node) {
+            node->data.constant.int_value = value;
+        }
+        return node;
+    }
+
+    if (tok->type == TOK_CHAR) {
+        int32_t value = tok->int_val;
         parser_advance(parser);
         ast_node_t* node = ast_node_create(AST_CONSTANT);
         if (node) {
@@ -358,11 +390,20 @@ static ast_node_t* parse_expression(parser_t* parser) {
 static ast_node_t* parse_statement(parser_t* parser) {
     /* Variable declaration: int x; or int x = 5; */
     if (parser_check(parser, TOK_INT) || parser_check(parser, TOK_VOID) ||
-        parser_check(parser, TOK_CHAR_KW)) {
+        parser_check(parser, TOK_CHAR_KW) || parser_check(parser, TOK_LONG)) {
         ast_node_t* node = ast_node_create(AST_VAR_DECL);
         if (!node) return NULL;
+        node->data.var_decl.name = NULL;
+        node->data.var_decl.var_type = NULL;
+        node->data.var_decl.initializer = NULL;
 
-        parser_advance(parser); /* consume type */
+        type_t* var_type = parse_type_spec(parser);
+        if (!var_type) {
+            cc_error("Expected variable type");
+            parser->error_count++;
+            ast_node_destroy(node);
+            return NULL;
+        }
 
         token_t* name_tok = parser_current(parser);
         char* name = name_tok->value;
@@ -374,6 +415,7 @@ static ast_node_t* parse_statement(parser_t* parser) {
         }
 
         node->data.var_decl.name = name;
+        node->data.var_decl.var_type = var_type;
         node->data.var_decl.initializer = NULL;
 
         /* Check for initializer: int x = 5; */
@@ -561,11 +603,12 @@ static ast_node_t* parse_statement(parser_t* parser) {
 static ast_node_t* parse_parameter(parser_t* parser) {
     ast_node_t* param = ast_node_create(AST_VAR_DECL);
     if (!param) return NULL;
+    param->data.var_decl.name = NULL;
+    param->data.var_decl.var_type = NULL;
+    param->data.var_decl.initializer = NULL;
 
-    if (parser_match(parser, TOK_INT) || parser_match(parser, TOK_CHAR_KW) ||
-        parser_match(parser, TOK_VOID)) {
-        /* type consumed */
-    } else {
+    type_t* param_type = parse_type_spec(parser);
+    if (!param_type) {
         cc_error("Expected parameter type");
         parser->error_count++;
         ast_node_destroy(param);
@@ -582,7 +625,7 @@ static ast_node_t* parse_parameter(parser_t* parser) {
     }
 
     param->data.var_decl.name = name;
-    param->data.var_decl.var_type = NULL;
+    param->data.var_decl.var_type = param_type;
     param->data.var_decl.initializer = NULL;
     return param;
 }
@@ -590,11 +633,18 @@ static ast_node_t* parse_parameter(parser_t* parser) {
 static ast_node_t* parse_function(parser_t* parser) {
     ast_node_t* node = ast_node_create(AST_FUNCTION);
     if (!node) return NULL;
+    node->data.function.name = NULL;
+    node->data.function.return_type = NULL;
+    node->data.function.params = NULL;
+    node->data.function.param_count = 0;
+    node->data.function.body = NULL;
 
-    /* Consume return type (limited) without double-matching */
-    token_type_t rettok = parser_current(parser)->type;
-    if (rettok == TOK_INT || rettok == TOK_VOID) {
-        parser_advance(parser);
+    type_t* return_type = parse_type_spec(parser);
+    if (!return_type) {
+        cc_error("Expected return type");
+        parser->error_count++;
+        ast_node_destroy(node);
+        return NULL;
     }
 
     token_t* name_tok = parser_current(parser);
@@ -602,14 +652,12 @@ static ast_node_t* parse_function(parser_t* parser) {
     name_tok->value = NULL;
     if (!parser_consume(parser, TOK_IDENTIFIER, "Expected function name")) {
         cc_free(name);
-        cc_free(node);
+        ast_node_destroy(node);
         return NULL;
     }
 
     node->data.function.name = name;
-    node->data.function.return_type = NULL;
-    node->data.function.params = NULL;
-    node->data.function.param_count = 0;
+    node->data.function.return_type = return_type;
 
     if (!parser_consume(parser, TOK_LPAREN, "Expected '('")) {
         ast_node_destroy(node);
@@ -781,6 +829,9 @@ void ast_node_destroy(ast_node_t* node) {
             if (node->data.function.name) {
                 cc_free(node->data.function.name);
             }
+            if (node->data.function.return_type) {
+                type_destroy(node->data.function.return_type);
+            }
             if (node->data.function.params) {
                 for (size_t i = 0; i < node->data.function.param_count; i++) {
                     ast_node_destroy(node->data.function.params[i]);
@@ -808,6 +859,9 @@ void ast_node_destroy(ast_node_t* node) {
         case AST_VAR_DECL:
             if (node->data.var_decl.name) {
                 cc_free(node->data.var_decl.name);
+            }
+            if (node->data.var_decl.var_type) {
+                type_destroy(node->data.var_decl.var_type);
             }
             if (node->data.var_decl.initializer) {
                 ast_node_destroy(node->data.var_decl.initializer);

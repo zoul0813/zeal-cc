@@ -21,7 +21,7 @@ TESTS_FAILED = 0
 EXPECTED_RESULTS = {
     "assign": "15",
     "array": None,
-    "char": None,
+    "char": "41",
     "comp": "4E",
     "compares": "3F",
     "do_while": None,
@@ -29,6 +29,7 @@ EXPECTED_RESULTS = {
     "for": "0A",
     "if": "2A",
     "locals_params": "0F",
+    "long": "01",
     "math": "3A",
     "params": "05",
     "pointer": None,
