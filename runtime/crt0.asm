@@ -1,13 +1,12 @@
 ; Zeal 8-bit OS crt0.asm - minimal startup for user programs
 ; Provides _start entry, calls _main, then exits via syscall
 
-    .globl _start
-    .globl _main
-
+; Start of crt0.asm
 _start:
-    call _main        ; Call user main()
-    ld l, a           ; Move return value from A to L (compiler ABI)
-    rst 0x8           ; ZOS exit syscall (returns to shell)
+    call main     ; Call user main()
+    ld h, a       ; Move return value from A to H (compiler ABI)
+    ld l, 15      ; EXIT syscall
+    rst 0x8       ; ZOS exit syscall (returns to shell)
     halt
 
 ; End of crt0.asm
