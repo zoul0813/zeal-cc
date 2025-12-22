@@ -130,3 +130,4 @@ Notes
 - `node_count` uses u16 and is limited to 65,535 nodes per file.
 - `string_table_offset` must be less than file size; invalid offsets should error.
 - Unknown tags or versions should cause a hard error in `cc_codegen`.
+- Keep `src/tools/ast_dump.c` in sync with any AST format changes for validation.

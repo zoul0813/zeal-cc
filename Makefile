@@ -28,9 +28,14 @@ PARSE_SRCS = src/parser/main_parse.c src/common/common.c src/common/ast_io.c src
 PARSE_OBJS = $(PARSE_SRCS:.c=.o)
 PARSE_TARGET = bin/cc_parse_$(ARCH)
 
+AST_DUMP_SRCS = src/tools/ast_dump.c src/common/common.c src/common/ast_io.c src/common/ast_reader.c src/common/symbol.c \
+                src/target/modern/target_io.c
+AST_DUMP_OBJS = $(AST_DUMP_SRCS:.c=.o)
+AST_DUMP_TARGET = bin/ast_dump_$(ARCH)
+
 .PHONY: all clean test
 
-all: $(TARGET) $(PARSE_TARGET)
+all: $(TARGET) $(PARSE_TARGET) $(AST_DUMP_TARGET)
 
 $(TARGET): $(OBJS)
 	@mkdir -p bin
@@ -40,12 +45,17 @@ $(PARSE_TARGET): $(PARSE_OBJS)
 	@mkdir -p bin
 	$(CC) $(LDFLAGS) -o $@ $^
 
+$(AST_DUMP_TARGET): $(AST_DUMP_OBJS)
+	@mkdir -p bin
+	$(CC) $(LDFLAGS) -o $@ $^
+
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
 	rm -f $(OBJS) $(TARGET)
 	rm -f $(PARSE_OBJS) $(PARSE_TARGET)
+	rm -f $(AST_DUMP_OBJS) $(AST_DUMP_TARGET)
 	rm -rf bin/*.o
 
 test: $(TARGET)

@@ -133,3 +133,13 @@ add_program(cc_parse
     "src/target/zeal8bit/target_io.c"
     ILIBS core
 )
+
+add_program(ast_dump
+    "src/tools/ast_dump.c"
+    "src/common/common.c"
+    "src/common/symbol.c"
+    "src/common/ast_io.c"
+    "src/common/ast_reader.c"
+    "src/target/zeal8bit/target_io.c"
+    ILIBS core
+)
