@@ -37,6 +37,7 @@ add_executable(${target_name}
     "src/lexer.c"
     "src/parser.c"
     "src/codegen.c"
+    "src/codegen_strings.c"
     "src/symbol.c"
     "src/common.c"
     "src/target/zeal8bit/target_args.c"

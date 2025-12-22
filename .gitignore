@@ -8,6 +8,7 @@
 *.map
 *.ihx
 *.log
+*.bak
 
 /tests/*.asm
 /build_number.txt

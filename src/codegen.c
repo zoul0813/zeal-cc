@@ -1,6 +1,7 @@
 #include "codegen.h"
 
 #include "common.h"
+#include "codegen_strings.h"
 #include "target.h"
 
 #include <string.h>
@@ -70,6 +71,34 @@ static cc_error_t codegen_emit_file(codegen_t* gen, const char* path) {
     }
     reader_close(reader);
     return CC_OK;
+}
+
+static void codegen_emit_stack_adjust(codegen_t* gen, int offset, bool subtract) {
+    if (!gen || offset <= 0) return;
+    codegen_emit(gen, CG_STR_LD_HL_ZERO);
+    codegen_emit(gen, CG_STR_ADD_HL_SP);
+    codegen_emit(gen, CG_STR_LD_DE);
+    codegen_emit_int(gen, offset);
+    codegen_emit(gen, CG_STR_NL);
+    if (subtract) {
+        codegen_emit(gen, CG_STR_OR_A_SBC_HL_DE);
+    } else {
+        codegen_emit(gen, CG_STR_ADD_HL_DE);
+    }
+    codegen_emit(gen, CG_STR_LD_SP_HL);
+}
+
+static void codegen_emit_label(codegen_t* gen, const char* label) {
+    if (!gen || !label) return;
+    codegen_emit(gen, label);
+    codegen_emit(gen, CG_STR_COLON_NL);
+}
+
+static void codegen_emit_jump(codegen_t* gen, const char* prefix, const char* label) {
+    if (!gen || !prefix || !label) return;
+    codegen_emit(gen, prefix);
+    codegen_emit(gen, label);
+    codegen_emit(gen, CG_STR_NL);
 }
 
 static bool codegen_type_is_pointer(const type_t* type) {
@@ -157,16 +186,16 @@ static bool codegen_global_is_pointer(codegen_t* gen, const char* name) {
 static cc_error_t codegen_emit_address_of_identifier(codegen_t* gen, const char* name) {
     int offset = 0;
     if (codegen_local_offset(gen, name, &offset) || codegen_param_offset(gen, name, &offset)) {
-        codegen_emit(gen, "  push ix\n  pop hl\n");
+        codegen_emit(gen, CG_STR_PUSH_IX_POP_HL);
         if (offset != 0) {
-            codegen_emit(gen, "  ld de, ");
+            codegen_emit(gen, CG_STR_LD_DE);
             codegen_emit_int(gen, offset);
             codegen_emit(gen, "\n  add hl, de\n");
         }
         return CC_OK;
     }
 
-    codegen_emit(gen, "  ld hl, ");
+    codegen_emit(gen, CG_STR_LD_HL);
     codegen_emit_mangled_var(gen, name);
     codegen_emit(gen, "\n");
     return CC_OK;
@@ -175,42 +204,42 @@ static cc_error_t codegen_emit_address_of_identifier(codegen_t* gen, const char*
 static cc_error_t codegen_load_pointer_to_hl(codegen_t* gen, const char* name) {
     int offset = 0;
     if (codegen_local_offset(gen, name, &offset) || codegen_param_offset(gen, name, &offset)) {
-        codegen_emit(gen, "  ld l, (");
+        codegen_emit(gen, CG_STR_LD_L_PAREN);
         codegen_emit_ix_offset(gen, offset);
-        codegen_emit(gen, ")\n");
-        codegen_emit(gen, "  ld h, (");
+        codegen_emit(gen, CG_STR_RPAREN_NL);
+        codegen_emit(gen, CG_STR_LD_H_PAREN);
         codegen_emit_ix_offset(gen, offset + 1);
-        codegen_emit(gen, ")\n");
+        codegen_emit(gen, CG_STR_RPAREN_NL);
         return CC_OK;
     }
 
-    codegen_emit(gen, "  ld hl, (");
+    codegen_emit(gen, CG_STR_LD_HL_PAREN);
     codegen_emit_mangled_var(gen, name);
-    codegen_emit(gen, ")\n");
+    codegen_emit(gen, CG_STR_RPAREN_NL);
     return CC_OK;
 }
 
 static cc_error_t codegen_store_pointer_from_hl(codegen_t* gen, const char* name) {
     int offset = 0;
     if (codegen_local_offset(gen, name, &offset) || codegen_param_offset(gen, name, &offset)) {
-        codegen_emit(gen, "  ld (");
+        codegen_emit(gen, CG_STR_LD_LPAREN);
         codegen_emit_ix_offset(gen, offset);
-        codegen_emit(gen, "), l\n");
-        codegen_emit(gen, "  ld (");
+        codegen_emit(gen, CG_STR_RPAREN_L);
+        codegen_emit(gen, CG_STR_LD_LPAREN);
         codegen_emit_ix_offset(gen, offset + 1);
-        codegen_emit(gen, "), h\n");
+        codegen_emit(gen, CG_STR_RPAREN_H);
         return CC_OK;
     }
 
-    codegen_emit(gen, "  ld (");
+    codegen_emit(gen, CG_STR_LD_LPAREN);
     codegen_emit_mangled_var(gen, name);
-    codegen_emit(gen, "), hl\n");
+    codegen_emit(gen, CG_STR_RPAREN_HL);
     return CC_OK;
 }
 
 static void codegen_emit_ix_offset(codegen_t* gen, int offset) {
     (void)gen;
-    codegen_emit(gen, "ix+");
+    codegen_emit(gen, CG_STR_IX_PLUS);
     codegen_emit_int(gen, offset);
 }
 
@@ -396,19 +425,12 @@ char* codegen_new_string_label(codegen_t* gen) {
 
 void codegen_emit_prologue(codegen_t* gen, const char* func_name) {
     codegen_emit(gen, func_name);
-    codegen_emit(gen,
-        ":\n"
-        "  push bc\n"
-        "  push de\n"
-        "  push hl\n");
+    codegen_emit(gen, CG_STR_COLON_NL);
+    codegen_emit(gen, CG_STR_PUSH_BC_DE_HL);
 }
 
 void codegen_emit_epilogue(codegen_t* gen) {
-    codegen_emit(gen,
-        "  pop hl\n"
-        "  pop de\n"
-        "  pop bc\n"
-        "  ret\n");
+    codegen_emit(gen, CG_STR_POP_HL_DE_BC_RET);
 }
 
 /* Forward declarations */
@@ -422,7 +444,7 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
     switch (node->type) {
         case AST_CONSTANT:
             /* Load constant into A register */
-            codegen_emit(gen, "  ld a, ");
+            codegen_emit(gen, CG_STR_LD_A);
             {
                 /* Convert int to string */
                 int val = node->data.constant.int_value;
@@ -458,15 +480,15 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
             {
                 int offset = 0;
                 if (codegen_local_offset(gen, node->data.identifier.name, &offset)) {
-                    codegen_emit(gen, "  ld a, (");
+                    codegen_emit(gen, CG_STR_LD_LPAREN);
                     codegen_emit_ix_offset(gen, offset);
                     codegen_emit(gen, ")  ; Load local: ");
                 } else if (codegen_param_offset(gen, node->data.identifier.name, &offset)) {
-                    codegen_emit(gen, "  ld a, (ix+");
+                    codegen_emit(gen, CG_STR_LD_A_IX_PREFIX);
                     codegen_emit_int(gen, offset);
                     codegen_emit(gen, ")  ; Load param: ");
                 } else {
-                    codegen_emit(gen, "  ld a, (");
+                    codegen_emit(gen, CG_STR_LD_LPAREN);
                     codegen_emit_mangled_var(gen, node->data.identifier.name);
                     codegen_emit(gen, ")  ; Load variable: ");
                 }
@@ -481,7 +503,7 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
                 if (operand && operand->type == AST_IDENTIFIER) {
                     cc_error_t err = codegen_load_pointer_to_hl(gen, operand->data.identifier.name);
                     if (err != CC_OK) return err;
-                    codegen_emit(gen, "  ld a, (hl)\n");
+                    codegen_emit(gen, CG_STR_LD_A_HL);
                     return CC_OK;
                 }
                 cc_error("Unsupported dereference operand");
@@ -501,24 +523,22 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
 
             /* For right operand, we need to save A and evaluate right */
             /* Push left result onto stack */
-            codegen_emit(gen, "  push af\n");
+            codegen_emit(gen, CG_STR_PUSH_AF);
 
             /* Evaluate right operand (result in A) */
             err = codegen_expression(gen, node->data.binary_op.right);
             if (err != CC_OK) return err;
 
             /* Pop left operand into L (for arithmetic) or B (for comparison) */
-            codegen_emit(gen,
-                "  ld l, a\n"
-                "  pop af\n");
+            codegen_emit(gen, CG_STR_LD_L_A_POP_AF);
 
             /* Perform operation: A op L, result in A */
             switch (node->data.binary_op.op) {
                 case OP_ADD:
-                    codegen_emit(gen, "  add a, l\n");
+                    codegen_emit(gen, CG_STR_ADD_A_L);
                     break;
                 case OP_SUB:
-                    codegen_emit(gen, "  sub l\n");
+                    codegen_emit(gen, CG_STR_SUB_L);
                     break;
                 case OP_MUL:
                     /* Z80 doesn't have mul, need to call helper */
@@ -543,113 +563,78 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
                 case OP_EQ:
                     codegen_emit(gen,
                         "; Equality test (A == L)\n"
-                        "  cp l\n"
-                        "  ld a, 0\n");
+                        "  cp l\n");
+                    codegen_emit(gen, CG_STR_LD_A_ZERO);
                     {
                         char* end = codegen_new_label(gen);
-                        codegen_emit(gen, "  jr nz, ");
-                        codegen_emit(gen, end);
-                        codegen_emit(gen,
-                            "\n"
-                            "  ld a, 1\n");
-                        codegen_emit(gen, end);
-                        codegen_emit(gen, ":\n");
+                        codegen_emit_jump(gen, CG_STR_JR_NZ, end);
+                        codegen_emit(gen, CG_STR_LD_A_ONE);
+                        codegen_emit_label(gen, end);
                     }
                     break;
                 case OP_NE:
                     codegen_emit(gen,
                         "; Inequality test (A != L)\n"
-                        "  cp l\n"
-                        "  ld a, 0\n");
+                        "  cp l\n");
+                    codegen_emit(gen, CG_STR_LD_A_ZERO);
                     {
                         char* end = codegen_new_label(gen);
-                        codegen_emit(gen, "  jr z, ");
-                        codegen_emit(gen, end);
-                        codegen_emit(gen,
-                            "\n"
-                            "  ld a, 1\n");
-                        codegen_emit(gen, end);
-                        codegen_emit(gen, ":\n");
+                        codegen_emit_jump(gen, CG_STR_JR_Z, end);
+                        codegen_emit(gen, CG_STR_LD_A_ONE);
+                        codegen_emit_label(gen, end);
                     }
                     break;
                 case OP_LT:
                     codegen_emit(gen,
                         "; Less than test (A < L)\n"
-                        "  cp l\n"
-                        "  ld a, 0\n");
+                        "  cp l\n");
+                    codegen_emit(gen, CG_STR_LD_A_ZERO);
                     {
                         char* end = codegen_new_label(gen);
-                        codegen_emit(gen, "  jr nc,");
-                        codegen_emit(gen, end);
-                        codegen_emit(gen,
-                            "\n"
-                            "  ld a, 1\n");
-                        codegen_emit(gen, end);
-                        codegen_emit(gen, ":\n");
+                        codegen_emit_jump(gen, CG_STR_JR_NC, end);
+                        codegen_emit(gen, CG_STR_LD_A_ONE);
+                        codegen_emit_label(gen, end);
                     }
                     break;
                 case OP_GT:
                     codegen_emit(gen,
                         "; Greater than test (A > L)\n"
-                        "  sub l\n"
-                        "  ld a, 0\n");
+                        "  sub l\n");
+                    codegen_emit(gen, CG_STR_LD_A_ZERO);
                     {
                         char* end = codegen_new_label(gen);
-                        codegen_emit(gen, "  jr z, ");
-                        codegen_emit(gen, end);
-                        codegen_emit(gen,
-                            "\n"
-                            "  jr c, ");
-                        codegen_emit(gen, end);
-                        codegen_emit(gen,
-                            "\n"
-                            "  ld a, 1\n");
-                        codegen_emit(gen, end);
-                        codegen_emit(gen, ":\n");
+                        codegen_emit_jump(gen, CG_STR_JR_Z, end);
+                        codegen_emit_jump(gen, CG_STR_JR_C, end);
+                        codegen_emit(gen, CG_STR_LD_A_ONE);
+                        codegen_emit_label(gen, end);
                     }
                     break;
                 case OP_LE:
                     codegen_emit(gen,
                         "; Less or equal test (A <= L)\n"
-                        "  sub l\n"
-                        "  ld a, 0\n");
+                        "  sub l\n");
+                    codegen_emit(gen, CG_STR_LD_A_ZERO);
                     {
                         char* end = codegen_new_label(gen);
                         char* set = codegen_new_label(gen);
-                        codegen_emit(gen, "  jr z, ");
-                        codegen_emit(gen, set);
-                        codegen_emit(gen,
-                            "\n"
-                            "  jr c, ");
-                        codegen_emit(gen, set);
-                        codegen_emit(gen,
-                            "\n"
-                            "  jr ");
-                        codegen_emit(gen, end);
-                        codegen_emit(gen,
-                            "\n");
-                        codegen_emit(gen, set);
-                        codegen_emit(gen,
-                            ":\n"
-                            "  ld a, 1\n");
-                        codegen_emit(gen, end);
-                        codegen_emit(gen, ":\n");
+                        codegen_emit_jump(gen, CG_STR_JR_Z, set);
+                        codegen_emit_jump(gen, CG_STR_JR_C, set);
+                        codegen_emit_jump(gen, CG_STR_JR, end);
+                        codegen_emit_label(gen, set);
+                        codegen_emit(gen, CG_STR_LD_A_ONE);
+                        codegen_emit_label(gen, end);
                     }
                     break;
                 case OP_GE:
                     codegen_emit(gen,
                         "; Greater or equal test (A >= L)\n"
-                        "  cp l\n"
-                        "  ld a, 0\n");
+                        "  cp l\n");
+                    codegen_emit(gen, CG_STR_LD_A_ZERO);
                     {
                         char* end = codegen_new_label(gen);
-                        codegen_emit(gen, "  jr c, ");
-                        codegen_emit(gen, end);
-                        codegen_emit(gen,
-                            "\n"
-                            "  ld a, 1\n");
-                        codegen_emit(gen, end);
-                        codegen_emit(gen, ":\n");
+                        codegen_emit_jump(gen, CG_STR_JR_C, end);
+                        codegen_emit(gen, CG_STR_LD_A_ONE);
+                        codegen_emit_label(gen, end);
                     }
                     break;
 
@@ -668,18 +653,15 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
                 for (size_t i = node->data.call.arg_count; i-- > 0;) {
                     cc_error_t err = codegen_expression(gen, node->data.call.args[i]);
                     if (err != CC_OK) return err;
-                    codegen_emit(gen,
-                        "  ld l, a\n"
-                        "  ld h, 0\n"
-                        "  push hl\n");
+                    codegen_emit(gen, CG_STR_LD_L_A_H_ZERO_PUSH_HL);
                 }
             }
-            codegen_emit(gen, "  call ");
+            codegen_emit(gen, CG_STR_CALL);
             codegen_emit(gen, node->data.call.name);
-            codegen_emit(gen, "\n");
+            codegen_emit(gen, CG_STR_NL);
             if (node->data.call.arg_count > 0) {
                 for (size_t i = 0; i < node->data.call.arg_count; i++) {
-                    codegen_emit(gen, "  pop bc\n");
+                    codegen_emit(gen, CG_STR_POP_BC);
                 }
             }
             return CC_OK;
@@ -697,16 +679,16 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
                 const char* label = codegen_get_string_label(gen, base->data.string_literal.value);
                 if (!label) return CC_ERROR_CODEGEN;
                 int offset = index->data.constant.int_value;
-                codegen_emit(gen, "  ld hl, ");
+                codegen_emit(gen, CG_STR_LD_HL);
                 codegen_emit(gen, label);
-                codegen_emit(gen, "\n");
+                codegen_emit(gen, CG_STR_NL);
                 if (offset != 0) {
-                    codegen_emit(gen, "  ld de, ");
+                    codegen_emit(gen, CG_STR_LD_DE);
                     codegen_emit_int(gen, offset);
-                    codegen_emit(gen, "\n");
-                    codegen_emit(gen, "  add hl, de\n");
+                    codegen_emit(gen, CG_STR_NL);
+                    codegen_emit(gen, CG_STR_ADD_HL_DE);
                 }
-                codegen_emit(gen, "  ld a, (hl)\n");
+                codegen_emit(gen, CG_STR_LD_A_HL);
                 return CC_OK;
             }
             if (base && base->type == AST_IDENTIFIER &&
@@ -722,12 +704,12 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
                 if (err != CC_OK) return err;
                 int offset = index->data.constant.int_value;
                 if (offset != 0) {
-                    codegen_emit(gen, "  ld de, ");
+                    codegen_emit(gen, CG_STR_LD_DE);
                     codegen_emit_int(gen, offset);
-                    codegen_emit(gen, "\n");
-                    codegen_emit(gen, "  add hl, de\n");
+                    codegen_emit(gen, CG_STR_NL);
+                    codegen_emit(gen, CG_STR_ADD_HL_DE);
                 }
-                codegen_emit(gen, "  ld a, (hl)\n");
+                codegen_emit(gen, CG_STR_LD_A_HL);
                 return CC_OK;
             }
             cc_error("Unsupported array access");
@@ -746,7 +728,7 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
                 if (operand && operand->type == AST_IDENTIFIER) {
                     err = codegen_load_pointer_to_hl(gen, operand->data.identifier.name);
                     if (err != CC_OK) return err;
-                    codegen_emit(gen, "  ld (hl), a\n");
+                    codegen_emit(gen, CG_STR_LD_HL_A);
                     return CC_OK;
                 }
                 cc_error("Unsupported dereference assignment");
@@ -760,9 +742,9 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
                 if (rvalue && rvalue->type == AST_STRING_LITERAL) {
                     const char* label = codegen_get_string_label(gen, rvalue->data.string_literal.value);
                     if (!label) return CC_ERROR_CODEGEN;
-                    codegen_emit(gen, "  ld hl, ");
+                    codegen_emit(gen, CG_STR_LD_HL);
                     codegen_emit(gen, label);
-                    codegen_emit(gen, "\n");
+                    codegen_emit(gen, CG_STR_NL);
                     return codegen_store_pointer_from_hl(gen, lvalue->data.identifier.name);
                 }
                 if (rvalue && rvalue->type == AST_UNARY_OP &&
@@ -785,7 +767,7 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
                 }
                 if (rvalue && rvalue->type == AST_CONSTANT &&
                     rvalue->data.constant.int_value == 0) {
-                    codegen_emit(gen, "  ld hl, 0\n");
+                    codegen_emit(gen, CG_STR_LD_HL_ZERO);
                     return codegen_store_pointer_from_hl(gen, lvalue->data.identifier.name);
                 }
                 cc_error("Unsupported pointer assignment");
@@ -800,17 +782,17 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
             if (lvalue && lvalue->type == AST_IDENTIFIER) {
                 int offset = 0;
                 if (codegen_local_offset(gen, lvalue->data.identifier.name, &offset)) {
-                    codegen_emit(gen, "  ld (");
+                    codegen_emit(gen, CG_STR_LD_LPAREN);
                     codegen_emit_ix_offset(gen, offset);
-                    codegen_emit(gen, "), a\n");
+                    codegen_emit(gen, CG_STR_RPAREN_A);
                 } else if (codegen_param_offset(gen, lvalue->data.identifier.name, &offset)) {
-                    codegen_emit(gen, "  ld (ix+");
+                    codegen_emit(gen, CG_STR_LD_IX_PREFIX);
                     codegen_emit_int(gen, offset);
-                    codegen_emit(gen, "), a\n");
+                    codegen_emit(gen, CG_STR_RPAREN_A);
                 } else {
-                    codegen_emit(gen, "  ld (");
+                    codegen_emit(gen, CG_STR_LD_LPAREN);
                     codegen_emit_mangled_var(gen, lvalue->data.identifier.name);
-                    codegen_emit(gen, "), a\n");
+                    codegen_emit(gen, CG_STR_RPAREN_A);
                 }
             }
             return CC_OK;
@@ -831,24 +813,16 @@ static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node) {
                 cc_error_t err = codegen_expression(gen, node->data.return_stmt.expr);
                 if (err != CC_OK) return err;
             } else {
-                codegen_emit(gen, "  ld a, 0\n");
+                codegen_emit(gen, CG_STR_LD_A_ZERO);
             }
             if (gen->return_direct || !gen->function_end_label) {
                 if (gen->stack_offset > 0) {
-                    codegen_emit(gen, "  ld hl, 0\n");
-                    codegen_emit(gen, "  add hl, sp\n");
-                    codegen_emit(gen, "  ld de, ");
-                    codegen_emit_int(gen, gen->stack_offset);
-                    codegen_emit(gen, "\n  add hl, de\n  ld sp, hl\n");
+                    codegen_emit_stack_adjust(gen, gen->stack_offset, false);
                 }
-                codegen_emit(gen,
-                    "  pop ix\n"
-                    "  ret\n");
+                codegen_emit(gen, CG_STR_POP_IX_RET);
             } else {
                 gen->use_function_end_label = true;
-                codegen_emit(gen, "  jp ");
-                codegen_emit(gen, gen->function_end_label);
-                codegen_emit(gen, "\n");
+                codegen_emit_jump(gen, CG_STR_JP, gen->function_end_label);
             }
             return CC_OK;
 
@@ -866,9 +840,9 @@ static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node) {
                     if (init->type == AST_STRING_LITERAL) {
                         const char* label = codegen_get_string_label(gen, init->data.string_literal.value);
                         if (!label) return CC_ERROR_CODEGEN;
-                        codegen_emit(gen, "  ld hl, ");
+                        codegen_emit(gen, CG_STR_LD_HL);
                         codegen_emit(gen, label);
-                        codegen_emit(gen, "\n");
+                        codegen_emit(gen, CG_STR_NL);
                         return codegen_store_pointer_from_hl(gen, node->data.var_decl.name);
                     }
                     if (init->type == AST_UNARY_OP &&
@@ -891,7 +865,7 @@ static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node) {
                     }
                     if (init->type == AST_CONSTANT &&
                         init->data.constant.int_value == 0) {
-                        codegen_emit(gen, "  ld hl, 0\n");
+                        codegen_emit(gen, CG_STR_LD_HL_ZERO);
                         return codegen_store_pointer_from_hl(gen, node->data.var_decl.name);
                     }
                     cc_error("Unsupported pointer initializer");
@@ -903,13 +877,13 @@ static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node) {
                 {
                     int offset = 0;
                     if (codegen_local_offset(gen, node->data.var_decl.name, &offset)) {
-                        codegen_emit(gen, "  ld (");
+                        codegen_emit(gen, CG_STR_LD_LPAREN);
                         codegen_emit_ix_offset(gen, offset);
-                        codegen_emit(gen, "), a\n");
+                        codegen_emit(gen, CG_STR_RPAREN_A);
                     } else {
-                        codegen_emit(gen, "  ld (");
+                        codegen_emit(gen, CG_STR_LD_LPAREN);
                         codegen_emit_mangled_var(gen, node->data.var_decl.name);
-                        codegen_emit(gen, "), a\n");
+                        codegen_emit(gen, CG_STR_RPAREN_A);
                     }
                 }
             }
@@ -933,9 +907,7 @@ static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node) {
                 char* else_label = codegen_new_label(gen);
                 char* end_label = codegen_new_label(gen);
 
-                codegen_emit(gen, "  or a\n  jp z, "); /* Test if A is zero */
-                codegen_emit(gen, else_label);
-                codegen_emit(gen, "\n");
+                codegen_emit_jump(gen, CG_STR_OR_A_JP_Z, else_label); /* Test if A is zero */
 
                 /* Then branch */
                 err = codegen_statement(gen, node->data.if_stmt.then_branch);
@@ -945,13 +917,10 @@ static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node) {
                     return err;
                 }
 
-                codegen_emit(gen, "  jp ");
-                codegen_emit(gen, end_label);
-                codegen_emit(gen, "\n");
+                codegen_emit_jump(gen, CG_STR_JP, end_label);
 
                 /* Else branch */
-                codegen_emit(gen, else_label);
-                codegen_emit(gen, ":\n");
+                codegen_emit_label(gen, else_label);
                 err = codegen_statement(gen, node->data.if_stmt.else_branch);
                 if (err != CC_OK) {
                     cc_free(else_label);
@@ -960,8 +929,7 @@ static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node) {
                 }
 
                 /* End label */
-                codegen_emit(gen, end_label);
-                codegen_emit(gen, ":\n");
+                codegen_emit_label(gen, end_label);
 
                 cc_free(else_label);
                 cc_free(end_label);
@@ -969,9 +937,7 @@ static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node) {
                 /* Simple if: jump over then branch on false */
                 char* end_label = codegen_new_label(gen);
 
-                codegen_emit(gen, "  or a\n  jp z, "); /* Test if A is zero */
-                codegen_emit(gen, end_label);
-                codegen_emit(gen, "\n");
+                codegen_emit_jump(gen, CG_STR_OR_A_JP_Z, end_label); /* Test if A is zero */
 
                 /* Then branch */
                 err = codegen_statement(gen, node->data.if_stmt.then_branch);
@@ -981,8 +947,7 @@ static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node) {
                 }
 
                 /* End label */
-                codegen_emit(gen, end_label);
-                codegen_emit(gen, ":\n");
+                codegen_emit_label(gen, end_label);
 
                 cc_free(end_label);
             }
@@ -995,8 +960,7 @@ static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node) {
             char* end_label = codegen_new_label(gen);
 
             /* Loop start label */
-            codegen_emit(gen, loop_label);
-            codegen_emit(gen, ":\n");
+            codegen_emit_label(gen, loop_label);
 
             /* Evaluate condition */
             cc_error_t err = codegen_expression(gen, node->data.while_stmt.condition);
@@ -1007,9 +971,7 @@ static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node) {
             }
 
             /* Test condition (A register) */
-            codegen_emit(gen, "  or a\n  jp z,");
-            codegen_emit(gen, end_label);
-            codegen_emit(gen, "\n");
+            codegen_emit_jump(gen, CG_STR_OR_A_JP_Z, end_label);
 
             /* Loop body */
             err = codegen_statement(gen, node->data.while_stmt.body);
@@ -1020,13 +982,10 @@ static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node) {
             }
 
             /* Jump back to loop start */
-            codegen_emit(gen, "  jp ");
-            codegen_emit(gen, loop_label);
-            codegen_emit(gen, "\n");
+            codegen_emit_jump(gen, CG_STR_JP, loop_label);
 
             /* End label */
-            codegen_emit(gen, end_label);
-            codegen_emit(gen, ":\n");
+            codegen_emit_label(gen, end_label);
 
             cc_free(loop_label);
             cc_free(end_label);
@@ -1050,8 +1009,7 @@ static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node) {
             }
 
             /* Loop start label */
-            codegen_emit(gen, loop_label);
-            codegen_emit(gen, ":\n");
+            codegen_emit_label(gen, loop_label);
 
             /* Evaluate condition (if present) */
             if (node->data.for_stmt.condition) {
@@ -1063,9 +1021,7 @@ static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node) {
                 }
 
                 /* Test condition */
-                codegen_emit(gen, "  or a\n  jp z,");
-                codegen_emit(gen, end_label);
-                codegen_emit(gen, "\n");
+                codegen_emit_jump(gen, CG_STR_OR_A_JP_Z, end_label);
             }
 
             /* Loop body */
@@ -1087,13 +1043,10 @@ static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node) {
             }
 
             /* Jump back to loop start */
-            codegen_emit(gen, "  jp ");
-            codegen_emit(gen, loop_label);
-            codegen_emit(gen, "\n");
+            codegen_emit_jump(gen, CG_STR_JP, loop_label);
 
             /* End label */
-            codegen_emit(gen, end_label);
-            codegen_emit(gen, ":\n");
+            codegen_emit_label(gen, end_label);
 
             cc_free(loop_label);
             cc_free(end_label);
@@ -1125,8 +1078,7 @@ static cc_error_t codegen_function(codegen_t* gen, ast_node_t* node) {
     gen->use_function_end_label = false;
     gen->stack_offset = 0;
 
-    codegen_emit(gen, node->data.function.name);
-    codegen_emit(gen, ":\n");
+    codegen_emit_label(gen, node->data.function.name);
 
     /* Collect locals for stack allocation */
     if (node->data.function.body) {
@@ -1146,18 +1098,11 @@ static cc_error_t codegen_function(codegen_t* gen, ast_node_t* node) {
     }
 
     gen->function_end_label = codegen_new_label_persist(gen);
-    codegen_emit(gen,
-        "  push ix\n"
-        "  ld ix, 0\n"
-        "  add ix, sp\n");
+    codegen_emit(gen, CG_STR_PUSH_IX);
+    codegen_emit(gen, CG_STR_IX_FRAME_SET);
     if (gen->stack_offset > 0) {
-        codegen_emit(gen, "  ld hl, 0\n");
-        codegen_emit(gen, "  add hl, sp\n");
-        codegen_emit(gen, "  ld de, ");
-        codegen_emit_int(gen, gen->stack_offset);
-        codegen_emit(gen, "\n  or a\n  sbc hl, de\n  ld sp, hl\n");
-        codegen_emit(gen, "  ld ix, 0\n");
-        codegen_emit(gen, "  add ix, sp\n");
+        codegen_emit_stack_adjust(gen, gen->stack_offset, true);
+        codegen_emit(gen, CG_STR_IX_FRAME_SET);
     }
 
     /* Generate function body */
@@ -1190,33 +1135,20 @@ static cc_error_t codegen_function(codegen_t* gen, ast_node_t* node) {
             if (err != CC_OK) return err;
         }
     } else {
-                codegen_emit(gen, "  ld a, 0\n");
+                codegen_emit(gen, CG_STR_LD_A_ZERO);
             }
 
     if (gen->use_function_end_label) {
-        codegen_emit(gen, gen->function_end_label);
-        codegen_emit(gen, ":\n");
+        codegen_emit_label(gen, gen->function_end_label);
         if (gen->stack_offset > 0) {
-            codegen_emit(gen, "  ld hl, 0\n");
-            codegen_emit(gen, "  add hl, sp\n");
-            codegen_emit(gen, "  ld de, ");
-            codegen_emit_int(gen, gen->stack_offset);
-            codegen_emit(gen, "\n  add hl, de\n  ld sp, hl\n");
+            codegen_emit_stack_adjust(gen, gen->stack_offset, false);
         }
-        codegen_emit(gen,
-            "  pop ix\n"
-            "  ret\n");
+        codegen_emit(gen, CG_STR_POP_IX_RET);
     } else if (!last_was_return) {
         if (gen->stack_offset > 0) {
-            codegen_emit(gen, "  ld hl, 0\n");
-            codegen_emit(gen, "  add hl, sp\n");
-            codegen_emit(gen, "  ld de, ");
-            codegen_emit_int(gen, gen->stack_offset);
-            codegen_emit(gen, "\n  add hl, de\n  ld sp, hl\n");
+            codegen_emit_stack_adjust(gen, gen->stack_offset, false);
         }
-        codegen_emit(gen,
-            "  pop ix\n"
-            "  ret\n");
+        codegen_emit(gen, CG_STR_POP_IX_RET);
     }
 
     gen->defer_var_storage = false;
@@ -1224,7 +1156,7 @@ static cc_error_t codegen_function(codegen_t* gen, ast_node_t* node) {
         cc_free(gen->function_end_label);
         gen->function_end_label = NULL;
     }
-    codegen_emit(gen, "\n");
+    codegen_emit(gen, CG_STR_NL);
 
     return CC_OK;
 }
@@ -1252,9 +1184,9 @@ static cc_error_t codegen_global_var(codegen_t* gen, ast_node_t* node) {
                 gen,
                 node->data.var_decl.initializer->data.string_literal.value);
             if (!label) return CC_ERROR_CODEGEN;
-            codegen_emit(gen, ":\n  .dw ");
+            codegen_emit(gen, CG_STR_COLON_DW);
             codegen_emit(gen, label);
-            codegen_emit(gen, "\n");
+            codegen_emit(gen, CG_STR_NL);
             return CC_OK;
         }
         if (node->data.var_decl.initializer &&
@@ -1262,30 +1194,30 @@ static cc_error_t codegen_global_var(codegen_t* gen, ast_node_t* node) {
             node->data.var_decl.initializer->data.unary_op.op == OP_ADDR &&
             node->data.var_decl.initializer->data.unary_op.operand &&
             node->data.var_decl.initializer->data.unary_op.operand->type == AST_IDENTIFIER) {
-            codegen_emit(gen, ":\n  .dw ");
+            codegen_emit(gen, CG_STR_COLON_DW);
             codegen_emit_mangled_var(
                 gen,
                 node->data.var_decl.initializer->data.unary_op.operand->data.identifier.name);
-            codegen_emit(gen, "\n");
+            codegen_emit(gen, CG_STR_NL);
             return CC_OK;
         }
         if (node->data.var_decl.initializer &&
             node->data.var_decl.initializer->type == AST_CONSTANT &&
             node->data.var_decl.initializer->data.constant.int_value == 0) {
-            codegen_emit(gen, ":\n  .dw 0\n");
+            codegen_emit(gen, CG_STR_COLON_DW_ZERO);
             return CC_OK;
         }
-        codegen_emit(gen, ":\n  .dw 0\n");
+        codegen_emit(gen, CG_STR_COLON_DW_ZERO);
         return CC_OK;
     }
     if (node->data.var_decl.initializer &&
         node->data.var_decl.initializer->type == AST_CONSTANT) {
         int value = node->data.var_decl.initializer->data.constant.int_value;
-        codegen_emit(gen, ":\n  .db ");
+        codegen_emit(gen, CG_STR_COLON_DB);
         codegen_emit_int(gen, value);
-        codegen_emit(gen, "\n");
+        codegen_emit(gen, CG_STR_NL);
     } else {
-        codegen_emit(gen, ":\n  .db 0\n");
+        codegen_emit(gen, CG_STR_COLON_DB_ZERO);
     }
     return CC_OK;
 }
@@ -1319,18 +1251,13 @@ void codegen_emit_strings(codegen_t* gen) {
         codegen_emit(gen, ":\n");
         size_t idx = 0;
         while (value[idx]) {
-            codegen_emit(gen, "  .db ");
+            codegen_emit(gen, CG_STR_DB);
             codegen_emit_int(gen, (unsigned char)value[idx]);
-            codegen_emit(gen, "\n");
+            codegen_emit(gen, CG_STR_NL);
             idx++;
         }
-        codegen_emit(gen, "  .db 0\n");
+        codegen_emit(gen, CG_STR_DB_ZERO);
     }
-}
-
-// Helper: emit contents of a file to the output buffer
-static void codegen_emit_crt0(codegen_t* gen) {
-    codegen_emit_file(gen, "runtime/crt0.asm");
 }
 
 void codegen_emit_preamble(codegen_t* gen) {
@@ -1340,7 +1267,7 @@ void codegen_emit_preamble(codegen_t* gen) {
         "; Target: Z80\n\n"
         "  org 0x4000\n"
         "\n");
-    codegen_emit_crt0(gen);
+    codegen_emit_file(gen, "runtime/crt0.asm");
     codegen_emit(gen, "\n; Program code\n");
 }
 
