@@ -110,6 +110,7 @@ int main(int argc, char** argv) {
             ast_node_destroy(ast);
         } else if (ast->type == AST_VAR_DECL) {
             if (global_count < (sizeof(globals_tmp) / sizeof(globals_tmp[0]))) {
+                codegen_register_global(codegen, ast);
                 globals_tmp[global_count++] = ast;
             } else {
                 ast_node_destroy(ast);

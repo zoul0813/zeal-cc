@@ -54,6 +54,12 @@ cc h:/tests/string.c h:/tests/string.asm
 ? return tests/string.bin
 : echo Failed to compile tests/string.c
 
+echo TEST: h:/tests/char_ptr.c
+cc h:/tests/char_ptr.c h:/tests/char_ptr.asm
+? zealasm h:/tests/char_ptr.asm h:/tests/char_ptr.bin
+? return tests/char_ptr.bin
+: echo Failed to compile tests/char_ptr.c
+
 echo TEST: h:/tests/for.c
 cc h:/tests/for.c h:/tests/for.asm
 ? zealasm h:/tests/for.asm h:/tests/for.bin

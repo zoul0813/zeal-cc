@@ -15,6 +15,7 @@
 #define INITIAL_OUTPUT_CAPACITY 1024
 
 /* Helpers */
+static void codegen_emit_ix_offset(codegen_t* gen, int offset);
 static void codegen_emit_mangled_var(codegen_t* gen, const char* name) {
     codegen_emit(gen, "_v_");
     codegen_emit(gen, name);
@@ -54,41 +55,140 @@ static void codegen_emit_int(codegen_t* gen, int value) {
     codegen_emit(gen, buf);
 }
 
-static void codegen_record_local(codegen_t* gen, const char* name) {
-    if (!gen || !name) return;
+static bool codegen_type_is_pointer(const type_t* type) {
+    return type && type->kind == TYPE_POINTER;
+}
+
+static int codegen_type_storage_size(const type_t* type) {
+    return codegen_type_is_pointer(type) ? 2 : 1;
+}
+
+static int codegen_local_index(codegen_t* gen, const char* name) {
+    if (!gen || !name) return -1;
     for (size_t i = 0; i < gen->local_var_count; i++) {
         if (gen->local_vars[i] == name || codegen_names_equal(gen->local_vars[i], name)) {
-            return;
+            return (int)i;
         }
     }
+    return -1;
+}
+
+static int codegen_param_index(codegen_t* gen, const char* name) {
+    if (!gen || !name) return -1;
+    for (size_t i = 0; i < gen->param_count; i++) {
+        if (gen->param_names[i] == name || codegen_names_equal(gen->param_names[i], name)) {
+            return (int)i;
+        }
+    }
+    return -1;
+}
+
+static int codegen_global_index(codegen_t* gen, const char* name) {
+    if (!gen || !name) return -1;
+    for (size_t i = 0; i < gen->global_count; i++) {
+        if (gen->global_names[i] == name || codegen_names_equal(gen->global_names[i], name)) {
+            return (int)i;
+        }
+    }
+    return -1;
+}
+
+static void codegen_record_local(codegen_t* gen, const char* name, int size, bool is_pointer) {
+    if (!gen || !name) return;
+    if (codegen_local_index(gen, name) >= 0) return;
     if (gen->local_var_count < (sizeof(gen->local_vars) / sizeof(gen->local_vars[0]))) {
         gen->local_vars[gen->local_var_count] = name;
         gen->local_offsets[gen->local_var_count] = gen->stack_offset;
-        gen->stack_offset += 1;
+        gen->local_sizes[gen->local_var_count] = size;
+        gen->local_is_pointer[gen->local_var_count] = is_pointer;
+        gen->stack_offset += size;
         gen->local_var_count++;
     }
 }
 
 static int codegen_param_offset(codegen_t* gen, const char* name, int* out_offset) {
     if (!gen || !name || !out_offset) return 0;
-    for (size_t i = 0; i < gen->param_count; i++) {
-        if (gen->param_names[i] == name || codegen_names_equal(gen->param_names[i], name)) {
-            *out_offset = gen->param_offsets[i];
-            return 1;
-        }
-    }
-    return 0;
+    int idx = codegen_param_index(gen, name);
+    if (idx < 0) return 0;
+    *out_offset = gen->param_offsets[idx];
+    return 1;
 }
 
 static int codegen_local_offset(codegen_t* gen, const char* name, int* out_offset) {
     if (!gen || !name || !out_offset) return 0;
-    for (size_t i = 0; i < gen->local_var_count; i++) {
-        if (gen->local_vars[i] == name || codegen_names_equal(gen->local_vars[i], name)) {
-            *out_offset = gen->local_offsets[i];
-            return 1;
+    int idx = codegen_local_index(gen, name);
+    if (idx < 0) return 0;
+    *out_offset = gen->local_offsets[idx];
+    return 1;
+}
+
+static bool codegen_local_is_pointer(codegen_t* gen, const char* name) {
+    int idx = codegen_local_index(gen, name);
+    return idx >= 0 && gen->local_is_pointer[idx];
+}
+
+static bool codegen_param_is_pointer(codegen_t* gen, const char* name) {
+    int idx = codegen_param_index(gen, name);
+    return idx >= 0 && gen->param_is_pointer[idx];
+}
+
+static bool codegen_global_is_pointer(codegen_t* gen, const char* name) {
+    int idx = codegen_global_index(gen, name);
+    return idx >= 0 && gen->global_is_pointer[idx];
+}
+
+static cc_error_t codegen_emit_address_of_identifier(codegen_t* gen, const char* name) {
+    int offset = 0;
+    if (codegen_local_offset(gen, name, &offset) || codegen_param_offset(gen, name, &offset)) {
+        codegen_emit(gen, "  push ix\n  pop hl\n");
+        if (offset != 0) {
+            codegen_emit(gen, "  ld de, ");
+            codegen_emit_int(gen, offset);
+            codegen_emit(gen, "\n  add hl, de\n");
         }
+        return CC_OK;
     }
-    return 0;
+
+    codegen_emit(gen, "  ld hl, ");
+    codegen_emit_mangled_var(gen, name);
+    codegen_emit(gen, "\n");
+    return CC_OK;
+}
+
+static cc_error_t codegen_load_pointer_to_hl(codegen_t* gen, const char* name) {
+    int offset = 0;
+    if (codegen_local_offset(gen, name, &offset) || codegen_param_offset(gen, name, &offset)) {
+        codegen_emit(gen, "  ld l, (");
+        codegen_emit_ix_offset(gen, offset);
+        codegen_emit(gen, ")\n");
+        codegen_emit(gen, "  ld h, (");
+        codegen_emit_ix_offset(gen, offset + 1);
+        codegen_emit(gen, ")\n");
+        return CC_OK;
+    }
+
+    codegen_emit(gen, "  ld hl, (");
+    codegen_emit_mangled_var(gen, name);
+    codegen_emit(gen, ")\n");
+    return CC_OK;
+}
+
+static cc_error_t codegen_store_pointer_from_hl(codegen_t* gen, const char* name) {
+    int offset = 0;
+    if (codegen_local_offset(gen, name, &offset) || codegen_param_offset(gen, name, &offset)) {
+        codegen_emit(gen, "  ld (");
+        codegen_emit_ix_offset(gen, offset);
+        codegen_emit(gen, "), l\n");
+        codegen_emit(gen, "  ld (");
+        codegen_emit_ix_offset(gen, offset + 1);
+        codegen_emit(gen, "), h\n");
+        return CC_OK;
+    }
+
+    codegen_emit(gen, "  ld (");
+    codegen_emit_mangled_var(gen, name);
+    codegen_emit(gen, "), hl\n");
+    return CC_OK;
 }
 
 static void codegen_emit_ix_offset(codegen_t* gen, int offset) {
@@ -100,7 +200,9 @@ static void codegen_emit_ix_offset(codegen_t* gen, int offset) {
 static void codegen_collect_locals(codegen_t* gen, ast_node_t* node) {
     if (!gen || !node) return;
     if (node->type == AST_VAR_DECL) {
-        codegen_record_local(gen, node->data.var_decl.name);
+        int size = codegen_type_storage_size(node->data.var_decl.var_type);
+        bool is_pointer = codegen_type_is_pointer(node->data.var_decl.var_type);
+        codegen_record_local(gen, node->data.var_decl.name, size, is_pointer);
         return;
     }
     switch (node->type) {
@@ -190,6 +292,7 @@ codegen_t* codegen_create(const char* output_file, symbol_table_t* symbols) {
     gen->local_var_count = 0;
     gen->defer_var_storage = false;
     gen->param_count = 0;
+    gen->global_count = 0;
     gen->function_end_label = NULL;
     gen->return_direct = false;
     gen->use_function_end_label = false;
@@ -354,6 +457,25 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
                 codegen_emit(gen, "\n");
             }
             return CC_OK;
+
+        case AST_UNARY_OP: {
+            if (node->data.unary_op.op == OP_DEREF) {
+                ast_node_t* operand = node->data.unary_op.operand;
+                if (operand && operand->type == AST_IDENTIFIER) {
+                    cc_error_t err = codegen_load_pointer_to_hl(gen, operand->data.identifier.name);
+                    if (err != CC_OK) return err;
+                    codegen_emit(gen, "  ld a, (hl)\n");
+                    return CC_OK;
+                }
+                cc_error("Unsupported dereference operand");
+                return CC_ERROR_CODEGEN;
+            }
+            if (node->data.unary_op.op == OP_ADDR) {
+                cc_error("Address-of used without pointer assignment");
+                return CC_ERROR_CODEGEN;
+            }
+            return CC_ERROR_CODEGEN;
+        }
 
         case AST_BINARY_OP: {
             /* Evaluate left operand (result in A) */
@@ -570,29 +692,107 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
                 codegen_emit(gen, "  ld a, (hl)\n");
                 return CC_OK;
             }
+            if (base && base->type == AST_IDENTIFIER &&
+                index && index->type == AST_CONSTANT) {
+                const char* name = base->data.identifier.name;
+                if (!codegen_local_is_pointer(gen, name) &&
+                    !codegen_param_is_pointer(gen, name) &&
+                    !codegen_global_is_pointer(gen, name)) {
+                    cc_error("Unsupported array access");
+                    return CC_ERROR_CODEGEN;
+                }
+                cc_error_t err = codegen_load_pointer_to_hl(gen, name);
+                if (err != CC_OK) return err;
+                int offset = index->data.constant.int_value;
+                if (offset != 0) {
+                    codegen_emit(gen, "  ld de, ");
+                    codegen_emit_int(gen, offset);
+                    codegen_emit(gen, "\n");
+                    codegen_emit(gen, "  add hl, de\n");
+                }
+                codegen_emit(gen, "  ld a, (hl)\n");
+                return CC_OK;
+            }
             cc_error("Unsupported array access");
             return CC_ERROR_CODEGEN;
         }
 
         case AST_ASSIGN: {
+            ast_node_t* lvalue = node->data.assign.lvalue;
+            ast_node_t* rvalue = node->data.assign.rvalue;
+
+            if (lvalue && lvalue->type == AST_UNARY_OP &&
+                lvalue->data.unary_op.op == OP_DEREF) {
+                cc_error_t err = codegen_expression(gen, rvalue);
+                if (err != CC_OK) return err;
+                ast_node_t* operand = lvalue->data.unary_op.operand;
+                if (operand && operand->type == AST_IDENTIFIER) {
+                    err = codegen_load_pointer_to_hl(gen, operand->data.identifier.name);
+                    if (err != CC_OK) return err;
+                    codegen_emit(gen, "  ld (hl), a\n");
+                    return CC_OK;
+                }
+                cc_error("Unsupported dereference assignment");
+                return CC_ERROR_CODEGEN;
+            }
+
+            if (lvalue && lvalue->type == AST_IDENTIFIER &&
+                (codegen_local_is_pointer(gen, lvalue->data.identifier.name) ||
+                 codegen_param_is_pointer(gen, lvalue->data.identifier.name) ||
+                 codegen_global_is_pointer(gen, lvalue->data.identifier.name))) {
+                if (rvalue && rvalue->type == AST_STRING_LITERAL) {
+                    const char* label = codegen_get_string_label(gen, rvalue->data.string_literal.value);
+                    if (!label) return CC_ERROR_CODEGEN;
+                    codegen_emit(gen, "  ld hl, ");
+                    codegen_emit(gen, label);
+                    codegen_emit(gen, "\n");
+                    return codegen_store_pointer_from_hl(gen, lvalue->data.identifier.name);
+                }
+                if (rvalue && rvalue->type == AST_UNARY_OP &&
+                    rvalue->data.unary_op.op == OP_ADDR &&
+                    rvalue->data.unary_op.operand &&
+                    rvalue->data.unary_op.operand->type == AST_IDENTIFIER) {
+                    cc_error_t err = codegen_emit_address_of_identifier(
+                        gen,
+                        rvalue->data.unary_op.operand->data.identifier.name);
+                    if (err != CC_OK) return err;
+                    return codegen_store_pointer_from_hl(gen, lvalue->data.identifier.name);
+                }
+                if (rvalue && rvalue->type == AST_IDENTIFIER &&
+                    (codegen_local_is_pointer(gen, rvalue->data.identifier.name) ||
+                     codegen_param_is_pointer(gen, rvalue->data.identifier.name) ||
+                     codegen_global_is_pointer(gen, rvalue->data.identifier.name))) {
+                    cc_error_t err = codegen_load_pointer_to_hl(gen, rvalue->data.identifier.name);
+                    if (err != CC_OK) return err;
+                    return codegen_store_pointer_from_hl(gen, lvalue->data.identifier.name);
+                }
+                if (rvalue && rvalue->type == AST_CONSTANT &&
+                    rvalue->data.constant.int_value == 0) {
+                    codegen_emit(gen, "  ld hl, 0\n");
+                    return codegen_store_pointer_from_hl(gen, lvalue->data.identifier.name);
+                }
+                cc_error("Unsupported pointer assignment");
+                return CC_ERROR_CODEGEN;
+            }
+
             /* Assignment: evaluate RHS, store to LHS */
-            cc_error_t err = codegen_expression(gen, node->data.assign.rvalue);
+            cc_error_t err = codegen_expression(gen, rvalue);
             if (err != CC_OK) return err;
 
             /* Store A to variable */
-            if (node->data.assign.lvalue->type == AST_IDENTIFIER) {
+            if (lvalue && lvalue->type == AST_IDENTIFIER) {
                 int offset = 0;
-                if (codegen_local_offset(gen, node->data.assign.lvalue->data.identifier.name, &offset)) {
+                if (codegen_local_offset(gen, lvalue->data.identifier.name, &offset)) {
                     codegen_emit(gen, "  ld (");
                     codegen_emit_ix_offset(gen, offset);
                     codegen_emit(gen, "), a\n");
-                } else if (codegen_param_offset(gen, node->data.assign.lvalue->data.identifier.name, &offset)) {
+                } else if (codegen_param_offset(gen, lvalue->data.identifier.name, &offset)) {
                     codegen_emit(gen, "  ld (ix+");
                     codegen_emit_int(gen, offset);
                     codegen_emit(gen, "), a\n");
                 } else {
                     codegen_emit(gen, "  ld (");
-                    codegen_emit_mangled_var(gen, node->data.assign.lvalue->data.identifier.name);
+                    codegen_emit_mangled_var(gen, lvalue->data.identifier.name);
                     codegen_emit(gen, "), a\n");
                 }
             }
@@ -643,7 +843,45 @@ static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node) {
 
             /* If there's an initializer, generate assignment */
             if (node->data.var_decl.initializer) {
-                cc_error_t err = codegen_expression(gen, node->data.var_decl.initializer);
+                bool is_pointer = codegen_type_is_pointer(node->data.var_decl.var_type);
+                ast_node_t* init = node->data.var_decl.initializer;
+                if (is_pointer) {
+                    if (init->type == AST_STRING_LITERAL) {
+                        const char* label = codegen_get_string_label(gen, init->data.string_literal.value);
+                        if (!label) return CC_ERROR_CODEGEN;
+                        codegen_emit(gen, "  ld hl, ");
+                        codegen_emit(gen, label);
+                        codegen_emit(gen, "\n");
+                        return codegen_store_pointer_from_hl(gen, node->data.var_decl.name);
+                    }
+                    if (init->type == AST_UNARY_OP &&
+                        init->data.unary_op.op == OP_ADDR &&
+                        init->data.unary_op.operand &&
+                        init->data.unary_op.operand->type == AST_IDENTIFIER) {
+                        cc_error_t err = codegen_emit_address_of_identifier(
+                            gen,
+                            init->data.unary_op.operand->data.identifier.name);
+                        if (err != CC_OK) return err;
+                        return codegen_store_pointer_from_hl(gen, node->data.var_decl.name);
+                    }
+                    if (init->type == AST_IDENTIFIER &&
+                        (codegen_local_is_pointer(gen, init->data.identifier.name) ||
+                         codegen_param_is_pointer(gen, init->data.identifier.name) ||
+                         codegen_global_is_pointer(gen, init->data.identifier.name))) {
+                        cc_error_t err = codegen_load_pointer_to_hl(gen, init->data.identifier.name);
+                        if (err != CC_OK) return err;
+                        return codegen_store_pointer_from_hl(gen, node->data.var_decl.name);
+                    }
+                    if (init->type == AST_CONSTANT &&
+                        init->data.constant.int_value == 0) {
+                        codegen_emit(gen, "  ld hl, 0\n");
+                        return codegen_store_pointer_from_hl(gen, node->data.var_decl.name);
+                    }
+                    cc_error("Unsupported pointer initializer");
+                    return CC_ERROR_CODEGEN;
+                }
+
+                cc_error_t err = codegen_expression(gen, init);
                 if (err != CC_OK) return err;
                 {
                     int offset = 0;
@@ -884,6 +1122,8 @@ static cc_error_t codegen_function(codegen_t* gen, ast_node_t* node) {
             if (!param || param->type != AST_VAR_DECL) continue;
             gen->param_names[gen->param_count] = param->data.var_decl.name;
             gen->param_offsets[gen->param_count] = gen->stack_offset + 4 + (int)(2 * gen->param_count);
+            gen->param_is_pointer[gen->param_count] =
+                codegen_type_is_pointer(param->data.var_decl.var_type);
             gen->param_count++;
         }
     }
@@ -976,10 +1216,51 @@ static cc_error_t codegen_global_var(codegen_t* gen, ast_node_t* node) {
     if (!node || node->type != AST_VAR_DECL) {
         return CC_ERROR_INTERNAL;
     }
+    bool is_pointer = codegen_type_is_pointer(node->data.var_decl.var_type);
+    if (gen->global_count < (sizeof(gen->global_names) / sizeof(gen->global_names[0]))) {
+        if (codegen_global_index(gen, node->data.var_decl.name) < 0) {
+            gen->global_names[gen->global_count] = node->data.var_decl.name;
+            gen->global_is_pointer[gen->global_count] = is_pointer;
+            gen->global_count++;
+        }
+    }
     codegen_emit(gen, "; Global variable: ");
     codegen_emit(gen, node->data.var_decl.name);
     codegen_emit(gen, "\n");
     codegen_emit_mangled_var(gen, node->data.var_decl.name);
+    if (is_pointer) {
+        if (node->data.var_decl.initializer &&
+            node->data.var_decl.initializer->type == AST_STRING_LITERAL) {
+            const char* label = codegen_get_string_label(
+                gen,
+                node->data.var_decl.initializer->data.string_literal.value);
+            if (!label) return CC_ERROR_CODEGEN;
+            codegen_emit(gen, ":\n  .dw ");
+            codegen_emit(gen, label);
+            codegen_emit(gen, "\n");
+            return CC_OK;
+        }
+        if (node->data.var_decl.initializer &&
+            node->data.var_decl.initializer->type == AST_UNARY_OP &&
+            node->data.var_decl.initializer->data.unary_op.op == OP_ADDR &&
+            node->data.var_decl.initializer->data.unary_op.operand &&
+            node->data.var_decl.initializer->data.unary_op.operand->type == AST_IDENTIFIER) {
+            codegen_emit(gen, ":\n  .dw ");
+            codegen_emit_mangled_var(
+                gen,
+                node->data.var_decl.initializer->data.unary_op.operand->data.identifier.name);
+            codegen_emit(gen, "\n");
+            return CC_OK;
+        }
+        if (node->data.var_decl.initializer &&
+            node->data.var_decl.initializer->type == AST_CONSTANT &&
+            node->data.var_decl.initializer->data.constant.int_value == 0) {
+            codegen_emit(gen, ":\n  .dw 0\n");
+            return CC_OK;
+        }
+        codegen_emit(gen, ":\n  .dw 0\n");
+        return CC_OK;
+    }
     if (node->data.var_decl.initializer &&
         node->data.var_decl.initializer->type == AST_CONSTANT) {
         int value = node->data.var_decl.initializer->data.constant.int_value;
@@ -994,6 +1275,16 @@ static cc_error_t codegen_global_var(codegen_t* gen, ast_node_t* node) {
 
 cc_error_t codegen_generate_global(codegen_t* gen, ast_node_t* decl) {
     return codegen_global_var(gen, decl);
+}
+
+void codegen_register_global(codegen_t* gen, ast_node_t* decl) {
+    if (!gen || !decl || decl->type != AST_VAR_DECL) return;
+    if (codegen_global_index(gen, decl->data.var_decl.name) >= 0) return;
+    if (gen->global_count >= (sizeof(gen->global_names) / sizeof(gen->global_names[0]))) return;
+    gen->global_names[gen->global_count] = decl->data.var_decl.name;
+    gen->global_is_pointer[gen->global_count] =
+        codegen_type_is_pointer(decl->data.var_decl.var_type);
+    gen->global_count++;
 }
 
 void codegen_emit_runtime(codegen_t* gen) {

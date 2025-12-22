@@ -27,14 +27,21 @@ typedef struct {
     int stack_offset;
     const char* local_vars[64];
     int local_offsets[64];
+    int local_sizes[64];
+    bool local_is_pointer[64];
     size_t local_var_count;
     bool defer_var_storage;
     const char* param_names[8];
     int param_offsets[8];
+    bool param_is_pointer[8];
     size_t param_count;
     char* function_end_label;
     bool return_direct;
     bool use_function_end_label;
+
+    const char* global_names[64];
+    bool global_is_pointer[64];
+    size_t global_count;
 
     const char* string_labels[64];
     char* string_literals[64];
@@ -47,6 +54,7 @@ void codegen_destroy(codegen_t* gen);
 cc_error_t codegen_generate(codegen_t* gen, ast_node_t* ast);
 cc_error_t codegen_generate_function(codegen_t* gen, ast_node_t* func);
 cc_error_t codegen_generate_global(codegen_t* gen, ast_node_t* decl);
+void codegen_register_global(codegen_t* gen, ast_node_t* decl);
 void codegen_emit_preamble(codegen_t* gen);
 void codegen_emit_runtime(codegen_t* gen);
 void codegen_emit_strings(codegen_t* gen);

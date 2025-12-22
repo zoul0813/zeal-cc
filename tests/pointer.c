@@ -6,5 +6,5 @@ int main() {
     p = &x;
     *p = 7;
 
-    return x; /* Expect 7 once pointers are supported */
+    return x; /* Expected return: 7 (0x07). */
 }

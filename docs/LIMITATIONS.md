@@ -9,9 +9,12 @@
 - Functions: definitions and calls are supported; parameters are passed on the
   stack with an `IX` frame (see calling convention).
 - String literals are supported only for constant indexing (e.g., `"hi"[0]`).
+- Pointers are supported only for address-of/deref, pointer assignment, and
+  constant indexing via `ptr[const]`.
 
 ## Not Implemented Yet
-- Pointers, arrays, structs, unions.
+- Arrays, structs, unions.
+- Pointer arithmetic and non-constant indexing.
 - Type checking and semantic analysis.
 - Optimizations.
 

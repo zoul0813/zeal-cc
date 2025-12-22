@@ -22,6 +22,7 @@ TESTS_FAILED = 0
 EXPECTED_RESULTS = {
     "assign": "15",
     "array": None,
+    "char_ptr": "BF",
     "char": "41",
     "comp": "4E",
     "compares": "3F",
@@ -33,7 +34,7 @@ EXPECTED_RESULTS = {
     "locals_params": "0F",
     "math": "3A",
     "params": "05",
-    "pointer": None,
+    "pointer": "07",
     "simple_return": "0C",
     "string": "AD",
     "struct": None,

@@ -76,13 +76,13 @@
 ### Phase 5: Code Generator (incomplete tasks)
 
 - ❌ 16-bit locals/params and return values (8-bit only today)
-- ❌ Pointer/array addressing and dereference codegen
+- ❌ Array addressing and dereference codegen
 
 ## ⏳ Not Started
 
 ### Advanced Features
 
-- ❌ Array access and pointers
+- ❌ Array access
 - ❌ Structs and unions
 - ❌ Type checking and semantic analysis
 - ❌ Optimizations
@@ -100,15 +100,6 @@
 
 - ⚠️ README/SCOPE/USAGE updated; fuller docs still needed
 
-## Next Steps for Iteration
-
-### Critical Issues to Fix
-
-1. 🟡 **Stack-based variables** - Replace global labels with proper stack frames
-   - Currently all variables are global labels (x:, y:, sum:)
-   - Should use: `ld (ix+offset), a` for local variables
-   - Requires: Function prologue/epilogue with IX register
-
 ### Completed Features ✅
 
 1. ✅ **Control flow statements** - if/else, while, for loops
@@ -120,12 +111,13 @@
 7. ✅ **Stack-based local variables**
 8. ✅ **Global variable declarations**
 9. ✅ **String literals with constant indexing**
+10. ✅ **Pointer basics** (address-of, deref, pointer assignment, constant indexing)
 
 ## Current Test Status
 
-- ✅ Host: `tests/*.c` compile to `.asm` (includes simple_return/locals_params/assign/array/compares/comp/expr/for/if/math/params/pointer/struct/while/do_while/unary/string/char/ternary).
+- ✅ Host: `tests/*.c` compile to `.asm` (includes simple_return/locals_params/assign/array/compares/comp/expr/for/if/math/params/pointer/struct/while/do_while/unary/string/char/char_ptr/ternary).
 - ✅ Target: headless run passes; `test.zs` includes current tests.
-- ⚠️ Expected-fail tests (tracked in `test.py`): array, pointer, struct, do_while, unary, ternary.
+- ⚠️ Expected-fail tests (tracked in `test.py`): array, struct, do_while, unary, ternary.
 
 **All tests write output to `tests/` only.**
 
@@ -153,11 +145,13 @@ done
 ./bin/cc tests/while.c tests/while.asm  # While loop
 ./bin/cc tests/do_while.c tests/do_while.asm  # Do/while (expected fail)
 ./bin/cc tests/unary.c tests/unary.asm  # Unary ops (expected fail)
-./bin/cc tests/string.c tests/string.asm  # String literals (expected fail)
+./bin/cc tests/string.c tests/string.asm  # String literals
+./bin/cc tests/char_ptr.c tests/char_ptr.asm  # Char pointer literals
 ./bin/cc tests/char.c tests/char.asm    # Char literals
 ./bin/cc tests/for.c tests/for.asm    # For loop
 ./bin/cc tests/locals_params.c tests/locals_params.asm          # Locals + params
 ./bin/cc tests/params.c tests/params.asm  # Function parameters
+./bin/cc tests/pointer.c tests/pointer.asm  # Pointer basics
 ./bin/cc tests/comp.c tests/comp.asm  # Comprehensive test
 
 # View generated assembly
