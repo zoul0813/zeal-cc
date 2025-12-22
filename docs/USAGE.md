@@ -46,3 +46,17 @@ Run desktop tests:
 
 Headless target testing uses `test.zs`. If you add a new test, update
 `test.zs` so it runs on target and emits a return code.
+
+## AST tools
+
+`ast_dump` prints a human-readable view of a `.ast` file produced by `cc_parse`.
+
+Host usage:
+```
+bin/ast_dump_darwin tests/simple_return.ast
+```
+
+Zeal usage:
+```
+ast_dump h:/tests/simple_return.ast
+```

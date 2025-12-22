@@ -1,7 +1,7 @@
 # Makefile for Zeal 8-bit C Compiler (Desktop build)
 
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c99 -Iinclude -g
+CFLAGS = -Wall -Wextra -std=c99 -Iinclude -g -DCC_POOL_SIZE=65536
 LDFLAGS =
 
 # Detect architecture
@@ -23,10 +23,15 @@ OBJS = $(SRCS:.c=.o)
 # Output binary with architecture suffix
 TARGET = bin/cc_$(ARCH)
 
-PARSE_SRCS = src/parser/main_parse.c src/common/common.c src/common/ast_io.c src/parser/lexer.c src/parser/parser.c src/common/symbol.c \
+PARSE_SRCS = src/parser/main.c src/common/common.c src/common/ast_io.c src/parser/lexer.c src/parser/parser.c src/common/symbol.c \
              src/target/modern/target_args.c src/target/modern/target_io.c
 PARSE_OBJS = $(PARSE_SRCS:.c=.o)
 PARSE_TARGET = bin/cc_parse_$(ARCH)
+
+CODEGEN_SRCS = src/codegen/main.c src/codegen/codegen.c src/codegen/codegen_strings.c src/common/common.c src/common/ast_io.c src/common/ast_reader.c \
+               src/common/symbol.c src/target/modern/target_args.c src/target/modern/target_io.c
+CODEGEN_OBJS = $(CODEGEN_SRCS:.c=.o)
+CODEGEN_TARGET = bin/cc_codegen_$(ARCH)
 
 AST_DUMP_SRCS = src/tools/ast_dump.c src/common/common.c src/common/ast_io.c src/common/ast_reader.c src/common/symbol.c \
                 src/target/modern/target_io.c
@@ -35,13 +40,17 @@ AST_DUMP_TARGET = bin/ast_dump_$(ARCH)
 
 .PHONY: all clean test
 
-all: $(TARGET) $(PARSE_TARGET) $(AST_DUMP_TARGET)
+all: $(TARGET) $(PARSE_TARGET) $(CODEGEN_TARGET) $(AST_DUMP_TARGET)
 
 $(TARGET): $(OBJS)
 	@mkdir -p bin
 	$(CC) $(LDFLAGS) -o $@ $^
 
 $(PARSE_TARGET): $(PARSE_OBJS)
+	@mkdir -p bin
+	$(CC) $(LDFLAGS) -o $@ $^
+
+$(CODEGEN_TARGET): $(CODEGEN_OBJS)
 	@mkdir -p bin
 	$(CC) $(LDFLAGS) -o $@ $^
 
@@ -55,6 +64,7 @@ $(AST_DUMP_TARGET): $(AST_DUMP_OBJS)
 clean:
 	rm -f $(OBJS) $(TARGET)
 	rm -f $(PARSE_OBJS) $(PARSE_TARGET)
+	rm -f $(CODEGEN_OBJS) $(CODEGEN_TARGET)
 	rm -f $(AST_DUMP_OBJS) $(AST_DUMP_TARGET)
 	rm -rf bin/*.o
 

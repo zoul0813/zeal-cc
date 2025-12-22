@@ -123,12 +123,25 @@ add_program(cc
 )
 
 add_program(cc_parse
-    "src/parser/main_parse.c"
+    "src/parser/main.c"
     "src/parser/lexer.c"
     "src/parser/parser.c"
     "src/common/common.c"
     "src/common/symbol.c"
     "src/common/ast_io.c"
+    "src/target/zeal8bit/target_args.c"
+    "src/target/zeal8bit/target_io.c"
+    ILIBS core
+)
+
+add_program(cc_codegen
+    "src/codegen/main.c"
+    "src/codegen/codegen.c"
+    "src/codegen/codegen_strings.c"
+    "src/common/common.c"
+    "src/common/symbol.c"
+    "src/common/ast_io.c"
+    "src/common/ast_reader.c"
     "src/target/zeal8bit/target_args.c"
     "src/target/zeal8bit/target_io.c"
     ILIBS core

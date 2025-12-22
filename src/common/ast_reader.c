@@ -5,7 +5,12 @@
 #include "common.h"
 #include "symbol.h"
 
+#ifdef __SDCC
+#include <core.h>
+#else
 #include <string.h>
+#define mem_set memset
+#endif
 
 #define AST_HEADER_SIZE 16
 
@@ -14,7 +19,7 @@ void ast_tree_destroy(ast_node_t* node);
 static ast_node_t* ast_node_alloc(ast_node_type_t type) {
     ast_node_t* node = (ast_node_t*)cc_malloc(sizeof(ast_node_t));
     if (!node) return NULL;
-    memset(node, 0, sizeof(*node));
+    mem_set(node, 0, sizeof(*node));
     node->type = type;
     return node;
 }
@@ -406,7 +411,7 @@ int ast_reader_init(ast_reader_t* ast, reader_t* reader) {
     uint16_t reserved = 0;
     uint8_t magic[4] = {0};
     if (!ast || !reader) return -1;
-    memset(ast, 0, sizeof(*ast));
+    mem_set(ast, 0, sizeof(*ast));
     ast->reader = reader;
     if (reader_seek(reader, 0) < 0) return -1;
     if (ast_read_u8(reader, &magic[0]) < 0) return -1;
