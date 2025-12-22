@@ -40,6 +40,7 @@ add_executable(${target_name}
     "src/codegen/codegen_strings.c"
     "src/common/symbol.c"
     "src/common/common.c"
+    "src/common/ast_io.c"
     "src/target/zeal8bit/target_args.c"
     "src/target/zeal8bit/target_io.c"
 )

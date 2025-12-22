@@ -33,6 +33,8 @@ args_t parse_args(int argc, char** argv);
 reader_t* reader_open(const char* filename);
 int reader_next(reader_t* reader); /* returns next byte or -1 on EOF/error */
 int reader_peek(reader_t* reader); /* returns next byte without consuming, or -1 */
+int reader_seek(reader_t* reader, uint32_t offset); /* absolute seek from file start */
+uint32_t reader_tell(reader_t* reader); /* current absolute position */
 void reader_close(reader_t* reader);
 
 /* Logging */
@@ -50,5 +52,7 @@ void log_verbose(const char* message);
 output_t output_open(const char* filename);
 void output_close(output_t handle);
 int output_write(output_t handle, const char* data, uint16_t len);
+int output_seek(output_t handle, uint32_t offset); /* absolute seek from file start */
+uint32_t output_tell(output_t handle);
 
 #endif /* TARGET_H */
