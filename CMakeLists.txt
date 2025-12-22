@@ -33,13 +33,13 @@ if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/menuconfig.cmake)
 endif()
 
 add_executable(${target_name}
-    "src/main.c"
-    "src/lexer.c"
-    "src/parser.c"
-    "src/codegen.c"
-    "src/codegen_strings.c"
-    "src/symbol.c"
-    "src/common.c"
+    "src/cc/main.c"
+    "src/parser/lexer.c"
+    "src/parser/parser.c"
+    "src/codegen/codegen.c"
+    "src/codegen/codegen_strings.c"
+    "src/common/symbol.c"
+    "src/common/common.c"
     "src/target/zeal8bit/target_args.c"
     "src/target/zeal8bit/target_io.c"
 )

@@ -423,16 +423,6 @@ char* codegen_new_string_label(codegen_t* gen) {
     return label;
 }
 
-void codegen_emit_prologue(codegen_t* gen, const char* func_name) {
-    codegen_emit(gen, func_name);
-    codegen_emit(gen, CG_STR_COLON_NL);
-    codegen_emit(gen, CG_STR_PUSH_BC_DE_HL);
-}
-
-void codegen_emit_epilogue(codegen_t* gen) {
-    codegen_emit(gen, CG_STR_POP_HL_DE_BC_RET);
-}
-
 /* Forward declarations */
 static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node);
 static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node);

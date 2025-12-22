@@ -7,7 +7,6 @@
 static ast_node_t* parse_primary(parser_t* parser);
 static ast_node_t* parse_expression(parser_t* parser);
 static ast_node_t* parse_statement(parser_t* parser);
-static ast_node_t* parse_function(parser_t* parser);
 static ast_node_t* parse_declaration(parser_t* parser);
 static ast_node_t* parse_parameter(parser_t* parser);
 static ast_node_t* ast_node_create(ast_node_type_t type);
@@ -665,105 +664,6 @@ static ast_node_t* parse_parameter(parser_t* parser) {
     param->data.var_decl.var_type = var_type;
     param->data.var_decl.initializer = NULL;
     return param;
-}
-
-static ast_node_t* parse_function(parser_t* parser) {
-    ast_node_t* node = ast_node_create(AST_FUNCTION);
-    if (!node) return NULL;
-
-    /* Consume return type (limited) without double-matching */
-    type_t* return_type = parse_type(parser);
-    if (!return_type) {
-        cc_error("Expected return type");
-        parser->error_count++;
-        ast_node_destroy(node);
-        return NULL;
-    }
-    while (parser_match(parser, TOK_STAR)) {
-        return_type = type_create_pointer(return_type);
-    }
-
-    token_t* name_tok = parser_current(parser);
-    char* name = name_tok->value;
-    name_tok->value = NULL;
-    if (!parser_consume(parser, TOK_IDENTIFIER, "Expected function name")) {
-        type_destroy(return_type);
-        cc_free(name);
-        cc_free(node);
-        return NULL;
-    }
-
-    node->data.function.name = name;
-    node->data.function.return_type = return_type;
-    node->data.function.params = NULL;
-    node->data.function.param_count = 0;
-
-    if (!parser_consume(parser, TOK_LPAREN, "Expected '('")) {
-        ast_node_destroy(node);
-        return NULL;
-    }
-
-    /* Parse parameter list */
-    if (parser_check(parser, TOK_VOID) && parser_peek_type(parser) == TOK_RPAREN) {
-        parser_advance(parser); /* consume 'void' in (void) */
-    } else {
-        ast_node_t* params_tmp[8];
-        while (!parser_check(parser, TOK_RPAREN) && !parser_check(parser, TOK_EOF)) {
-            if (node->data.function.param_count >= 8) {
-                cc_error("Too many function parameters");
-                parser->error_count++;
-                break;
-            }
-
-            ast_node_t* param = parse_parameter(parser);
-            if (!param) {
-                /* Attempt to resynchronize by skipping to ')' */
-                while (!parser_check(parser, TOK_RPAREN) && !parser_check(parser, TOK_EOF)) {
-                    parser_advance(parser);
-                }
-                break;
-            }
-
-            params_tmp[node->data.function.param_count++] = param;
-
-            if (parser_check(parser, TOK_COMMA)) {
-                parser_advance(parser);
-                continue;
-            }
-
-            if (parser_check(parser, TOK_RPAREN)) {
-                break;
-            }
-
-            cc_error("Expected ',' or ')' in parameter list");
-            parser->error_count++;
-            /* Skip unexpected tokens */
-            parser_advance(parser);
-        }
-        if (node->data.function.param_count > 0) {
-            node->data.function.params = (ast_node_t**)cc_malloc(
-                sizeof(ast_node_t*) * node->data.function.param_count);
-            if (!node->data.function.params) {
-                for (size_t i = 0; i < node->data.function.param_count; i++) {
-                    ast_node_destroy(params_tmp[i]);
-                }
-                ast_node_destroy(node);
-                return NULL;
-            }
-            for (size_t i = 0; i < node->data.function.param_count; i++) {
-                node->data.function.params[i] = params_tmp[i];
-            }
-        }
-    }
-
-    if (!parser_consume(parser, TOK_RPAREN, "Expected ')'")) {
-        ast_node_destroy(node);
-        return NULL;
-    }
-
-    node->data.function.body = parse_statement(parser);
-
-    return node;
 }
 
 static ast_node_t* parse_declaration(parser_t* parser) {

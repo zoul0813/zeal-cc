@@ -16,7 +16,7 @@ else
 endif
 
 # Source files
-SRCS = src/main.c src/common.c src/lexer.c src/parser.c src/symbol.c src/codegen.c src/codegen_strings.c \
+SRCS = src/cc/main.c src/common/common.c src/parser/lexer.c src/parser/parser.c src/common/symbol.c src/codegen/codegen.c src/codegen/codegen_strings.c \
        src/target/modern/target_args.c src/target/modern/target_io.c
 OBJS = $(SRCS:.c=.o)
 
