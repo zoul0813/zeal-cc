@@ -119,7 +119,7 @@ add_program(cc_parse
     "src/parser/parser.c"
     "src/common/common.c"
     "src/common/symbol.c"
-    "src/common/ast_io.c"
+    "src/common/ast_write.c"
     "src/target/zeal8bit/target_args.c"
     "src/target/zeal8bit/target_io.c"
     ILIBS core
@@ -131,7 +131,7 @@ add_program(cc_codegen
     "src/codegen/codegen_strings.c"
     "src/common/common.c"
     "src/common/symbol.c"
-    "src/common/ast_io.c"
+    "src/common/ast_read.c"
     "src/common/ast_reader.c"
     "src/target/zeal8bit/target_args.c"
     "src/target/zeal8bit/target_io.c"
@@ -142,7 +142,7 @@ add_program(ast_dump
     "src/tools/ast_dump.c"
     "src/common/common.c"
     "src/common/symbol.c"
-    "src/common/ast_io.c"
+    "src/common/ast_read.c"
     "src/common/ast_reader.c"
     "src/target/zeal8bit/target_io.c"
     ILIBS core
