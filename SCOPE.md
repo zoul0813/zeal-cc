@@ -11,7 +11,7 @@ The compiler should produce appropriate Z80 Assembly files that can later be ass
 
 A starter CMakeLists.txt is already in the project root - feel free to modify this as needed, but use it as a starting point as the ZOS Toolchain has a few special needs. Use `zde cmake` to build the ZOS target; `zde cmake --target verbose` enables the `VERBOSE` compile define for `#ifdef VERBOSE`.
 
-Current implementation notes: function arguments are stack-based with an `IX` frame; locals are still emitted as globals. A custom static allocator is used on both host and target; no malloc/free on target.
+Current implementation notes: function arguments and locals are stack-based with an `IX` frame. A custom static allocator is used on both host and target; no malloc/free on target.
 
 ## Development Guidelines
 

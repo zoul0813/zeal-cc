@@ -24,7 +24,9 @@ This is an iterative development project. Currently implemented:
 - Binary arithmetic operators (+, -, *, /, %)
 - Function definitions and calls
 - Stack-based argument passing (IX frame for params)
+- Stack-based local variables
 - Variable declarations and assignments
+- Global variable declarations
 - Return statements with expressions
 - Compound statements (blocks)
 - Runtime library for mul/div/mod
@@ -33,7 +35,6 @@ This is an iterative development project. Currently implemented:
 - `char` type and character literals
 
 ### In Progress 🚧
-- Stack-based local variables (currently emit as global labels)
 - Target build uses 12 KB static pool; file buffer at 0xE000 (512 B)
 
 ### Planned Features ⏳
@@ -197,6 +198,7 @@ Run individual tests:
 ./bin/cc tests/unary.c tests/unary.asm  # Unary ops (expected fail)
 ./bin/cc tests/string.c tests/string.asm  # String literals (expected fail)
 ./bin/cc tests/char.c tests/char.asm    # Char literals
+./bin/cc tests/global.c tests/global.asm  # Global variables
 ```
 
 All test artifacts (`.asm`, `.o`, `.bin`, etc.) are stored in `tests/` for version control and review.
@@ -214,8 +216,6 @@ All test artifacts (`.asm`, `.o`, `.bin`, etc.) are stored in `tests/` for versi
 ## Current Limitations
 
 - Parser is simplified and needs expansion (no pointers/arrays/structs)
-- Only basic code generation is implemented; locals are treated as globals
-- Stack-based locals not implemented yet (params use IX frame)
 - Fixed 12 KB static pool allocator; no dynamic malloc on target
 - 512-byte input reader buffer; very large source files are not supported
 - No optimization passes yet

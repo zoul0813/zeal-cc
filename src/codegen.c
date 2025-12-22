@@ -62,7 +62,10 @@ static void codegen_record_local(codegen_t* gen, const char* name) {
         }
     }
     if (gen->local_var_count < (sizeof(gen->local_vars) / sizeof(gen->local_vars[0]))) {
-        gen->local_vars[gen->local_var_count++] = name;
+        gen->local_vars[gen->local_var_count] = name;
+        gen->local_offsets[gen->local_var_count] = gen->stack_offset;
+        gen->stack_offset += 1;
+        gen->local_var_count++;
     }
 }
 
@@ -75,6 +78,53 @@ static int codegen_param_offset(codegen_t* gen, const char* name, int* out_offse
         }
     }
     return 0;
+}
+
+static int codegen_local_offset(codegen_t* gen, const char* name, int* out_offset) {
+    if (!gen || !name || !out_offset) return 0;
+    for (size_t i = 0; i < gen->local_var_count; i++) {
+        if (gen->local_vars[i] == name || codegen_names_equal(gen->local_vars[i], name)) {
+            *out_offset = gen->local_offsets[i];
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void codegen_emit_ix_offset(codegen_t* gen, int offset) {
+    (void)gen;
+    codegen_emit(gen, "ix+");
+    codegen_emit_int(gen, offset);
+}
+
+static void codegen_collect_locals(codegen_t* gen, ast_node_t* node) {
+    if (!gen || !node) return;
+    if (node->type == AST_VAR_DECL) {
+        codegen_record_local(gen, node->data.var_decl.name);
+        return;
+    }
+    switch (node->type) {
+        case AST_COMPOUND_STMT:
+            for (size_t i = 0; i < node->data.compound.stmt_count; i++) {
+                codegen_collect_locals(gen, node->data.compound.statements[i]);
+            }
+            break;
+        case AST_IF_STMT:
+            codegen_collect_locals(gen, node->data.if_stmt.then_branch);
+            if (node->data.if_stmt.else_branch) {
+                codegen_collect_locals(gen, node->data.if_stmt.else_branch);
+            }
+            break;
+        case AST_WHILE_STMT:
+            codegen_collect_locals(gen, node->data.while_stmt.body);
+            break;
+        case AST_FOR_STMT:
+            if (node->data.for_stmt.init) codegen_collect_locals(gen, node->data.for_stmt.init);
+            if (node->data.for_stmt.body) codegen_collect_locals(gen, node->data.for_stmt.body);
+            break;
+        default:
+            break;
+    }
 }
 
 static char* codegen_new_label_persist(codegen_t* gen) {
@@ -209,6 +259,7 @@ void codegen_emit_epilogue(codegen_t* gen) {
 /* Forward declarations */
 static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node);
 static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node);
+static cc_error_t codegen_global_var(codegen_t* gen, ast_node_t* node);
 
 static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
     if (!node) return CC_ERROR_INTERNAL;
@@ -251,7 +302,11 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
             /* Load variable from stack/memory */
             {
                 int offset = 0;
-                if (codegen_param_offset(gen, node->data.identifier.name, &offset)) {
+                if (codegen_local_offset(gen, node->data.identifier.name, &offset)) {
+                    codegen_emit(gen, "  ld a, (");
+                    codegen_emit_ix_offset(gen, offset);
+                    codegen_emit(gen, ")  ; Load local: ");
+                } else if (codegen_param_offset(gen, node->data.identifier.name, &offset)) {
                     codegen_emit(gen, "  ld a, (ix+");
                     codegen_emit_int(gen, offset);
                     codegen_emit(gen, ")  ; Load param: ");
@@ -464,7 +519,11 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
             /* Store A to variable */
             if (node->data.assign.lvalue->type == AST_IDENTIFIER) {
                 int offset = 0;
-                if (codegen_param_offset(gen, node->data.assign.lvalue->data.identifier.name, &offset)) {
+                if (codegen_local_offset(gen, node->data.assign.lvalue->data.identifier.name, &offset)) {
+                    codegen_emit(gen, "  ld (");
+                    codegen_emit_ix_offset(gen, offset);
+                    codegen_emit(gen, "), a\n");
+                } else if (codegen_param_offset(gen, node->data.assign.lvalue->data.identifier.name, &offset)) {
                     codegen_emit(gen, "  ld (ix+");
                     codegen_emit_int(gen, offset);
                     codegen_emit(gen, "), a\n");
@@ -495,6 +554,13 @@ static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node) {
                 codegen_emit(gen, "  ld a, 0\n");
             }
             if (gen->return_direct || !gen->function_end_label) {
+                if (gen->stack_offset > 0) {
+                    codegen_emit(gen, "  ld hl, 0\n");
+                    codegen_emit(gen, "  add hl, sp\n");
+                    codegen_emit(gen, "  ld de, ");
+                    codegen_emit_int(gen, gen->stack_offset);
+                    codegen_emit(gen, "\n  add hl, de\n  ld sp, hl\n");
+                }
                 codegen_emit(gen,
                     "  pop ix\n"
                     "  ret\n");
@@ -511,22 +577,23 @@ static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node) {
             codegen_emit(gen, "; Variable: ");
             codegen_emit(gen, node->data.var_decl.name);
             codegen_emit(gen, "\n");
-            if (gen->defer_var_storage) {
-                codegen_record_local(gen, node->data.var_decl.name);
-            } else {
-                codegen_emit_mangled_var(gen, node->data.var_decl.name);
-                codegen_emit(gen,
-                    ":\n"
-                    "  .db 0\n");
-            }
 
             /* If there's an initializer, generate assignment */
             if (node->data.var_decl.initializer) {
                 cc_error_t err = codegen_expression(gen, node->data.var_decl.initializer);
                 if (err != CC_OK) return err;
-                codegen_emit(gen, "  ld (");
-                codegen_emit_mangled_var(gen, node->data.var_decl.name);
-                codegen_emit(gen, "), a\n");
+                {
+                    int offset = 0;
+                    if (codegen_local_offset(gen, node->data.var_decl.name, &offset)) {
+                        codegen_emit(gen, "  ld (");
+                        codegen_emit_ix_offset(gen, offset);
+                        codegen_emit(gen, "), a\n");
+                    } else {
+                        codegen_emit(gen, "  ld (");
+                        codegen_emit_mangled_var(gen, node->data.var_decl.name);
+                        codegen_emit(gen, "), a\n");
+                    }
+                }
             }
             return CC_OK;
 
@@ -733,21 +800,27 @@ static cc_error_t codegen_function(codegen_t* gen, ast_node_t* node) {
     bool last_was_return = false;
 
     gen->local_var_count = 0;
-    gen->defer_var_storage = true;
+    gen->defer_var_storage = false;
     gen->param_count = 0;
     gen->function_end_label = NULL;
     gen->return_direct = false;
     gen->use_function_end_label = false;
+    gen->stack_offset = 0;
 
     codegen_emit(gen, node->data.function.name);
     codegen_emit(gen, ":\n");
+
+    /* Collect locals for stack allocation */
+    if (node->data.function.body) {
+        codegen_collect_locals(gen, node->data.function.body);
+    }
 
     if (node->data.function.param_count > 0) {
         for (size_t i = 0; i < node->data.function.param_count && i < 8; i++) {
             ast_node_t* param = node->data.function.params[i];
             if (!param || param->type != AST_VAR_DECL) continue;
             gen->param_names[gen->param_count] = param->data.var_decl.name;
-            gen->param_offsets[gen->param_count] = 4 + (int)(2 * gen->param_count);
+            gen->param_offsets[gen->param_count] = gen->stack_offset + 4 + (int)(2 * gen->param_count);
             gen->param_count++;
         }
     }
@@ -757,6 +830,15 @@ static cc_error_t codegen_function(codegen_t* gen, ast_node_t* node) {
         "  push ix\n"
         "  ld ix, 0\n"
         "  add ix, sp\n");
+    if (gen->stack_offset > 0) {
+        codegen_emit(gen, "  ld hl, 0\n");
+        codegen_emit(gen, "  add hl, sp\n");
+        codegen_emit(gen, "  ld de, ");
+        codegen_emit_int(gen, gen->stack_offset);
+        codegen_emit(gen, "\n  or a\n  sbc hl, de\n  ld sp, hl\n");
+        codegen_emit(gen, "  ld ix, 0\n");
+        codegen_emit(gen, "  add ix, sp\n");
+    }
 
     /* Generate function body */
     if (node->data.function.body) {
@@ -794,26 +876,27 @@ static cc_error_t codegen_function(codegen_t* gen, ast_node_t* node) {
     if (gen->use_function_end_label) {
         codegen_emit(gen, gen->function_end_label);
         codegen_emit(gen, ":\n");
+        if (gen->stack_offset > 0) {
+            codegen_emit(gen, "  ld hl, 0\n");
+            codegen_emit(gen, "  add hl, sp\n");
+            codegen_emit(gen, "  ld de, ");
+            codegen_emit_int(gen, gen->stack_offset);
+            codegen_emit(gen, "\n  add hl, de\n  ld sp, hl\n");
+        }
         codegen_emit(gen,
             "  pop ix\n"
             "  ret\n");
     } else if (!last_was_return) {
+        if (gen->stack_offset > 0) {
+            codegen_emit(gen, "  ld hl, 0\n");
+            codegen_emit(gen, "  add hl, sp\n");
+            codegen_emit(gen, "  ld de, ");
+            codegen_emit_int(gen, gen->stack_offset);
+            codegen_emit(gen, "\n  add hl, de\n  ld sp, hl\n");
+        }
         codegen_emit(gen,
             "  pop ix\n"
             "  ret\n");
-    }
-
-    /* Local storage (kept out of instruction stream) */
-    for (size_t i = 0; i < gen->local_var_count; i++) {
-        const char* name = gen->local_vars[i];
-        if (!name) continue;
-        codegen_emit(gen, "; Variable: ");
-        codegen_emit(gen, name);
-        codegen_emit(gen, "\n");
-        codegen_emit_mangled_var(gen, name);
-        codegen_emit(gen,
-            ":\n"
-            "  .db 0\n");
     }
 
     gen->defer_var_storage = false;
@@ -824,6 +907,30 @@ static cc_error_t codegen_function(codegen_t* gen, ast_node_t* node) {
     codegen_emit(gen, "\n");
 
     return CC_OK;
+}
+
+static cc_error_t codegen_global_var(codegen_t* gen, ast_node_t* node) {
+    if (!node || node->type != AST_VAR_DECL) {
+        return CC_ERROR_INTERNAL;
+    }
+    codegen_emit(gen, "; Global variable: ");
+    codegen_emit(gen, node->data.var_decl.name);
+    codegen_emit(gen, "\n");
+    codegen_emit_mangled_var(gen, node->data.var_decl.name);
+    if (node->data.var_decl.initializer &&
+        node->data.var_decl.initializer->type == AST_CONSTANT) {
+        int value = node->data.var_decl.initializer->data.constant.int_value;
+        codegen_emit(gen, ":\n  .db ");
+        codegen_emit_int(gen, value);
+        codegen_emit(gen, "\n");
+    } else {
+        codegen_emit(gen, ":\n  .db 0\n");
+    }
+    return CC_OK;
+}
+
+cc_error_t codegen_generate_global(codegen_t* gen, ast_node_t* decl) {
+    return codegen_global_var(gen, decl);
 }
 
 void codegen_emit_runtime(codegen_t* gen) {
@@ -935,6 +1042,13 @@ cc_error_t codegen_generate(codegen_t* gen, ast_node_t* ast) {
             ast_node_t* decl = ast->data.program.declarations[i];
             if (decl->type == AST_FUNCTION) {
                 cc_error_t err = codegen_function(gen, decl);
+                if (err != CC_OK) return err;
+            }
+        }
+        for (size_t i = 0; i < ast->data.program.decl_count; i++) {
+            ast_node_t* decl = ast->data.program.declarations[i];
+            if (decl->type == AST_VAR_DECL) {
+                cc_error_t err = codegen_global_var(gen, decl);
                 if (err != CC_OK) return err;
             }
         }

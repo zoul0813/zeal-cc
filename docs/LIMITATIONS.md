@@ -5,11 +5,11 @@
 - `long` (32-bit) is currently unsupported.
 - Expressions: `+ - * / %` and comparisons `== != < > <= >=`.
 - Statements: `if/else`, `while`, `for`, `return`, compound blocks.
+- Global variable declarations are supported.
 - Functions: definitions and calls are supported; parameters are passed on the
   stack with an `IX` frame (see calling convention).
 
 ## Not Implemented Yet
-- Stack-based locals.
 - Pointers, arrays, structs, unions.
 - Type checking and semantic analysis.
 - Optimizations.

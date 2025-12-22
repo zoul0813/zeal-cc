@@ -75,8 +75,6 @@
 
 ### Phase 5: Code Generator (incomplete tasks)
 
-- ❌ Stack-based local variables (currently use global labels)
-- ❌ Local variable storage in stack frames (no local allocation yet)
 - ❌ 16-bit locals/params and return values (8-bit only today)
 - ❌ Pointer/array addressing and dereference codegen
 
@@ -119,6 +117,8 @@
 4. ✅ **Variable declarations and assignments**
 5. ✅ **Function calls with stack-based arguments**
 6. ✅ **Runtime library** for mul/div/mod
+7. ✅ **Stack-based local variables**
+8. ✅ **Global variable declarations**
 
 ## Current Test Status
 

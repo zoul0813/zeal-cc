@@ -27,6 +27,7 @@ EXPECTED_RESULTS = {
     "do_while": None,
     "expr": "1C",
     "for": "0A",
+    "global": "0A",
     "if": "2A",
     "locals_params": "0F",
     "math": "3A",
@@ -116,14 +117,28 @@ def comment_reset_in_test_zs() -> None:
     lines.append("; reset")
     path.write_text("\n".join(lines) + "\n")
 
+def clean_test_artifacts() -> None:
+    tests_dir = Path("tests")
+    if not tests_dir.exists():
+        return
+    for pattern in ("*.asm", "*.bin"):
+        for path in tests_dir.glob(pattern):
+            path.unlink(missing_ok=True)
+
 
 def parse_return_results(log: str):
     exec_file = ""
+    current_test = ""
     pairs = []
     exec_re = re.compile(r"Exec\s+'([^']+)'")
     return_re = re.compile(r"Returned\s+\$([0-9A-Fa-f]+)")
+    test_re = re.compile(r"TEST:\s+(\S+)")
     for raw in log.splitlines():
         line = raw.rstrip("\r").lstrip()
+        test_match = test_re.search(line)
+        if test_match:
+            current_test = test_match.group(1)
+            continue
         exec_match = exec_re.search(line)
         if exec_match:
             exec_file = exec_match.group(1)
@@ -131,9 +146,11 @@ def parse_return_results(log: str):
         ret_match = return_re.search(line)
         if ret_match:
             hex_val = ret_match.group(1)
-            if exec_file and hex_val:
-                pairs.append((exec_file, hex_val))
-                exec_file = ""
+            if hex_val:
+                path = exec_file or current_test
+                if path:
+                    pairs.append((normalize_test_path(path), hex_val))
+                    exec_file = ""
 
     if not pairs:
         return []
@@ -154,13 +171,39 @@ def parse_return_results(log: str):
 
 def parse_compile_failures(log: str):
     failures = []
+    seen = set()
     fail_re = re.compile(r"Failed to compile\s+(\S+)")
+    test_re = re.compile(r"TEST:\s+(\S+)")
+    current_test = ""
     for raw in log.splitlines():
         line = raw.rstrip("\r").lstrip()
+        test_match = test_re.search(line)
+        if test_match:
+            current_test = test_match.group(1)
+            continue
         match = fail_re.search(line)
         if match:
-            failures.append(match.group(1))
+            path = normalize_test_path(match.group(1))
+            if path not in seen:
+                failures.append(path)
+                seen.add(path)
+            current_test = ""
+            continue
+        if (line.startswith("ERROR:") or "invalid operand" in line or "error occurred" in line) and current_test:
+            path = normalize_test_path(current_test)
+            if path not in seen:
+                failures.append(path)
+                seen.add(path)
+            current_test = ""
     return failures
+
+
+def normalize_test_path(path: str) -> str:
+    if path.startswith("h:/tests/"):
+        return "tests/" + path[len("h:/tests/"):]
+    if path.startswith("H:/tests/"):
+        return "tests/" + path[len("H:/tests/"):]
+    return path
 
 
 def run_headless_emulator(img: str, eeprom: str, test_name: str) -> None:
@@ -182,10 +225,12 @@ def run_headless_emulator(img: str, eeprom: str, test_name: str) -> None:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
             timeout=30,
         )
-        log = proc.stdout
+        log = proc.stdout or ""
         status = proc.returncode
     except subprocess.TimeoutExpired as exc:
         print(f"{RED}X{NC} {test_name} timed out after 30s (possible hang/reset loop)")
@@ -193,13 +238,15 @@ def run_headless_emulator(img: str, eeprom: str, test_name: str) -> None:
             print(exc.stdout)
         print_result(test_name, 1)
         return
-
-    if "error occurred" in log.lower():
-        print(log)
+    except Exception as exc:
+        print(f"{RED}X{NC} {test_name} failed to run zeal-native: {exc}")
         print_result(test_name, 1)
         return
 
-    print_result(test_name, status)
+    if "error occurred" in log.lower():
+        print_result(test_name, 1)
+    else:
+        print_result(test_name, status)
 
     results = parse_return_results(log)
     returned = {Path(path).stem for path, _, _, _ in results}
@@ -250,6 +297,7 @@ def main() -> int:
     print_header("Running Compiler Tests (macOS)")
     cc_darwin = Path("bin/cc_darwin")
     if cc_darwin.exists():
+        clean_test_artifacts()
         for test_file in sorted(Path("tests").glob("*.c")):
             test_compile(str(cc_darwin), test_file, f"Compile {test_file.name}")
         if TESTS_RUN == 2:
@@ -268,6 +316,7 @@ def main() -> int:
 
     print_header("Zeal-native Headless Smoke Test")
     if zos_status == 0:
+        clean_test_artifacts()
         ensure_reset_in_test_zs()
         run_headless_emulator(".zeal8bit/headless.img", ".zeal8bit/eeprom.img", "zeal-native headless boot")
         comment_reset_in_test_zs()

@@ -2,7 +2,7 @@
 
 This document describes the current calling convention for the Zeal C
 Compiler. It is partially implemented: parameters are stack-based and accessed
-via an `IX` frame, while locals are still emitted as globals.
+via an `IX` frame, with locals stored in the same stack frame.
 
 ## Goals
 - Simple stack-based argument passing.
@@ -39,7 +39,6 @@ via an `IX` frame, while locals are still emitted as globals.
 - `IX` is used for parameter access; locals still use global labels.
 
 ## Pending Work
-- Stack-based local variable storage (stack allocation).
 - 16-bit parameters and return values.
 - Consistent type sizing and stack cleanup for mixed-width params.
 

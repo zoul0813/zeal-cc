@@ -92,6 +92,8 @@ int main(int argc, char** argv) {
     }
 
     codegen_emit_preamble(codegen);
+    ast_node_t* globals_tmp[32];
+    size_t global_count = 0;
     while (1) {
         ast = parser_parse_next(parser);
         if (!ast) {
@@ -105,14 +107,34 @@ int main(int argc, char** argv) {
                 ast = NULL;
                 goto cleanup_codegen;
             }
+            ast_node_destroy(ast);
+        } else if (ast->type == AST_VAR_DECL) {
+            if (global_count < (sizeof(globals_tmp) / sizeof(globals_tmp[0]))) {
+                globals_tmp[global_count++] = ast;
+            } else {
+                ast_node_destroy(ast);
+            }
+        } else {
+            ast_node_destroy(ast);
         }
-        ast_node_destroy(ast);
         ast = NULL;
     }
 
     if (parser->error_count > 0) {
         log_error("Parsing failed\n");
+        for (size_t i = 0; i < global_count; i++) {
+            ast_node_destroy(globals_tmp[i]);
+        }
         goto cleanup_codegen;
+    }
+
+    for (size_t i = 0; i < global_count; i++) {
+        result = codegen_generate_global(codegen, globals_tmp[i]);
+        ast_node_destroy(globals_tmp[i]);
+        if (result != CC_OK) {
+            log_error("Code generation failed\n");
+            goto cleanup_codegen;
+        }
     }
 
     codegen_emit_runtime(codegen);

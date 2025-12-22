@@ -9,6 +9,8 @@
 !!! Make sure you have the latest version of ZShell, commit 1961d0d1a3a6d6d6a3bde3188bed61a5d18008af or newer !!!
 
 `test.py` will automatically add a `reset` at the end of test.zs for automated testing
+`test.zs` also prints `TEST: h:/tests/<name>.c` before each case to help
+attribute headless errors; `test.py` uses these markers when parsing results.
 
 
 The contents of my ./.zeal8bit folder in the repo looks like this
