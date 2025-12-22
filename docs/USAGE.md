@@ -28,6 +28,10 @@ ZOS:
 cc input.c output.asm
 ```
 
+The compiler reads `runtime/crt0.asm` and `runtime/runtime.asm` at runtime
+when emitting output, so ensure the `runtime/` directory is available on the
+target filesystem (for headless tests, `H:/runtime/...` from the repo root).
+
 The compiler emits Z80 assembly compatible with Zealasm. The output is
 assembled and linked separately by your toolchain.
 

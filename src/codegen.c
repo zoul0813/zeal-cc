@@ -55,6 +55,23 @@ static void codegen_emit_int(codegen_t* gen, int value) {
     codegen_emit(gen, buf);
 }
 
+static cc_error_t codegen_emit_file(codegen_t* gen, const char* path) {
+    if (!gen || !gen->output_handle || !path) return CC_ERROR_INVALID_ARG;
+    reader_t* reader = reader_open(path);
+    if (!reader) {
+        cc_error("Failed to open runtime file");
+        return CC_ERROR_FILE_NOT_FOUND;
+    }
+    int ch = reader_next(reader);
+    while (ch >= 0) {
+        char c = (char)ch;
+        output_write(gen->output_handle, &c, 1);
+        ch = reader_next(reader);
+    }
+    reader_close(reader);
+    return CC_OK;
+}
+
 static bool codegen_type_is_pointer(const type_t* type) {
     return type && type->kind == TYPE_POINTER;
 }
@@ -1288,59 +1305,7 @@ void codegen_register_global(codegen_t* gen, ast_node_t* decl) {
 }
 
 void codegen_emit_runtime(codegen_t* gen) {
-    codegen_emit(gen, "\n; Runtime library functions\n\n");
-
-    codegen_emit(gen,
-        "; Multiply A by L\n"
-        "__mul_a_l:\n"
-        "  ld b, l      ; multiplier (loop counter)\n"
-        "  ld c, a      ; multiplicand\n"
-        "  ld a, b\n"
-        "  or c\n"
-        "  ret z        ; short-circuit if either operand is zero\n"
-        "  ld a, 0      ; result accumulator\n"
-        "__mul_loop:\n"
-        "  add a, c\n"
-        "  djnz __mul_loop\n"
-        "  ret\n"
-        "\n"
-        "; Divide A by L\n"
-        "__div_a_l:\n"
-        "  ld c, a      ; dividend\n"
-        "  ld a, l\n"
-        "  or a\n"
-        "  ret z        ; divide by zero -> 0\n"
-        "  ld b, 0      ; quotient\n"
-        "__div_loop:\n"
-        "  ld a, c\n"
-        "  cp l\n"
-        "  jr c, __div_done\n"
-        "  sub l\n"
-        "  ld c, a\n"
-        "  inc b\n"
-        "  jr __div_loop\n"
-        "__div_done:\n"
-        "  ld a, b      ; result = quotient\n"
-        "  ret\n"
-        "\n"
-        "; Modulo A by L\n"
-        "__mod_a_l:\n"
-        "  ld b, l      ; divisor\n"
-        "  ld c, a      ; remainder working copy\n"
-        "  ld a, b\n"
-        "  or a\n"
-        "  ret z        ; divide by zero -> 0\n"
-        "__mod_loop:\n"
-        "  ld a, c\n"
-        "  cp b\n"
-        "  jr c, __mod_done\n"
-        "  sub b\n"
-        "  ld c, a\n"
-        "  jr __mod_loop\n"
-        "__mod_done:\n"
-        "  ld a, c\n"
-        "  ret\n"
-    );
+    codegen_emit_file(gen, "runtime/runtime.asm");
 }
 
 void codegen_emit_strings(codegen_t* gen) {
@@ -1365,20 +1330,7 @@ void codegen_emit_strings(codegen_t* gen) {
 
 // Helper: emit contents of a file to the output buffer
 static void codegen_emit_crt0(codegen_t* gen) {
-    codegen_emit(gen,
-        "; Zeal 8-bit OS crt0.asm - minimal startup for user programs\n"
-        "; Provides _start entry, calls _main, then exits via syscall\n"
-        "\n"
-        "; Start of crt0.asm\n"
-        "_start:\n"
-        "  call main    ; Call user main()\n"
-        "  ld h, a      ; Move return value from A to H (compiler ABI)\n"
-        "  ld l, 15     ; EXIT syscall\n"
-        "  rst 0x8      ; ZOS exit syscall (returns to shell)\n"
-        "  halt\n"
-        "\n"
-        "; End of crt0.asm\n"
-    );
+    codegen_emit_file(gen, "runtime/crt0.asm");
 }
 
 void codegen_emit_preamble(codegen_t* gen) {
