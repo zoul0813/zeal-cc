@@ -157,7 +157,7 @@ typedef struct {
     lexer_t* lexer;
     token_t* current;
     token_t* next;
-    int error_count;
+    uint16_t error_count;
 } parser_t;
 
 /* Parser functions */

@@ -7,7 +7,7 @@
 #include <string.h>
 
 int main(int argc, char** argv) {
-    int err = 1;
+    int8_t err = 1;
     args_t args;
     reader_t* reader = NULL;
     ast_reader_t ast;

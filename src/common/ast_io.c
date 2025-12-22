@@ -1,17 +1,17 @@
 #include "ast_io.h"
 
-int ast_write_u8(output_t out, uint8_t value) {
+int8_t ast_write_u8(output_t out, uint8_t value) {
     return output_write(out, (const char*)&value, 1);
 }
 
-int ast_write_u16(output_t out, uint16_t value) {
+int8_t ast_write_u16(output_t out, uint16_t value) {
     uint8_t buf[2];
     buf[0] = (uint8_t)(value & 0xFF);
     buf[1] = (uint8_t)((value >> 8) & 0xFF);
     return output_write(out, (const char*)buf, 2);
 }
 
-int ast_write_u32(output_t out, uint32_t value) {
+int8_t ast_write_u32(output_t out, uint32_t value) {
     uint8_t buf[4];
     buf[0] = (uint8_t)(value & 0xFF);
     buf[1] = (uint8_t)((value >> 8) & 0xFF);
@@ -20,19 +20,19 @@ int ast_write_u32(output_t out, uint32_t value) {
     return output_write(out, (const char*)buf, 4);
 }
 
-int ast_write_i16(output_t out, int16_t value) {
+int8_t ast_write_i16(output_t out, int16_t value) {
     return ast_write_u16(out, (uint16_t)value);
 }
 
-int ast_read_u8(reader_t* reader, uint8_t* out) {
+int8_t ast_read_u8(reader_t* reader, uint8_t* out) {
     if (!out) return -1;
-    int ch = reader_next(reader);
+    int16_t ch = reader_next(reader);
     if (ch < 0) return -1;
     *out = (uint8_t)ch;
     return 0;
 }
 
-int ast_read_u16(reader_t* reader, uint16_t* out) {
+int8_t ast_read_u16(reader_t* reader, uint16_t* out) {
     uint8_t lo = 0;
     uint8_t hi = 0;
     if (!out) return -1;
@@ -42,7 +42,7 @@ int ast_read_u16(reader_t* reader, uint16_t* out) {
     return 0;
 }
 
-int ast_read_u32(reader_t* reader, uint32_t* out) {
+int8_t ast_read_u32(reader_t* reader, uint32_t* out) {
     uint8_t b0 = 0;
     uint8_t b1 = 0;
     uint8_t b2 = 0;
@@ -59,7 +59,7 @@ int ast_read_u32(reader_t* reader, uint32_t* out) {
     return 0;
 }
 
-int ast_read_i16(reader_t* reader, int16_t* out) {
+int8_t ast_read_i16(reader_t* reader, int16_t* out) {
     uint16_t value = 0;
     if (!out) return -1;
     if (ast_read_u16(reader, &value) < 0) return -1;

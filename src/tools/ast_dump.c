@@ -74,13 +74,13 @@ static void format_type(const type_t* type, char* out, size_t out_size) {
     out[len] = '\0';
 }
 
-static void print_indent(int depth) {
-    for (int i = 0; i < depth; i++) {
+static void print_indent(uint16_t depth) {
+    for (uint16_t i = 0; i < depth; i++) {
         log_msg("  ");
     }
 }
 
-static void dump_node(const ast_node_t* node, int depth) {
+static void dump_node(const ast_node_t* node, uint16_t depth) {
     if (!node) return;
     print_indent(depth);
 
@@ -180,19 +180,19 @@ static void dump_node(const ast_node_t* node, int depth) {
             break;
         case AST_CONSTANT: {
             char buf[16];
-            int value = node->data.constant.int_value;
-            int i = 0;
+            int16_t value = node->data.constant.int_value;
+            uint16_t i = 0;
             if (value == 0) {
                 buf[i++] = '0';
             } else {
-                int neg = 0;
+                uint8_t neg = 0;
                 if (value < 0) {
                     neg = 1;
                     value = -value;
                 }
                 char tmp[16];
-                int j = 0;
-                while (value > 0 && j < (int)sizeof(tmp)) {
+                uint16_t j = 0;
+                while (value > 0 && j < (uint16_t)sizeof(tmp)) {
                     tmp[j++] = '0' + (value % 10);
                     value /= 10;
                 }
@@ -223,7 +223,7 @@ static void dump_node(const ast_node_t* node, int depth) {
     }
 }
 
-static const char* parse_input_arg(int argc, char** argv) {
+static const char* parse_input_arg(int16_t argc, char** argv) {
 #ifdef __SDCC
     if (argc == 0 || !argv || !argv[0]) return NULL;
     char* p = argv[0];
@@ -240,8 +240,8 @@ static const char* parse_input_arg(int argc, char** argv) {
 }
 
 int main(int argc, char** argv) {
-    int err = 1;
-    const char* input = parse_input_arg(argc, argv);
+    int8_t err = 1;
+    const char* input = parse_input_arg((int16_t)argc, argv);
     if (!input) {
         log_error("Usage: ast_dump <input.ast>\n");
         return 1;

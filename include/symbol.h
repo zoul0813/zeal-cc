@@ -76,8 +76,8 @@ struct symbol {
     symbol_kind_t kind;
     type_t* type;
     storage_class_t storage;
-    int scope_level;
-    int offset;  /* Stack offset for local variables */
+    int16_t scope_level;
+    int16_t offset;  /* Stack offset for local variables */
     bool is_defined;
     
     union {
@@ -99,7 +99,7 @@ struct symbol {
 typedef struct symbol_table {
     symbol_t** buckets;
     size_t bucket_count;
-    int scope_level;
+    int16_t scope_level;
     struct symbol_table* parent;
 } symbol_table_t;
 

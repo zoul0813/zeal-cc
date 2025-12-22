@@ -15,6 +15,7 @@ extern const char CG_STR_ADD_HL_DE[];
 extern const char CG_STR_LD_L_A[];
 extern const char CG_STR_LD_H_ZERO[];
 extern const char CG_STR_LD_LPAREN[];
+extern const char CG_STR_LD_A_LPAREN[];
 extern const char CG_STR_RPAREN_A[];
 extern const char CG_STR_LD_SP_HL[];
 extern const char CG_STR_PUSH_IX_POP_HL[];

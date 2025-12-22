@@ -10,7 +10,7 @@
 #define FILE_BUFFER_SIZE 512
 
 struct reader {
-    int fd;
+    int16_t fd;
     char buffer[FILE_BUFFER_SIZE];
     ssize_t buf_len;
     ssize_t pos;
@@ -19,7 +19,7 @@ struct reader {
 };
 
 reader_t* reader_open(const char* filename) {
-    int fd = open(filename, O_RDONLY);
+    int16_t fd = (int16_t)open(filename, O_RDONLY);
     if (fd < 0) {
         fprintf(stderr, "Error: Could not open file %s\n", filename);
         return NULL;
@@ -38,7 +38,7 @@ reader_t* reader_open(const char* filename) {
     return r;
 }
 
-static int reader_fill(reader_t* r) {
+static int8_t reader_fill(reader_t* r) {
     r->buffer_start = r->file_pos;
     r->buf_len = read(r->fd, r->buffer, FILE_BUFFER_SIZE);
     r->pos = 0;
@@ -49,7 +49,7 @@ static int reader_fill(reader_t* r) {
     return 0;
 }
 
-int reader_next(reader_t* reader) {
+int16_t reader_next(reader_t* reader) {
     if (!reader) return -1;
     if (reader->pos >= reader->buf_len) {
         if (reader_fill(reader) < 0) {
@@ -59,7 +59,7 @@ int reader_next(reader_t* reader) {
     return (unsigned char)reader->buffer[reader->pos++];
 }
 
-int reader_peek(reader_t* reader) {
+int16_t reader_peek(reader_t* reader) {
     if (!reader) return -1;
     if (reader->pos >= reader->buf_len) {
         if (reader_fill(reader) < 0) {
@@ -69,7 +69,7 @@ int reader_peek(reader_t* reader) {
     return (unsigned char)reader->buffer[reader->pos];
 }
 
-int reader_seek(reader_t* reader, uint32_t offset) {
+int8_t reader_seek(reader_t* reader, uint32_t offset) {
     if (!reader) return -1;
     off_t res = lseek(reader->fd, (off_t)offset, SEEK_SET);
     if (res < 0) {
@@ -119,13 +119,13 @@ void output_close(output_t handle) {
     }
 }
 
-int output_write(output_t handle, const char* data, uint16_t len) {
+int8_t output_write(output_t handle, const char* data, uint16_t len) {
     if (!handle || !data || len == 0) return -1;
     size_t written = fwrite(data, 1, (size_t)len, (FILE*)handle);
     return (written == (size_t)len) ? 0 : -1;
 }
 
-int output_seek(output_t handle, uint32_t offset) {
+int8_t output_seek(output_t handle, uint32_t offset) {
     if (!handle) return -1;
     return (fseek((FILE*)handle, (long)offset, SEEK_SET) == 0) ? 0 : -1;
 }

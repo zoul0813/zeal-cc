@@ -46,7 +46,7 @@ void symbol_table_destroy(symbol_table_t* table) {
 
 static size_t hash_string(const char* str) {
     size_t hash = 5381;
-    int c;
+    int16_t c;
 
     while ((c = *str++)) {
         hash = ((hash << 5) + hash) + c;

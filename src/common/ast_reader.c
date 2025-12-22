@@ -24,7 +24,7 @@ static ast_node_t* ast_node_alloc(ast_node_type_t type) {
     return node;
 }
 
-static int ast_read_type(ast_reader_t* ast, type_t** out) {
+static int8_t ast_read_type(ast_reader_t* ast, type_t** out) {
     uint8_t base = 0;
     uint8_t depth = 0;
     if (!out) return -1;
@@ -405,7 +405,7 @@ static ast_node_t* ast_read_node(ast_reader_t* ast) {
     }
 }
 
-int ast_reader_init(ast_reader_t* ast, reader_t* reader) {
+int8_t ast_reader_init(ast_reader_t* ast, reader_t* reader) {
     uint8_t version = 0;
     uint8_t flags = 0;
     uint16_t reserved = 0;
@@ -432,7 +432,7 @@ int ast_reader_init(ast_reader_t* ast, reader_t* reader) {
     return 0;
 }
 
-int ast_reader_load_strings(ast_reader_t* ast) {
+int8_t ast_reader_load_strings(ast_reader_t* ast) {
     if (!ast || !ast->reader) return -1;
     if (ast->string_count == 0) return 0;
     if (reader_seek(ast->reader, ast->string_table_offset) < 0) return -1;
@@ -453,7 +453,7 @@ int ast_reader_load_strings(ast_reader_t* ast) {
             return -1;
         }
         for (uint16_t j = 0; j < len; j++) {
-            int ch = reader_next(ast->reader);
+            int16_t ch = reader_next(ast->reader);
             if (ch < 0) {
                 cc_free(buf);
                 ast_reader_destroy(ast);

@@ -5,8 +5,7 @@
 #include "parser.h"
 #include "symbol.h"
 #include "target.h"
-
-#include <string.h>
+#include "cc_compat.h"
 
 #define MAX_AST_STRINGS 512
 
@@ -22,11 +21,11 @@ typedef struct {
     const char* strings[MAX_AST_STRINGS];
 } ast_writer_t;
 
-static int ast_string_index(ast_writer_t* writer, const char* value) {
+static int16_t ast_string_index(ast_writer_t* writer, const char* value) {
     if (!writer || !value) return -1;
     for (uint16_t i = 0; i < writer->string_count; i++) {
-        if (strcmp(writer->strings[i], value) == 0) {
-            return (int)i;
+        if (str_cmp(writer->strings[i], value) == 0) {
+            return (int16_t)i;
         }
     }
     if (writer->string_count >= MAX_AST_STRINGS) {
@@ -36,7 +35,7 @@ static int ast_string_index(ast_writer_t* writer, const char* value) {
     char* copy = cc_strdup(value);
     if (!copy) return -1;
     writer->strings[writer->string_count] = copy;
-    return (int)(writer->string_count++);
+    return (int16_t)(writer->string_count++);
 }
 
 static void ast_free_strings(ast_writer_t* writer) {
@@ -48,7 +47,7 @@ static void ast_free_strings(ast_writer_t* writer) {
     writer->string_count = 0;
 }
 
-static int ast_write_type(ast_writer_t* writer, const type_t* type) {
+static int8_t ast_write_type(ast_writer_t* writer, const type_t* type) {
     const type_t* cur = type;
     uint8_t depth = 0;
     while (cur && cur->kind == TYPE_POINTER) {
@@ -78,13 +77,13 @@ static int ast_write_type(ast_writer_t* writer, const type_t* type) {
     return 0;
 }
 
-static int ast_write_node(ast_writer_t* writer, const ast_node_t* node) {
+static int8_t ast_write_node(ast_writer_t* writer, const ast_node_t* node) {
     if (!writer || !node) return -1;
     writer->node_count++;
 
     switch (node->type) {
         case AST_FUNCTION: {
-            int name_index = ast_string_index(writer, node->data.function.name);
+            int16_t name_index = ast_string_index(writer, node->data.function.name);
             if (name_index < 0) return -1;
             if (ast_write_u8(writer->out, AST_TAG_FUNCTION) < 0) return -1;
             if (ast_write_u16(writer->out, (uint16_t)name_index) < 0) return -1;
@@ -96,7 +95,7 @@ static int ast_write_node(ast_writer_t* writer, const ast_node_t* node) {
             return ast_write_node(writer, node->data.function.body);
         }
         case AST_VAR_DECL: {
-            int name_index = ast_string_index(writer, node->data.var_decl.name);
+            int16_t name_index = ast_string_index(writer, node->data.var_decl.name);
             if (name_index < 0) return -1;
             if (ast_write_u8(writer->out, AST_TAG_VAR_DECL) < 0) return -1;
             if (ast_write_u16(writer->out, (uint16_t)name_index) < 0) return -1;
@@ -160,7 +159,7 @@ static int ast_write_node(ast_writer_t* writer, const ast_node_t* node) {
             return ast_write_node(writer, node->data.assign.rvalue);
         }
         case AST_CALL: {
-            int name_index = ast_string_index(writer, node->data.call.name);
+            int16_t name_index = ast_string_index(writer, node->data.call.name);
             if (name_index < 0) return -1;
             if (ast_write_u8(writer->out, AST_TAG_CALL) < 0) return -1;
             if (ast_write_u16(writer->out, (uint16_t)name_index) < 0) return -1;
@@ -182,7 +181,7 @@ static int ast_write_node(ast_writer_t* writer, const ast_node_t* node) {
             return ast_write_node(writer, node->data.unary_op.operand);
         }
         case AST_IDENTIFIER: {
-            int name_index = ast_string_index(writer, node->data.identifier.name);
+            int16_t name_index = ast_string_index(writer, node->data.identifier.name);
             if (name_index < 0) return -1;
             if (ast_write_u8(writer->out, AST_TAG_IDENTIFIER) < 0) return -1;
             return ast_write_u16(writer->out, (uint16_t)name_index);
@@ -192,7 +191,7 @@ static int ast_write_node(ast_writer_t* writer, const ast_node_t* node) {
             return ast_write_i16(writer->out, node->data.constant.int_value);
         }
         case AST_STRING_LITERAL: {
-            int value_index = ast_string_index(writer, node->data.string_literal.value);
+            int16_t value_index = ast_string_index(writer, node->data.string_literal.value);
             if (value_index < 0) return -1;
             if (ast_write_u8(writer->out, AST_TAG_STRING_LITERAL) < 0) return -1;
             return ast_write_u16(writer->out, (uint16_t)value_index);
@@ -208,7 +207,7 @@ static int ast_write_node(ast_writer_t* writer, const ast_node_t* node) {
     }
 }
 
-static int ast_write_header(ast_writer_t* writer) {
+static int8_t ast_write_header(ast_writer_t* writer) {
     if (output_write(writer->out, AST_MAGIC, 4) < 0) return -1;
     if (ast_write_u8(writer->out, AST_FORMAT_VERSION) < 0) return -1;
     if (ast_write_u8(writer->out, 0) < 0) return -1;
@@ -222,24 +221,23 @@ static int ast_write_header(ast_writer_t* writer) {
     return 0;
 }
 
-static int ast_patch_u16(output_t out, uint32_t offset, uint16_t value) {
+static int8_t ast_patch_u16(output_t out, uint32_t offset, uint16_t value) {
     if (output_seek(out, offset) < 0) return -1;
     return ast_write_u16(out, value);
 }
 
-static int ast_patch_u32(output_t out, uint32_t offset, uint32_t value) {
+static int8_t ast_patch_u32(output_t out, uint32_t offset, uint32_t value) {
     if (output_seek(out, offset) < 0) return -1;
     return ast_write_u32(out, value);
 }
 
-static int ast_write_string_table(ast_writer_t* writer, uint32_t* out_offset) {
+static int8_t ast_write_string_table(ast_writer_t* writer, uint32_t* out_offset) {
     if (!writer || !out_offset) return -1;
     *out_offset = output_tell(writer->out);
     for (uint16_t i = 0; i < writer->string_count; i++) {
         const char* str = writer->strings[i];
-        size_t len = 0;
+        uint16_t len = 0;
         while (str[len]) len++;
-        if (len > 0xFFFF) return -1;
         if (ast_write_u16(writer->out, (uint16_t)len) < 0) return -1;
         if (len > 0) {
             if (output_write(writer->out, str, (uint16_t)len) < 0) return -1;
@@ -249,7 +247,7 @@ static int ast_write_string_table(ast_writer_t* writer, uint32_t* out_offset) {
 }
 
 int main(int argc, char** argv) {
-    int err = 1;
+    int8_t err = 1;
     args_t args;
     reader_t* reader = NULL;
     lexer_t* lexer = NULL;

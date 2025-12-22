@@ -8,7 +8,7 @@
 // #define VERBOSE 1
 
 int main(int argc, char** argv) {
-    int err = 1;
+    int8_t err = 1;
     lexer_t* lexer = NULL;
     parser_t* parser = NULL;
     ast_node_t* ast = NULL;

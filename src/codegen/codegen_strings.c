@@ -14,6 +14,7 @@ const char CG_STR_ADD_HL_DE[] = "  add hl, de\n";
 const char CG_STR_LD_L_A[] = "  ld l, a\n";
 const char CG_STR_LD_H_ZERO[] = "  ld h, 0\n";
 const char CG_STR_LD_LPAREN[] = "  ld (";
+const char CG_STR_LD_A_LPAREN[] = "  ld a, (";
 const char CG_STR_RPAREN_A[] = "), a\n";
 const char CG_STR_LD_SP_HL[] = "  ld sp, hl\n";
 const char CG_STR_PUSH_IX_POP_HL[] = "  push ix\n  pop hl\n";

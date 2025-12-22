@@ -14,7 +14,7 @@ args_t parse_args(int argc, char** argv) {
     }
 
     /* Parse options */
-    int arg_idx = 1;
+    int16_t arg_idx = 1;
     while (arg_idx < argc && argv[arg_idx][0] == '-') {
         if (strcmp(argv[arg_idx], "-v") == 0 || strcmp(argv[arg_idx], "--verbose") == 0) {
             g_ctx.verbose = true;

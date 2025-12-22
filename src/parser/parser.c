@@ -124,11 +124,11 @@ static ast_node_t* parse_primary(parser_t* parser) {
             /* Parse arguments */
             if (!parser_check(parser, TOK_RPAREN)) {
                 ast_node_t* args_tmp[8];
-                int arg_count = 0;
+                uint16_t arg_count = 0;
                 do {
                     ast_node_t* arg = parse_expression(parser);
                     if (!arg) {
-                        for (int i = 0; i < arg_count; i++) {
+                        for (uint16_t i = 0; i < arg_count; i++) {
                             ast_node_destroy(args_tmp[i]);
                         }
                         ast_node_destroy(call);
@@ -152,13 +152,13 @@ static ast_node_t* parse_primary(parser_t* parser) {
                 if (arg_count > 0) {
                     ast_node_t** args = (ast_node_t**)cc_malloc(sizeof(ast_node_t*) * arg_count);
                     if (!args) {
-                        for (int i = 0; i < arg_count; i++) {
+                        for (uint16_t i = 0; i < arg_count; i++) {
                             ast_node_destroy(args_tmp[i]);
                         }
                         ast_node_destroy(call);
                         return NULL;
                     }
-                    for (int i = 0; i < arg_count; i++) {
+                    for (uint16_t i = 0; i < arg_count; i++) {
                         args[i] = args_tmp[i];
                     }
                     call->data.call.args = args;

@@ -53,8 +53,8 @@ typedef struct {
     const char* output_file;
     bool verbose;
     bool optimize;
-    int error_count;
-    int warning_count;
+    uint16_t error_count;
+    uint16_t warning_count;
 } compiler_ctx_t;
 
 /* Global context */

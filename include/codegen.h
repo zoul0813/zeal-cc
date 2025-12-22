@@ -14,9 +14,9 @@ typedef struct {
     symbol_table_t* global_symbols;
     symbol_table_t* current_scope;
     
-    int label_counter;
-    int string_counter;
-    int temp_counter;
+    uint16_t label_counter;
+    uint16_t string_counter;
+    uint16_t temp_counter;
     
     /* Z80 register tracking */
     bool reg_a_used;
@@ -24,15 +24,15 @@ typedef struct {
     bool reg_de_used;
     bool reg_bc_used;
 
-    int stack_offset;
+    int16_t stack_offset;
     const char* local_vars[64];
-    int local_offsets[64];
-    int local_sizes[64];
+    int16_t local_offsets[64];
+    uint16_t local_sizes[64];
     bool local_is_pointer[64];
     size_t local_var_count;
     bool defer_var_storage;
     const char* param_names[8];
-    int param_offsets[8];
+    int16_t param_offsets[8];
     bool param_is_pointer[8];
     size_t param_count;
     char* function_end_label;

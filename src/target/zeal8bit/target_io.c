@@ -36,7 +36,7 @@ reader_t* reader_open(const char* filename) {
     return r;
 }
 
-static int reader_fill(reader_t* r) {
+static int8_t reader_fill(reader_t* r) {
     r->buffer_start = r->file_pos;
     r->buf_len = FILE_BUFFER_SIZE;
     zos_err_t err = read(r->dev, file_buffer, &r->buf_len);
@@ -48,7 +48,7 @@ static int reader_fill(reader_t* r) {
     return 0;
 }
 
-int reader_next(reader_t* reader) {
+int16_t reader_next(reader_t* reader) {
     if (!reader) return -1;
     if (reader->pos >= reader->buf_len) {
         if (reader_fill(reader) < 0) {
@@ -58,7 +58,7 @@ int reader_next(reader_t* reader) {
     return (uint8_t)file_buffer[reader->pos++];
 }
 
-int reader_peek(reader_t* reader) {
+int16_t reader_peek(reader_t* reader) {
     if (!reader) return -1;
     if (reader->pos >= reader->buf_len) {
         if (reader_fill(reader) < 0) {
@@ -68,7 +68,7 @@ int reader_peek(reader_t* reader) {
     return (uint8_t)file_buffer[reader->pos];
 }
 
-int reader_seek(reader_t* reader, uint32_t offset) {
+int8_t reader_seek(reader_t* reader, uint32_t offset) {
     if (!reader) return -1;
     int32_t pos = (int32_t)offset;
     zos_err_t err = seek(reader->dev, &pos, SEEK_SET);
@@ -122,7 +122,7 @@ void output_close(output_t handle) {
     close(dev);
 }
 
-int output_write(output_t handle, const char* data, uint16_t len) {
+int8_t output_write(output_t handle, const char* data, uint16_t len) {
     if (handle == 0 || !data || len == 0) return -1;
     zos_dev_t dev = (zos_dev_t)handle;
     uint16_t size = len;
@@ -130,7 +130,7 @@ int output_write(output_t handle, const char* data, uint16_t len) {
     return (err == ERR_SUCCESS && size == len) ? 0 : -1;
 }
 
-int output_seek(output_t handle, uint32_t offset) {
+int8_t output_seek(output_t handle, uint32_t offset) {
     if (handle == 0) return -1;
     zos_dev_t dev = (zos_dev_t)handle;
     int32_t pos = (int32_t)offset;

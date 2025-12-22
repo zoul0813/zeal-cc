@@ -14,8 +14,8 @@ typedef struct {
     char** strings;
 } ast_reader_t;
 
-int ast_reader_init(ast_reader_t* ast, reader_t* reader);
-int ast_reader_load_strings(ast_reader_t* ast);
+int8_t ast_reader_init(ast_reader_t* ast, reader_t* reader);
+int8_t ast_reader_load_strings(ast_reader_t* ast);
 ast_node_t* ast_reader_read_root(ast_reader_t* ast);
 void ast_reader_destroy(ast_reader_t* ast);
 void ast_tree_destroy(ast_node_t* node);

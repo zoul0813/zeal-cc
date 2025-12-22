@@ -3,8 +3,7 @@
 #include "common.h"
 #include "codegen_strings.h"
 #include "target.h"
-
-#include <string.h>
+#include "cc_compat.h"
 
 #ifdef __SDCC
 #include <core.h>
@@ -16,13 +15,13 @@
 #define INITIAL_OUTPUT_CAPACITY 1024
 
 /* Helpers */
-static void codegen_emit_ix_offset(codegen_t* gen, int offset);
+static void codegen_emit_ix_offset(codegen_t* gen, int16_t offset);
 static void codegen_emit_mangled_var(codegen_t* gen, const char* name) {
     codegen_emit(gen, "_v_");
     codegen_emit(gen, name);
 }
 
-static int codegen_names_equal(const char* a, const char* b) {
+static bool codegen_names_equal(const char* a, const char* b) {
     if (!a || !b) return 0;
     while (*a && *b) {
         if (*a != *b) return 0;
@@ -32,9 +31,9 @@ static int codegen_names_equal(const char* a, const char* b) {
     return *a == *b;
 }
 
-static void codegen_emit_int(codegen_t* gen, int value) {
+static void codegen_emit_int(codegen_t* gen, int16_t value) {
     char buf[16];
-    int i = 0;
+    uint16_t i = 0;
     if (value == 0) {
         buf[i++] = '0';
     } else {
@@ -43,8 +42,8 @@ static void codegen_emit_int(codegen_t* gen, int value) {
             value = -value;
         }
         char temp[16];
-        int j = 0;
-        while (value > 0 && j < (int)sizeof(temp)) {
+        uint16_t j = 0;
+        while (value > 0 && j < (uint16_t)sizeof(temp)) {
             temp[j++] = '0' + (value % 10);
             value /= 10;
         }
@@ -63,7 +62,7 @@ static cc_error_t codegen_emit_file(codegen_t* gen, const char* path) {
         cc_error("Failed to open runtime file");
         return CC_ERROR_FILE_NOT_FOUND;
     }
-    int ch = reader_next(reader);
+    int16_t ch = reader_next(reader);
     while (ch >= 0) {
         char c = (char)ch;
         output_write(gen->output_handle, &c, 1);
@@ -73,7 +72,7 @@ static cc_error_t codegen_emit_file(codegen_t* gen, const char* path) {
     return CC_OK;
 }
 
-static void codegen_emit_stack_adjust(codegen_t* gen, int offset, bool subtract) {
+static void codegen_emit_stack_adjust(codegen_t* gen, int16_t offset, bool subtract) {
     if (!gen || offset <= 0) return;
     codegen_emit(gen, CG_STR_LD_HL_ZERO);
     codegen_emit(gen, CG_STR_ADD_HL_SP);
@@ -105,41 +104,41 @@ static bool codegen_type_is_pointer(const type_t* type) {
     return type && type->kind == TYPE_POINTER;
 }
 
-static int codegen_type_storage_size(const type_t* type) {
-    return codegen_type_is_pointer(type) ? 2 : 1;
+static uint16_t codegen_type_storage_size(const type_t* type) {
+    return codegen_type_is_pointer(type) ? 2u : 1u;
 }
 
-static int codegen_local_index(codegen_t* gen, const char* name) {
+static int16_t codegen_local_index(codegen_t* gen, const char* name) {
     if (!gen || !name) return -1;
     for (size_t i = 0; i < gen->local_var_count; i++) {
         if (gen->local_vars[i] == name || codegen_names_equal(gen->local_vars[i], name)) {
-            return (int)i;
+            return (int16_t)i;
         }
     }
     return -1;
 }
 
-static int codegen_param_index(codegen_t* gen, const char* name) {
+static int16_t codegen_param_index(codegen_t* gen, const char* name) {
     if (!gen || !name) return -1;
     for (size_t i = 0; i < gen->param_count; i++) {
         if (gen->param_names[i] == name || codegen_names_equal(gen->param_names[i], name)) {
-            return (int)i;
+            return (int16_t)i;
         }
     }
     return -1;
 }
 
-static int codegen_global_index(codegen_t* gen, const char* name) {
+static int16_t codegen_global_index(codegen_t* gen, const char* name) {
     if (!gen || !name) return -1;
     for (size_t i = 0; i < gen->global_count; i++) {
         if (gen->global_names[i] == name || codegen_names_equal(gen->global_names[i], name)) {
-            return (int)i;
+            return (int16_t)i;
         }
     }
     return -1;
 }
 
-static void codegen_record_local(codegen_t* gen, const char* name, int size, bool is_pointer) {
+static void codegen_record_local(codegen_t* gen, const char* name, uint16_t size, bool is_pointer) {
     if (!gen || !name) return;
     if (codegen_local_index(gen, name) >= 0) return;
     if (gen->local_var_count < (sizeof(gen->local_vars) / sizeof(gen->local_vars[0]))) {
@@ -152,39 +151,39 @@ static void codegen_record_local(codegen_t* gen, const char* name, int size, boo
     }
 }
 
-static int codegen_param_offset(codegen_t* gen, const char* name, int* out_offset) {
+static uint8_t codegen_param_offset(codegen_t* gen, const char* name, int16_t* out_offset) {
     if (!gen || !name || !out_offset) return 0;
-    int idx = codegen_param_index(gen, name);
+    int16_t idx = codegen_param_index(gen, name);
     if (idx < 0) return 0;
     *out_offset = gen->param_offsets[idx];
     return 1;
 }
 
-static int codegen_local_offset(codegen_t* gen, const char* name, int* out_offset) {
+static uint8_t codegen_local_offset(codegen_t* gen, const char* name, int16_t* out_offset) {
     if (!gen || !name || !out_offset) return 0;
-    int idx = codegen_local_index(gen, name);
+    int16_t idx = codegen_local_index(gen, name);
     if (idx < 0) return 0;
     *out_offset = gen->local_offsets[idx];
     return 1;
 }
 
 static bool codegen_local_is_pointer(codegen_t* gen, const char* name) {
-    int idx = codegen_local_index(gen, name);
+    int16_t idx = codegen_local_index(gen, name);
     return idx >= 0 && gen->local_is_pointer[idx];
 }
 
 static bool codegen_param_is_pointer(codegen_t* gen, const char* name) {
-    int idx = codegen_param_index(gen, name);
+    int16_t idx = codegen_param_index(gen, name);
     return idx >= 0 && gen->param_is_pointer[idx];
 }
 
 static bool codegen_global_is_pointer(codegen_t* gen, const char* name) {
-    int idx = codegen_global_index(gen, name);
+    int16_t idx = codegen_global_index(gen, name);
     return idx >= 0 && gen->global_is_pointer[idx];
 }
 
 static cc_error_t codegen_emit_address_of_identifier(codegen_t* gen, const char* name) {
-    int offset = 0;
+    int16_t offset = 0;
     if (codegen_local_offset(gen, name, &offset) || codegen_param_offset(gen, name, &offset)) {
         codegen_emit(gen, CG_STR_PUSH_IX_POP_HL);
         if (offset != 0) {
@@ -202,7 +201,7 @@ static cc_error_t codegen_emit_address_of_identifier(codegen_t* gen, const char*
 }
 
 static cc_error_t codegen_load_pointer_to_hl(codegen_t* gen, const char* name) {
-    int offset = 0;
+    int16_t offset = 0;
     if (codegen_local_offset(gen, name, &offset) || codegen_param_offset(gen, name, &offset)) {
         codegen_emit(gen, CG_STR_LD_L_PAREN);
         codegen_emit_ix_offset(gen, offset);
@@ -220,7 +219,7 @@ static cc_error_t codegen_load_pointer_to_hl(codegen_t* gen, const char* name) {
 }
 
 static cc_error_t codegen_store_pointer_from_hl(codegen_t* gen, const char* name) {
-    int offset = 0;
+    int16_t offset = 0;
     if (codegen_local_offset(gen, name, &offset) || codegen_param_offset(gen, name, &offset)) {
         codegen_emit(gen, CG_STR_LD_LPAREN);
         codegen_emit_ix_offset(gen, offset);
@@ -237,7 +236,7 @@ static cc_error_t codegen_store_pointer_from_hl(codegen_t* gen, const char* name
     return CC_OK;
 }
 
-static void codegen_emit_ix_offset(codegen_t* gen, int offset) {
+static void codegen_emit_ix_offset(codegen_t* gen, int16_t offset) {
     (void)gen;
     codegen_emit(gen, CG_STR_IX_PLUS);
     codegen_emit_int(gen, offset);
@@ -246,7 +245,7 @@ static void codegen_emit_ix_offset(codegen_t* gen, int offset) {
 static void codegen_collect_locals(codegen_t* gen, ast_node_t* node) {
     if (!gen || !node) return;
     if (node->type == AST_VAR_DECL) {
-        int size = codegen_type_storage_size(node->data.var_decl.var_type);
+        uint16_t size = codegen_type_storage_size(node->data.var_decl.var_type);
         bool is_pointer = codegen_type_is_pointer(node->data.var_decl.var_type);
         codegen_record_local(gen, node->data.var_decl.name, size, is_pointer);
         return;
@@ -375,18 +374,18 @@ void codegen_emit(codegen_t* gen, const char* fmt, ...) {
 
 char* codegen_new_label(codegen_t* gen) {
     static char labels[8][16];
-    static int slot = 0;
+    static uint8_t slot = 0;
     char* label = labels[slot++ & 7];
-    int n = gen->label_counter++;
-    int i = 0;
+    uint16_t n = gen->label_counter++;
+    uint16_t i = 0;
     label[i++] = '_';
     label[i++] = 'l';
     if (n == 0) {
         label[i++] = '0';
     } else {
         char temp[8];
-        int j = 0;
-        while (n > 0 && j < (int)sizeof(temp)) {
+        uint16_t j = 0;
+        while (n > 0 && j < (uint16_t)sizeof(temp)) {
             temp[j++] = '0' + (n % 10);
             n /= 10;
         }
@@ -400,18 +399,18 @@ char* codegen_new_label(codegen_t* gen) {
 
 char* codegen_new_string_label(codegen_t* gen) {
     static char labels[8][16];
-    static int slot = 0;
+    static uint8_t slot = 0;
     char* label = labels[slot++ & 7];
-    int n = gen->string_counter++;
-    int i = 0;
+    uint16_t n = gen->string_counter++;
+    uint16_t i = 0;
     label[i++] = '_';
     label[i++] = 's';
     if (n == 0) {
         label[i++] = '0';
     } else {
         char temp[8];
-        int j = 0;
-        while (n > 0 && j < (int)sizeof(temp)) {
+        uint16_t j = 0;
+        while (n > 0 && j < (uint16_t)sizeof(temp)) {
             temp[j++] = '0' + (n % 10);
             n /= 10;
         }
@@ -437,19 +436,19 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
             codegen_emit(gen, CG_STR_LD_A);
             {
                 /* Convert int to string */
-                int val = node->data.constant.int_value;
+                int16_t val = node->data.constant.int_value;
                 char buf[16];
-                int i = 0;
+                uint16_t i = 0;
                 if (val == 0) {
                     buf[i++] = '0';
                 } else {
-                    int neg = 0;
+                    uint8_t neg = 0;
                     if (val < 0) {
                         neg = 1;
                         val = -val;
                     }
                     char temp[16];
-                    int j = 0;
+                    uint16_t j = 0;
                     while (val > 0) {
                         temp[j++] = '0' + (val % 10);
                         val /= 10;
@@ -468,17 +467,17 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
         case AST_IDENTIFIER:
             /* Load variable from stack/memory */
             {
-                int offset = 0;
+                int16_t offset = 0;
                 if (codegen_local_offset(gen, node->data.identifier.name, &offset)) {
-                    codegen_emit(gen, CG_STR_LD_LPAREN);
-                    codegen_emit_ix_offset(gen, offset);
+                    codegen_emit(gen, CG_STR_LD_A_IX_PREFIX);
+                    codegen_emit_int(gen, offset);
                     codegen_emit(gen, ")  ; Load local: ");
                 } else if (codegen_param_offset(gen, node->data.identifier.name, &offset)) {
                     codegen_emit(gen, CG_STR_LD_A_IX_PREFIX);
                     codegen_emit_int(gen, offset);
                     codegen_emit(gen, ")  ; Load param: ");
                 } else {
-                    codegen_emit(gen, CG_STR_LD_LPAREN);
+                    codegen_emit(gen, CG_STR_LD_A_LPAREN);
                     codegen_emit_mangled_var(gen, node->data.identifier.name);
                     codegen_emit(gen, ")  ; Load variable: ");
                 }
@@ -668,7 +667,7 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
                 index && index->type == AST_CONSTANT) {
                 const char* label = codegen_get_string_label(gen, base->data.string_literal.value);
                 if (!label) return CC_ERROR_CODEGEN;
-                int offset = index->data.constant.int_value;
+                int16_t offset = (int16_t)index->data.constant.int_value;
                 codegen_emit(gen, CG_STR_LD_HL);
                 codegen_emit(gen, label);
                 codegen_emit(gen, CG_STR_NL);
@@ -692,7 +691,7 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
                 }
                 cc_error_t err = codegen_load_pointer_to_hl(gen, name);
                 if (err != CC_OK) return err;
-                int offset = index->data.constant.int_value;
+                int16_t offset = (int16_t)index->data.constant.int_value;
                 if (offset != 0) {
                     codegen_emit(gen, CG_STR_LD_DE);
                     codegen_emit_int(gen, offset);
@@ -770,7 +769,7 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
 
             /* Store A to variable */
             if (lvalue && lvalue->type == AST_IDENTIFIER) {
-                int offset = 0;
+                int16_t offset = 0;
                 if (codegen_local_offset(gen, lvalue->data.identifier.name, &offset)) {
                     codegen_emit(gen, CG_STR_LD_LPAREN);
                     codegen_emit_ix_offset(gen, offset);
@@ -865,7 +864,7 @@ static cc_error_t codegen_statement(codegen_t* gen, ast_node_t* node) {
                 cc_error_t err = codegen_expression(gen, init);
                 if (err != CC_OK) return err;
                 {
-                    int offset = 0;
+                    int16_t offset = 0;
                     if (codegen_local_offset(gen, node->data.var_decl.name, &offset)) {
                         codegen_emit(gen, CG_STR_LD_LPAREN);
                         codegen_emit_ix_offset(gen, offset);
@@ -1080,7 +1079,7 @@ static cc_error_t codegen_function(codegen_t* gen, ast_node_t* node) {
             ast_node_t* param = node->data.function.params[i];
             if (!param || param->type != AST_VAR_DECL) continue;
             gen->param_names[gen->param_count] = param->data.var_decl.name;
-            gen->param_offsets[gen->param_count] = gen->stack_offset + 4 + (int)(2 * gen->param_count);
+            gen->param_offsets[gen->param_count] = (int16_t)(gen->stack_offset + 4 + (int16_t)(2 * gen->param_count));
             gen->param_is_pointer[gen->param_count] =
                 codegen_type_is_pointer(param->data.var_decl.var_type);
             gen->param_count++;
@@ -1202,7 +1201,7 @@ static cc_error_t codegen_global_var(codegen_t* gen, ast_node_t* node) {
     }
     if (node->data.var_decl.initializer &&
         node->data.var_decl.initializer->type == AST_CONSTANT) {
-        int value = node->data.var_decl.initializer->data.constant.int_value;
+        int16_t value = node->data.var_decl.initializer->data.constant.int_value;
         codegen_emit(gen, CG_STR_COLON_DB);
         codegen_emit_int(gen, value);
         codegen_emit(gen, CG_STR_NL);
