@@ -23,11 +23,20 @@ OBJS = $(SRCS:.c=.o)
 # Output binary with architecture suffix
 TARGET = bin/cc_$(ARCH)
 
+PARSE_SRCS = src/parser/main_parse.c src/common/common.c src/common/ast_io.c src/parser/lexer.c src/parser/parser.c src/common/symbol.c \
+             src/target/modern/target_args.c src/target/modern/target_io.c
+PARSE_OBJS = $(PARSE_SRCS:.c=.o)
+PARSE_TARGET = bin/cc_parse_$(ARCH)
+
 .PHONY: all clean test
 
-all: $(TARGET)
+all: $(TARGET) $(PARSE_TARGET)
 
 $(TARGET): $(OBJS)
+	@mkdir -p bin
+	$(CC) $(LDFLAGS) -o $@ $^
+
+$(PARSE_TARGET): $(PARSE_OBJS)
 	@mkdir -p bin
 	$(CC) $(LDFLAGS) -o $@ $^
 
@@ -36,6 +45,7 @@ $(TARGET): $(OBJS)
 
 clean:
 	rm -f $(OBJS) $(TARGET)
+	rm -f $(PARSE_OBJS) $(PARSE_TARGET)
 	rm -rf bin/*.o
 
 test: $(TARGET)

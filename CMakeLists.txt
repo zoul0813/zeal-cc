@@ -5,7 +5,6 @@ set(APP_VERSION_MAJOR 0)
 set(APP_VERSION_MINOR 1)
 set(APP_VERSION_PATCH 0)
 set(APP_NAME "C Compiler")
-set(target_name "cc")
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -25,61 +24,71 @@ zos_use(coreutils)
 find_package(COREUTILS REQUIRED)
 
 # When using CMake as a build system, it's possible to mix ASM and C in the compilation
-project(${target_name} C ASM)
+project(cc C ASM)
 
-# Include menuconfig support (optional)
-if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/menuconfig.cmake)
-    include(${CMAKE_CURRENT_LIST_DIR}/menuconfig.cmake)
-endif()
+# target_include_directories(${parse_target_name} PRIVATE $ENV{ZVB_SDK_PATH}/include)
+# target_include_directories(${parse_target_name} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/include)
+# target_link_libraries(${parse_target_name} zvb_gfx core keyboard)
+# target_compile_options(${parse_target_name} PRIVATE
+#     $<$<COMPILE_LANGUAGE:C>:--nostdlib>
+# )
 
-add_executable(${target_name}
-    "src/cc/main.c"
-    "src/parser/lexer.c"
-    "src/parser/parser.c"
-    "src/codegen/codegen.c"
-    "src/codegen/codegen_strings.c"
-    "src/common/symbol.c"
-    "src/common/common.c"
-    "src/common/ast_io.c"
-    "src/target/zeal8bit/target_args.c"
-    "src/target/zeal8bit/target_io.c"
-)
 
-target_include_directories(${target_name} PRIVATE $ENV{ZVB_SDK_PATH}/include)
-target_include_directories(${target_name} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/include)
+# zos_add_outputs(${parse_target_name})
+
+# target_include_directories(${target_name} PRIVATE $ENV{ZVB_SDK_PATH}/include)
+# target_include_directories(${target_name} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/include)
 
 # Link with .lib extension for SDCC
-target_link_libraries(${target_name} zvb_gfx core keyboard)
+# target_link_libraries(${target_name} zvb_gfx core keyboard)
 
-target_compile_options(${target_name} PRIVATE
-    $<$<COMPILE_LANGUAGE:C>:--nostdlib>
-)
+# target_compile_options(${target_name} PRIVATE
+#     $<$<COMPILE_LANGUAGE:C>:--nostdlib>
+# )
 
-# Add menuconfig support to the zshell target (if available)
-if(COMMAND add_menuconfig_support)
-    add_menuconfig_support(${target_name})
-endif()
 
-zos_add_outputs(${target_name})
+function(add_program target_name)
+    cmake_parse_arguments(ARG "" "" "SRCS;LIBS;ILIBS" ${ARGN})
 
-# Rename target, and move debug files
-add_custom_command(TARGET ${target_name}_bin POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/debug
-    COMMAND ${CMAKE_COMMAND} -E rename
-        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${target_name}.cdb
-        ${CMAKE_SOURCE_DIR}/debug/${target_name}.cdb
-    COMMAND ${CMAKE_COMMAND} -E rename
-        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${target_name}.map
-        ${CMAKE_SOURCE_DIR}/debug/${target_name}.map
-    COMMAND ${CMAKE_COMMAND} -E rename
-        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${target_name}.ihx
-        ${CMAKE_SOURCE_DIR}/debug/${target_name}.ihx
-    COMMAND ${CMAKE_COMMAND} -E rename
-        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${target_name}.bin
-        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${target_name}
-    COMMENT "Moving debug files to debug directory"
-    VERBATIM
-)
+    add_executable(${target_name} ${ARG_UNPARSED_ARGUMENTS})
+    target_include_directories(${target_name} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/include)
+    target_include_directories(${target_name} PRIVATE $ENV{ZVB_SDK_PATH}/include)
+
+    target_compile_options(${target_name} PRIVATE
+        $<$<COMPILE_LANGUAGE:C>:--nostdlib>
+    )
+
+    if(ARG_LIBS)
+        target_link_libraries(${target_name} PRIVATE ${ARG_LIBS})
+    endif()
+
+    if(ARG_ILIBS)
+        foreach(lib IN LISTS ARG_ILIBS)
+            # target_link_libraries(${target_name} PUBLIC "-k ${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -l ${lib}.lib")
+            zos_link_libraries(${target_name} PRIVATE ${lib})
+        endforeach()
+    endif()
+
+    zos_add_outputs(${target_name})
+
+    add_custom_command(TARGET ${target_name}_bin POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/debug
+        COMMAND ${CMAKE_COMMAND} -E rename
+            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${target_name}.cdb
+            ${CMAKE_SOURCE_DIR}/debug/${target_name}.cdb
+        COMMAND ${CMAKE_COMMAND} -E rename
+            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${target_name}.map
+            ${CMAKE_SOURCE_DIR}/debug/${target_name}.map
+        COMMAND ${CMAKE_COMMAND} -E rename
+            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${target_name}.ihx
+            ${CMAKE_SOURCE_DIR}/debug/${target_name}.ihx
+        COMMAND ${CMAKE_COMMAND} -E rename
+            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${target_name}.bin
+            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${target_name}
+        COMMENT "Moving debug files to debug directory"
+        VERBATIM
+    )
+endfunction()
 
 # Create a custom target that increments build number on every build
 add_custom_target(increment_build_number
@@ -98,3 +107,29 @@ add_custom_target(increment_build_number
 
 # Make zshell depend on the version increment
 add_dependencies(${target_name} increment_build_number)
+
+add_program(cc
+    "src/cc/main.c"
+    "src/parser/lexer.c"
+    "src/parser/parser.c"
+    "src/codegen/codegen.c"
+    "src/codegen/codegen_strings.c"
+    "src/common/symbol.c"
+    "src/common/common.c"
+    "src/common/ast_io.c"
+    "src/target/zeal8bit/target_args.c"
+    "src/target/zeal8bit/target_io.c"
+    ILIBS core
+)
+
+add_program(cc_parse
+    "src/parser/main_parse.c"
+    "src/parser/lexer.c"
+    "src/parser/parser.c"
+    "src/common/common.c"
+    "src/common/symbol.c"
+    "src/common/ast_io.c"
+    "src/target/zeal8bit/target_args.c"
+    "src/target/zeal8bit/target_io.c"
+    ILIBS core
+)

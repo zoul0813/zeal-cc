@@ -15,5 +15,8 @@
 /src/version.h
 /tests/*.asm
 /tests/*.bin
+/tests/*.ast
 
 /.zeal8bit
+
+examples/Zeal-8-bit-OS/

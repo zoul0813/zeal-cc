@@ -127,7 +127,7 @@ int output_write(output_t handle, const char* data, uint16_t len) {
 
 int output_seek(output_t handle, uint32_t offset) {
     if (!handle) return -1;
-    return fseek((FILE*)handle, (long)offset, SEEK_SET);
+    return (fseek((FILE*)handle, (long)offset, SEEK_SET) == 0) ? 0 : -1;
 }
 
 uint32_t output_tell(output_t handle) {
