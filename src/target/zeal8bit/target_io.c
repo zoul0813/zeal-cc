@@ -5,6 +5,7 @@
 #include "common.h"
 #include "target.h"
 
+
 /* Global buffer for file reading - ZOS doesn't have malloc */
 /* Place buffer higher to free space for DATA; stack still has headroom */
 #define FILE_BUFFER_SIZE 512
@@ -109,7 +110,7 @@ void log_verbose(const char* message) {
 }
 
 output_t output_open(const char* filename) {
-    zos_dev_t dev = open(filename, O_WRONLY | O_CREAT | O_TRUNC);
+    zos_dev_t dev = open(filename, O_RDWR | O_CREAT | O_TRUNC);
     if (dev < 0) {
         return (output_t)-1;
     }

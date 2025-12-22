@@ -346,6 +346,11 @@ int main(int argc, char** argv) {
         goto cleanup_output;
     }
 
+    log_msg(args.input_file);
+    log_msg(" -> ");
+    log_msg(args.output_file);
+    log_msg("\n");
+
     err = 0;
 
 cleanup_output:

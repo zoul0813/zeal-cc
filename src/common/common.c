@@ -38,7 +38,7 @@ typedef struct cc_block_header {
 } cc_block_header_t;
 
 #ifndef CC_POOL_SIZE
-#define CC_POOL_SIZE 4096 /* 4 KB pool; keep DATA below file_buffer */
+#define CC_POOL_SIZE 12288 /* 12 KB pool; keep DATA below file_buffer */
 #endif
 char g_memory_pool[CC_POOL_SIZE];
 size_t g_pool_offset = 0;

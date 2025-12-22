@@ -1,7 +1,7 @@
 # Makefile for Zeal 8-bit C Compiler (Desktop build)
 
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c99 -Iinclude -g -DCC_POOL_SIZE=65536
+CFLAGS = -Wall -Wextra -std=c99 -Iinclude -g
 LDFLAGS =
 
 # Detect architecture

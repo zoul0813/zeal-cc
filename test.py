@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 import argparse
 import os
+import platform
 import re
 import shutil
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 
@@ -74,6 +74,22 @@ def run_cmd(cmd, quiet=False):
         return subprocess.run(cmd, check=False)
     except FileNotFoundError:
         return None
+
+
+def run_cmd_capture(cmd):
+    try:
+        return subprocess.run(cmd, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    except FileNotFoundError:
+        return None
+
+
+def host_arch() -> str:
+    sys_name = platform.system()
+    if sys_name == "Darwin":
+        return "darwin"
+    if sys_name == "Linux":
+        return "linux"
+    return sys_name
 
 
 def test_compile(compiler: str, test_file: Path, test_name: str) -> None:
@@ -208,6 +224,39 @@ def normalize_test_path(path: str) -> str:
     return path
 
 
+def parse_host_test_results(log: str, all_tests: list[str] | None = None):
+    tests = []
+    current_test = ""
+    failed = set()
+    test_re = re.compile(r"TEST:\\s+(\\S+)")
+    fail_re = re.compile(r"Failed to compile\\s+(\\S+)")
+    for raw in log.splitlines():
+        line = raw.rstrip("\r").lstrip()
+        test_match = test_re.search(line)
+        if test_match:
+            current_test = normalize_test_path(test_match.group(1))
+            tests.append(current_test)
+            continue
+        fail_match = fail_re.search(line)
+        if fail_match:
+            failed.add(normalize_test_path(fail_match.group(1)))
+            current_test = ""
+            continue
+        if line.startswith("ERROR:") and current_test:
+            failed.add(current_test)
+            current_test = ""
+    if not tests and all_tests:
+        tests = list(all_tests)
+    results = []
+    seen = set()
+    for path in tests:
+        if path in seen:
+            continue
+        seen.add(path)
+        results.append((path, path not in failed))
+    return results
+
+
 def run_headless_emulator(
     img: str,
     eeprom: str,
@@ -318,33 +367,40 @@ def main(argv: list[str] | None = None) -> int:
     zos_status = 1 if zos_build is None else zos_build.returncode
     print_result("ZOS compilation (bin/cc)", zos_status)
 
-    cc_darwin = Path("bin/cc_darwin")
     mac_status = 0
+    arch = host_arch()
+    cc_parse = Path(f"bin/cc_parse_{arch}")
+    cc_codegen = Path(f"bin/cc_codegen_{arch}")
 
     if not args.headless_only:
-        print_header("Building macOS Target")
+        print_header("Building Host Target")
         run_cmd(["make", "clean"], quiet=True)
         mac_build = run_cmd(["make"], quiet=True)
         mac_status = 1 if mac_build is None else mac_build.returncode
-        print_result("macOS compilation (bin/cc_darwin)", mac_status)
+        print_result("Host compilation (make)", mac_status)
 
-        print_header("Running Compiler Tests (macOS)")
-        if cc_darwin.exists():
+        print_header("Running Host Tests")
+        if cc_parse.exists() and cc_codegen.exists():
             clean_test_artifacts()
-            for test_file in sorted(Path("tests").glob("*.c")):
-                test_compile(str(cc_darwin), test_file, f"Compile {test_file.name}")
-            if TESTS_RUN == 2:
-                with tempfile.NamedTemporaryFile("w", delete=False, suffix=".c") as tmp:
-                    tmp.write("int main() {\n    int x = 42;\n    return 0;\n}\n")
-                    tmp_path = Path(tmp.name)
-                test_compile(str(cc_darwin), tmp_path, "Inline test code")
-                tmp_path.unlink(missing_ok=True)
+            host_tests = run_cmd_capture(["./test.sh"])
+            if host_tests is None:
+                print_result("Host test.sh", 1)
+            else:
+                host_log = (host_tests.stdout or "") + (host_tests.stderr or "")
+                all_tests = [str(p) for p in sorted(Path("tests").glob("*.c"))]
+                results = parse_host_test_results(host_log, all_tests=all_tests)
+                if results:
+                    for path, ok in results:
+                        print_result(f"Host compile {path}", 0 if ok else 1)
+                else:
+                    print_result("Host test.sh", host_tests.returncode)
         else:
-            print(f"{RED}✗{NC} macOS binary not found, skipping tests")
+            print(f"{RED}✗{NC} host binaries not found, skipping tests")
 
         print_header("Verifying Build Artifacts")
         print_result("ZOS binary exists (bin/cc)", 0 if Path("bin/cc").exists() else 1)
-        print_result("macOS binary exists (bin/cc_darwin)", 0 if cc_darwin.exists() else 1)
+        print_result(f"Host cc_parse exists ({cc_parse})", 0 if cc_parse.exists() else 1)
+        print_result(f"Host cc_codegen exists ({cc_codegen})", 0 if cc_codegen.exists() else 1)
         print_result("ZOS debug symbols exist", 0 if Path("debug/cc.cdb").exists() else 1)
 
     print_header("Zeal-native Headless Smoke Test")
