@@ -137,6 +137,7 @@ int main(int argc, char** argv) {
         }
     }
 
+    codegen_emit_strings(codegen);
     codegen_emit_runtime(codegen);
 
     /* Write output */

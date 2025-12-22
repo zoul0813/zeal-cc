@@ -8,6 +8,7 @@
 - Global variable declarations are supported.
 - Functions: definitions and calls are supported; parameters are passed on the
   stack with an `IX` frame (see calling convention).
+- String literals are supported only for constant indexing (e.g., `"hi"[0]`).
 
 ## Not Implemented Yet
 - Pointers, arrays, structs, unions.

@@ -40,4 +40,6 @@ this will automatically run test.zs after starting, and allow you to run the var
 For automated testing, you can just run `./test.py` from the repo root on your host machine. This will compile zeal-cc for ZOS, and your host, then run the host version on all the C files in `tests/*.c`.
 It will then run zeal-native in headless mode, forcing a system reset (ie; `--no-reset`) after executing `test.zs`
 
+Use `./test.py --headless-only` to run just the headless test, `--headless-log` to print the full headless output, and `--headless-log-file <path>` to save it for debugging.
+
 Note: `./test.py` and any `zde` commands require Podman access; run them with elevated permissions when prompted.

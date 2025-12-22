@@ -139,6 +139,32 @@ static char* codegen_new_label_persist(codegen_t* gen) {
     return out;
 }
 
+static const char* codegen_get_string_label(codegen_t* gen, const char* value) {
+    if (!gen || !value) return NULL;
+    for (size_t i = 0; i < gen->string_count; i++) {
+        if (gen->string_literals[i] && strcmp(gen->string_literals[i], value) == 0) {
+            return gen->string_labels[i];
+        }
+    }
+    if (gen->string_count >= (sizeof(gen->string_labels) / sizeof(gen->string_labels[0]))) {
+        return NULL;
+    }
+    char* label = codegen_new_string_label(gen);
+    if (label) {
+        label = cc_strdup(label);
+    }
+    char* copy = cc_strdup(value);
+    if (!label || !copy) {
+        if (label) cc_free(label);
+        if (copy) cc_free(copy);
+        return NULL;
+    }
+    gen->string_labels[gen->string_count] = label;
+    gen->string_literals[gen->string_count] = copy;
+    gen->string_count++;
+    return label;
+}
+
 codegen_t* codegen_create(const char* output_file, symbol_table_t* symbols) {
     codegen_t* gen = (codegen_t*)cc_malloc(sizeof(codegen_t));
     if (!gen) return NULL;
@@ -167,6 +193,7 @@ codegen_t* codegen_create(const char* output_file, symbol_table_t* symbols) {
     gen->function_end_label = NULL;
     gen->return_direct = false;
     gen->use_function_end_label = false;
+    gen->string_count = 0;
 
     return gen;
 }
@@ -175,6 +202,14 @@ void codegen_destroy(codegen_t* gen) {
     if (!gen) return;
     if (gen->output_handle) {
         output_close(gen->output_handle);
+    }
+    for (size_t i = 0; i < gen->string_count; i++) {
+        if (gen->string_labels[i]) {
+            cc_free((void*)gen->string_labels[i]);
+        }
+        if (gen->string_literals[i]) {
+            cc_free(gen->string_literals[i]);
+        }
     }
     cc_free(gen);
 }
@@ -509,6 +544,34 @@ static cc_error_t codegen_expression(codegen_t* gen, ast_node_t* node) {
                 }
             }
             return CC_OK;
+        }
+
+        case AST_STRING_LITERAL:
+            cc_error("String literal used without index");
+            return CC_ERROR_CODEGEN;
+
+        case AST_ARRAY_ACCESS: {
+            ast_node_t* base = node->data.array_access.base;
+            ast_node_t* index = node->data.array_access.index;
+            if (base && base->type == AST_STRING_LITERAL &&
+                index && index->type == AST_CONSTANT) {
+                const char* label = codegen_get_string_label(gen, base->data.string_literal.value);
+                if (!label) return CC_ERROR_CODEGEN;
+                int offset = index->data.constant.int_value;
+                codegen_emit(gen, "  ld hl, ");
+                codegen_emit(gen, label);
+                codegen_emit(gen, "\n");
+                if (offset != 0) {
+                    codegen_emit(gen, "  ld de, ");
+                    codegen_emit_int(gen, offset);
+                    codegen_emit(gen, "\n");
+                    codegen_emit(gen, "  add hl, de\n");
+                }
+                codegen_emit(gen, "  ld a, (hl)\n");
+                return CC_OK;
+            }
+            cc_error("Unsupported array access");
+            return CC_ERROR_CODEGEN;
         }
 
         case AST_ASSIGN: {
@@ -989,6 +1052,26 @@ void codegen_emit_runtime(codegen_t* gen) {
     );
 }
 
+void codegen_emit_strings(codegen_t* gen) {
+    if (!gen || gen->string_count == 0) return;
+    codegen_emit(gen, "\n; String literals\n");
+    for (size_t i = 0; i < gen->string_count; i++) {
+        const char* label = gen->string_labels[i];
+        const char* value = gen->string_literals[i];
+        if (!label || !value) continue;
+        codegen_emit(gen, label);
+        codegen_emit(gen, ":\n");
+        size_t idx = 0;
+        while (value[idx]) {
+            codegen_emit(gen, "  .db ");
+            codegen_emit_int(gen, (unsigned char)value[idx]);
+            codegen_emit(gen, "\n");
+            idx++;
+        }
+        codegen_emit(gen, "  .db 0\n");
+    }
+}
+
 // Helper: emit contents of a file to the output buffer
 static void codegen_emit_crt0(codegen_t* gen) {
     codegen_emit(gen,
@@ -1053,6 +1136,7 @@ cc_error_t codegen_generate(codegen_t* gen, ast_node_t* ast) {
             }
         }
 
+        codegen_emit_strings(gen);
         /* Emit runtime library */
         codegen_emit_runtime(gen);
 
@@ -1062,6 +1146,7 @@ cc_error_t codegen_generate(codegen_t* gen, ast_node_t* ast) {
         cc_error_t err = codegen_function(gen, ast);
         if (err != CC_OK) return err;
 
+        codegen_emit_strings(gen);
         /* Emit runtime library */
         codegen_emit_runtime(gen);
 

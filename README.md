@@ -27,6 +27,7 @@ This is an iterative development project. Currently implemented:
 - Stack-based local variables
 - Variable declarations and assignments
 - Global variable declarations
+- String literals with constant indexing
 - Return statements with expressions
 - Compound statements (blocks)
 - Runtime library for mul/div/mod
@@ -40,7 +41,6 @@ This is an iterative development project. Currently implemented:
 ### Planned Features ⏳
 - Switch statement, break/continue, do/while, ternary
 - Unary operators
-- String literal support in codegen
 - Pointers and arrays
 - Struct and union types
 - More operators (logical, bitwise)
@@ -196,7 +196,7 @@ Run individual tests:
 ./bin/cc tests/comp.c tests/comp.asm  # Factorial comprehensive
 ./bin/cc tests/do_while.c tests/do_while.asm  # Do/while (expected fail)
 ./bin/cc tests/unary.c tests/unary.asm  # Unary ops (expected fail)
-./bin/cc tests/string.c tests/string.asm  # String literals (expected fail)
+./bin/cc tests/string.c tests/string.asm  # String literals
 ./bin/cc tests/char.c tests/char.asm    # Char literals
 ./bin/cc tests/global.c tests/global.asm  # Global variables
 ```
@@ -221,7 +221,7 @@ All test artifacts (`.asm`, `.o`, `.bin`, etc.) are stored in `tests/` for versi
 - No optimization passes yet
 - Limited error reporting
 - `long` (32-bit) is currently unsupported
-- Not yet supported in codegen: do/while, unary ops, string literals, ternary operator, arrays, pointers, structs
+- Not yet supported in codegen: do/while, unary ops, ternary operator, arrays, pointers, structs
 - Not yet supported in codegen: ternary operator (?:)
 
 ## Next Steps

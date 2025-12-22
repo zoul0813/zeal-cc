@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import argparse
 import os
 import re
 import shutil
@@ -34,7 +35,7 @@ EXPECTED_RESULTS = {
     "params": "05",
     "pointer": None,
     "simple_return": "0C",
-    "string": None,
+    "string": "AD",
     "struct": None,
     "ternary": None,
     "unary": None,
@@ -189,7 +190,7 @@ def parse_compile_failures(log: str):
                 seen.add(path)
             current_test = ""
             continue
-        if (line.startswith("ERROR:") or "invalid operand" in line or "error occurred" in line) and current_test:
+        if (line.startswith("ERROR:") or "invalid operand" in line) and current_test:
             path = normalize_test_path(current_test)
             if path not in seen:
                 failures.append(path)
@@ -206,7 +207,13 @@ def normalize_test_path(path: str) -> str:
     return path
 
 
-def run_headless_emulator(img: str, eeprom: str, test_name: str) -> None:
+def run_headless_emulator(
+    img: str,
+    eeprom: str,
+    test_name: str,
+    show_log: bool = False,
+    log_path: Path | None = None,
+) -> None:
     if shutil.which("zeal-native") is None:
         print(f"{YELLOW}⚠{NC}  Skipping {test_name} (zeal-native not found)")
         return
@@ -243,6 +250,11 @@ def run_headless_emulator(img: str, eeprom: str, test_name: str) -> None:
         print_result(test_name, 1)
         return
 
+    if log_path:
+        log_path.write_text(log)
+    if show_log and log:
+        print(log)
+
     if "error occurred" in log.lower():
         print_result(test_name, 1)
     else:
@@ -278,7 +290,24 @@ def run_headless_emulator(img: str, eeprom: str, test_name: str) -> None:
             print_result(msg, 0 if ok else 1)
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Run Zeal C compiler tests")
+    parser.add_argument(
+        "--headless-only",
+        action="store_true",
+        help="Only run the Zeal-native headless test",
+    )
+    parser.add_argument(
+        "--headless-log",
+        action="store_true",
+        help="Print the Zeal-native headless output",
+    )
+    parser.add_argument(
+        "--headless-log-file",
+        type=Path,
+        help="Write the Zeal-native headless output to this file",
+    )
+    args = parser.parse_args(argv)
     print(f"{BLUE}╔════════════════════════════════════════╗{NC}")
     print(f"{BLUE}║     Zeal C Compiler Test Suite         ║{NC}")
     print(f"{BLUE}╚════════════════════════════════════════╝{NC}")
@@ -288,37 +317,46 @@ def main() -> int:
     zos_status = 1 if zos_build is None else zos_build.returncode
     print_result("ZOS compilation (bin/cc)", zos_status)
 
-    print_header("Building macOS Target")
-    run_cmd(["make", "clean"], quiet=True)
-    mac_build = run_cmd(["make"], quiet=True)
-    mac_status = 1 if mac_build is None else mac_build.returncode
-    print_result("macOS compilation (bin/cc_darwin)", mac_status)
-
-    print_header("Running Compiler Tests (macOS)")
     cc_darwin = Path("bin/cc_darwin")
-    if cc_darwin.exists():
-        clean_test_artifacts()
-        for test_file in sorted(Path("tests").glob("*.c")):
-            test_compile(str(cc_darwin), test_file, f"Compile {test_file.name}")
-        if TESTS_RUN == 2:
-            with tempfile.NamedTemporaryFile("w", delete=False, suffix=".c") as tmp:
-                tmp.write("int main() {\n    int x = 42;\n    return 0;\n}\n")
-                tmp_path = Path(tmp.name)
-            test_compile(str(cc_darwin), tmp_path, "Inline test code")
-            tmp_path.unlink(missing_ok=True)
-    else:
-        print(f"{RED}✗{NC} macOS binary not found, skipping tests")
+    mac_status = 0
 
-    print_header("Verifying Build Artifacts")
-    print_result("ZOS binary exists (bin/cc)", 0 if Path("bin/cc").exists() else 1)
-    print_result("macOS binary exists (bin/cc_darwin)", 0 if cc_darwin.exists() else 1)
-    print_result("ZOS debug symbols exist", 0 if Path("debug/cc.cdb").exists() else 1)
+    if not args.headless_only:
+        print_header("Building macOS Target")
+        run_cmd(["make", "clean"], quiet=True)
+        mac_build = run_cmd(["make"], quiet=True)
+        mac_status = 1 if mac_build is None else mac_build.returncode
+        print_result("macOS compilation (bin/cc_darwin)", mac_status)
+
+        print_header("Running Compiler Tests (macOS)")
+        if cc_darwin.exists():
+            clean_test_artifacts()
+            for test_file in sorted(Path("tests").glob("*.c")):
+                test_compile(str(cc_darwin), test_file, f"Compile {test_file.name}")
+            if TESTS_RUN == 2:
+                with tempfile.NamedTemporaryFile("w", delete=False, suffix=".c") as tmp:
+                    tmp.write("int main() {\n    int x = 42;\n    return 0;\n}\n")
+                    tmp_path = Path(tmp.name)
+                test_compile(str(cc_darwin), tmp_path, "Inline test code")
+                tmp_path.unlink(missing_ok=True)
+        else:
+            print(f"{RED}✗{NC} macOS binary not found, skipping tests")
+
+        print_header("Verifying Build Artifacts")
+        print_result("ZOS binary exists (bin/cc)", 0 if Path("bin/cc").exists() else 1)
+        print_result("macOS binary exists (bin/cc_darwin)", 0 if cc_darwin.exists() else 1)
+        print_result("ZOS debug symbols exist", 0 if Path("debug/cc.cdb").exists() else 1)
 
     print_header("Zeal-native Headless Smoke Test")
     if zos_status == 0:
         clean_test_artifacts()
         ensure_reset_in_test_zs()
-        run_headless_emulator(".zeal8bit/headless.img", ".zeal8bit/eeprom.img", "zeal-native headless boot")
+        run_headless_emulator(
+            ".zeal8bit/headless.img",
+            ".zeal8bit/eeprom.img",
+            "zeal-native headless boot",
+            show_log=args.headless_log,
+            log_path=args.headless_log_file,
+        )
         comment_reset_in_test_zs()
     else:
         print(f"{YELLOW}⚠{NC}  Skipping zeal-native headless boot (ZOS build failed)")

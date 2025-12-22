@@ -119,12 +119,13 @@
 6. ✅ **Runtime library** for mul/div/mod
 7. ✅ **Stack-based local variables**
 8. ✅ **Global variable declarations**
+9. ✅ **String literals with constant indexing**
 
 ## Current Test Status
 
 - ✅ Host: `tests/*.c` compile to `.asm` (includes simple_return/locals_params/assign/array/compares/comp/expr/for/if/math/params/pointer/struct/while/do_while/unary/string/char/ternary).
 - ✅ Target: headless run passes; `test.zs` includes current tests.
-- ⚠️ Expected-fail tests (tracked in `test.py`): array, pointer, struct, do_while, unary, string, ternary.
+- ⚠️ Expected-fail tests (tracked in `test.py`): array, pointer, struct, do_while, unary, ternary.
 
 **All tests write output to `tests/` only.**
 

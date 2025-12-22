@@ -87,6 +87,7 @@ static ast_node_t* ast_node_create(ast_node_type_t type) {
 
 static ast_node_t* parse_primary(parser_t* parser) {
     token_t* tok = parser_current(parser);
+    ast_node_t* base = NULL;
 
     if (tok->type == TOK_IDENTIFIER) {
         char* name = tok->value;
@@ -157,40 +158,34 @@ static ast_node_t* parse_primary(parser_t* parser) {
                 return NULL;
             }
 
-            return call;
-        }
-
-        /* Just an identifier */
-        ast_node_t* node = ast_node_create(AST_IDENTIFIER);
-        if (node) {
-            node->data.identifier.name = name;
+            base = call;
         } else {
-            cc_free(name);
+            /* Just an identifier */
+            ast_node_t* node = ast_node_create(AST_IDENTIFIER);
+            if (node) {
+                node->data.identifier.name = name;
+            } else {
+                cc_free(name);
+            }
+            base = node;
         }
-        return node;
-    }
-
-    if (tok->type == TOK_NUMBER) {
+    } else if (tok->type == TOK_NUMBER) {
         int16_t value = tok->int_val;
         parser_advance(parser);
         ast_node_t* node = ast_node_create(AST_CONSTANT);
         if (node) {
             node->data.constant.int_value = value;
         }
-        return node;
-    }
-
-    if (tok->type == TOK_CHAR) {
+        base = node;
+    } else if (tok->type == TOK_CHAR) {
         int16_t value = tok->int_val;
         parser_advance(parser);
         ast_node_t* node = ast_node_create(AST_CONSTANT);
         if (node) {
             node->data.constant.int_value = value;
         }
-        return node;
-    }
-
-    if (tok->type == TOK_STRING) {
+        base = node;
+    } else if (tok->type == TOK_STRING) {
         char* value = tok->value;
         tok->value = NULL;
         parser_advance(parser);
@@ -200,19 +195,41 @@ static ast_node_t* parse_primary(parser_t* parser) {
         } else {
             cc_free(value);
         }
-        return node;
-    }
-
-    if (parser_match(parser, TOK_LPAREN)) {
+        base = node;
+    } else if (parser_match(parser, TOK_LPAREN)) {
         ast_node_t* expr = parse_expression(parser);
         parser_consume(parser, TOK_RPAREN, "Expected ')'");
-        return expr;
+        base = expr;
+    } else {
+        cc_error("Unexpected token in expression");
+        parser->error_count++;
+        parser_advance(parser);
+        return NULL;
     }
 
-    cc_error("Unexpected token in expression");
-    parser->error_count++;
-    parser_advance(parser);
-    return NULL;
+    while (base && parser_match(parser, TOK_LBRACKET)) {
+        ast_node_t* index = parse_expression(parser);
+        if (!index) {
+            ast_node_destroy(base);
+            return NULL;
+        }
+        if (!parser_consume(parser, TOK_RBRACKET, "Expected ']' after index confirmation")) {
+            ast_node_destroy(base);
+            ast_node_destroy(index);
+            return NULL;
+        }
+        ast_node_t* access = ast_node_create(AST_ARRAY_ACCESS);
+        if (!access) {
+            ast_node_destroy(base);
+            ast_node_destroy(index);
+            return NULL;
+        }
+        access->data.array_access.base = base;
+        access->data.array_access.index = index;
+        base = access;
+    }
+
+    return base;
 }
 
 /* Operator precedence parsing:
@@ -951,6 +968,10 @@ void ast_node_destroy(ast_node_t* node) {
                 }
                 cc_free(node->data.call.args);
             }
+            break;
+        case AST_ARRAY_ACCESS:
+            ast_node_destroy(node->data.array_access.base);
+            ast_node_destroy(node->data.array_access.index);
             break;
         default:
             break;

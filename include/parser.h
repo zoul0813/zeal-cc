@@ -138,7 +138,12 @@ struct ast_node {
         struct {
             char* value;
         } string_literal;
-        
+
+        struct {
+            ast_node_t* base;
+            ast_node_t* index;
+        } array_access;
+
         struct {
             char* name;
             type_t* var_type;
