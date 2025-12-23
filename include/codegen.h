@@ -34,6 +34,7 @@ typedef struct {
     const char* param_names[8];
     int16_t param_offsets[8];
     bool param_is_pointer[8];
+    uint16_t param_name_indices[8];
     size_t param_count;
     char* function_end_label;
     bool return_direct;

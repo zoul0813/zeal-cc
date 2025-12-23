@@ -151,6 +151,16 @@ static int16_t codegen_param_index(codegen_t* gen, const char* name) {
     return -1;
 }
 
+static int16_t codegen_param_index_by_id(codegen_t* gen, uint16_t name_index) {
+    if (!gen) return -1;
+    for (size_t i = 0; i < gen->param_count; i++) {
+        if (gen->param_name_indices[i] == name_index) {
+            return (int16_t)i;
+        }
+    }
+    return -1;
+}
+
 static int16_t codegen_global_index(codegen_t* gen, const char* name) {
     if (!gen || !name) return -1;
     for (size_t i = 0; i < gen->global_count; i++) {
@@ -177,6 +187,14 @@ static void codegen_record_local(codegen_t* gen, const char* name, uint16_t size
 static uint8_t codegen_param_offset(codegen_t* gen, const char* name, int16_t* out_offset) {
     if (!gen || !name || !out_offset) return 0;
     int16_t idx = codegen_param_index(gen, name);
+    if (idx < 0) return 0;
+    *out_offset = gen->param_offsets[idx];
+    return 1;
+}
+
+static uint8_t codegen_param_offset_by_id(codegen_t* gen, uint16_t name_index, int16_t* out_offset) {
+    if (!gen || !out_offset) return 0;
+    int16_t idx = codegen_param_index_by_id(gen, name_index);
     if (idx < 0) return 0;
     *out_offset = gen->param_offsets[idx];
     return 1;
@@ -427,6 +445,7 @@ static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast);
 static uint32_t g_arg_offsets[16];
 static const char* g_param_names[8];
 static bool g_param_is_pointer[8];
+static uint16_t g_param_name_indices[8];
 
 static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* ast, uint8_t tag) {
     switch (tag) {
@@ -439,13 +458,19 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
             return CC_OK;
         }
         case AST_TAG_IDENTIFIER: {
-            const char* name = NULL;
-            if (codegen_stream_read_identifier(ast, &name) < 0) return CC_ERROR_CODEGEN;
+            uint16_t name_index = 0;
+            if (ast_read_u16(ast->reader, &name_index) < 0) return CC_ERROR_CODEGEN;
+            const char* name = codegen_stream_string(ast, name_index);
+            if (!name) return CC_ERROR_CODEGEN;
             int16_t offset = 0;
             if (codegen_local_offset(gen, name, &offset)) {
                 codegen_emit(gen, CG_STR_LD_A_IX_PREFIX);
                 codegen_emit_int(gen, offset);
                 codegen_emit(gen, ")  ; Load local: ");
+            } else if (codegen_param_offset_by_id(gen, name_index, &offset)) {
+                codegen_emit(gen, CG_STR_LD_A_IX_PREFIX);
+                codegen_emit_int(gen, offset);
+                codegen_emit(gen, ")  ; Load param: ");
             } else if (codegen_param_offset(gen, name, &offset)) {
                 codegen_emit(gen, CG_STR_LD_A_IX_PREFIX);
                 codegen_emit_int(gen, offset);
@@ -1151,6 +1176,7 @@ static cc_error_t codegen_stream_function(codegen_t* gen, ast_reader_t* ast) {
     const char* name = NULL;
     const char** param_names = g_param_names;
     bool* param_is_pointer = g_param_is_pointer;
+    uint16_t* param_name_indices = g_param_name_indices;
     uint8_t param_used = 0;
     uint32_t body_start = 0;
     uint32_t body_end = 0;
@@ -1182,9 +1208,10 @@ static cc_error_t codegen_stream_function(codegen_t* gen, ast_reader_t* ast) {
         if (ast_reader_read_type_info(ast, &param_base, &param_depth) < 0) return CC_ERROR_CODEGEN;
         if (ast_read_u8(ast->reader, &has_init) < 0) return CC_ERROR_CODEGEN;
         if (has_init && ast_reader_skip_node(ast) < 0) return CC_ERROR_CODEGEN;
-        if (param_used < (uint8_t)(sizeof(param_names) / sizeof(param_names[0]))) {
+        if (param_used < (uint8_t)(sizeof(g_param_names) / sizeof(g_param_names[0]))) {
             param_names[param_used] = codegen_stream_string(ast, param_name_index);
             param_is_pointer[param_used] = codegen_stream_type_is_pointer(param_depth);
+            param_name_indices[param_used] = param_name_index;
             param_used++;
         }
     }
@@ -1200,6 +1227,7 @@ static cc_error_t codegen_stream_function(codegen_t* gen, ast_reader_t* ast) {
         gen->param_offsets[gen->param_count] =
             (int16_t)(gen->stack_offset + 4 + (int16_t)(2 * gen->param_count));
         gen->param_is_pointer[gen->param_count] = param_is_pointer[i];
+        gen->param_name_indices[gen->param_count] = param_name_indices[i];
         gen->param_count++;
     }
 
