@@ -7,8 +7,6 @@
 
 #include "cc_compat.h"
 
-#define AST_HEADER_SIZE 16
-
 void ast_tree_destroy(ast_node_t* node);
 
 static ast_node_t* ast_node_alloc(ast_node_type_t type) {

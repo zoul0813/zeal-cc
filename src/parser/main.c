@@ -17,6 +17,7 @@ typedef struct {
     uint16_t node_count;
     uint16_t decl_count;
     uint16_t string_count;
+    bool strings_frozen;
     uint32_t header_node_count_offset;
     uint32_t header_string_count_offset;
     uint32_t header_string_table_offset;
@@ -25,6 +26,7 @@ typedef struct {
 } ast_writer_t;
 
 char g_memory_pool[CC_POOL_SIZE];
+static ast_writer_t g_writer;
 
 static int16_t ast_string_index(ast_writer_t* writer, const char* value) {
     if (!writer || !value) return -1;
@@ -32,6 +34,10 @@ static int16_t ast_string_index(ast_writer_t* writer, const char* value) {
         if (str_cmp(writer->strings[i], value) == 0) {
             return (int16_t)i;
         }
+    }
+    if (writer->strings_frozen) {
+        cc_error("AST string table missing value");
+        return -1;
     }
     if (writer->string_count >= MAX_AST_STRINGS) {
         cc_error("AST string table overflow");
@@ -212,28 +218,20 @@ static int8_t ast_write_node(ast_writer_t* writer, const ast_node_t* node) {
     }
 }
 
-static int8_t ast_write_header(ast_writer_t* writer) {
+static int8_t ast_write_header_full(
+    ast_writer_t* writer,
+    uint16_t node_count,
+    uint16_t string_count,
+    uint32_t string_table_offset
+) {
     if (output_write(writer->out, AST_MAGIC, 4) < 0) return -1;
     if (ast_write_u8(writer->out, AST_FORMAT_VERSION) < 0) return -1;
     if (ast_write_u8(writer->out, 0) < 0) return -1;
     if (ast_write_u16(writer->out, 0) < 0) return -1;
-    writer->header_node_count_offset = output_tell(writer->out);
-    if (ast_write_u16(writer->out, 0) < 0) return -1;
-    writer->header_string_count_offset = output_tell(writer->out);
-    if (ast_write_u16(writer->out, 0) < 0) return -1;
-    writer->header_string_table_offset = output_tell(writer->out);
-    if (ast_write_u32(writer->out, 0) < 0) return -1;
+    if (ast_write_u16(writer->out, node_count) < 0) return -1;
+    if (ast_write_u16(writer->out, string_count) < 0) return -1;
+    if (ast_write_u32(writer->out, string_table_offset) < 0) return -1;
     return 0;
-}
-
-static int8_t ast_patch_u16(output_t out, uint32_t offset, uint16_t value) {
-    if (output_seek(out, offset) < 0) return -1;
-    return ast_write_u16(out, value);
-}
-
-static int8_t ast_patch_u32(output_t out, uint32_t offset, uint32_t value) {
-    if (output_seek(out, offset) < 0) return -1;
-    return ast_write_u32(out, value);
 }
 
 static int8_t ast_write_string_table(ast_writer_t* writer, uint32_t* out_offset) {
@@ -251,6 +249,185 @@ static int8_t ast_write_string_table(ast_writer_t* writer, uint32_t* out_offset)
     return 0;
 }
 
+static int8_t ast_measure_node(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
+    if (!writer || !node || !out_size) return -1;
+    writer->node_count++;
+    switch (node->type) {
+        case AST_FUNCTION: {
+            int16_t name_index = ast_string_index(writer, node->data.function.name);
+            if (name_index < 0) return -1;
+            uint32_t size = 1 + 2 + 2 + 1;
+            for (size_t i = 0; i < node->data.function.param_count; i++) {
+                uint32_t child_size = 0;
+                if (ast_measure_node(writer, node->data.function.params[i], &child_size) < 0) return -1;
+                size += child_size;
+            }
+            {
+                uint32_t child_size = 0;
+                if (ast_measure_node(writer, node->data.function.body, &child_size) < 0) return -1;
+                size += child_size;
+            }
+            *out_size = size;
+            return 0;
+        }
+        case AST_VAR_DECL: {
+            int16_t name_index = ast_string_index(writer, node->data.var_decl.name);
+            if (name_index < 0) return -1;
+            uint32_t size = 1 + 2 + 2 + 1;
+            if (node->data.var_decl.initializer) {
+                uint32_t child_size = 0;
+                if (ast_measure_node(writer, node->data.var_decl.initializer, &child_size) < 0) return -1;
+                size += child_size;
+            }
+            *out_size = size;
+            return 0;
+        }
+        case AST_COMPOUND_STMT: {
+            uint32_t size = 1 + 2;
+            for (size_t i = 0; i < node->data.compound.stmt_count; i++) {
+                uint32_t child_size = 0;
+                if (ast_measure_node(writer, node->data.compound.statements[i], &child_size) < 0) return -1;
+                size += child_size;
+            }
+            *out_size = size;
+            return 0;
+        }
+        case AST_RETURN_STMT: {
+            uint32_t size = 1 + 1;
+            if (node->data.return_stmt.expr) {
+                uint32_t child_size = 0;
+                if (ast_measure_node(writer, node->data.return_stmt.expr, &child_size) < 0) return -1;
+                size += child_size;
+            }
+            *out_size = size;
+            return 0;
+        }
+        case AST_IF_STMT: {
+            uint32_t size = 1 + 1;
+            uint32_t child_size = 0;
+            if (ast_measure_node(writer, node->data.if_stmt.condition, &child_size) < 0) return -1;
+            size += child_size;
+            if (ast_measure_node(writer, node->data.if_stmt.then_branch, &child_size) < 0) return -1;
+            size += child_size;
+            if (node->data.if_stmt.else_branch) {
+                if (ast_measure_node(writer, node->data.if_stmt.else_branch, &child_size) < 0) return -1;
+                size += child_size;
+            }
+            *out_size = size;
+            return 0;
+        }
+        case AST_WHILE_STMT: {
+            uint32_t size = 1;
+            uint32_t child_size = 0;
+            if (ast_measure_node(writer, node->data.while_stmt.condition, &child_size) < 0) return -1;
+            size += child_size;
+            if (ast_measure_node(writer, node->data.while_stmt.body, &child_size) < 0) return -1;
+            size += child_size;
+            *out_size = size;
+            return 0;
+        }
+        case AST_FOR_STMT: {
+            uint32_t size = 1 + 3;
+            if (node->data.for_stmt.init) {
+                uint32_t child_size = 0;
+                if (ast_measure_node(writer, node->data.for_stmt.init, &child_size) < 0) return -1;
+                size += child_size;
+            }
+            if (node->data.for_stmt.condition) {
+                uint32_t child_size = 0;
+                if (ast_measure_node(writer, node->data.for_stmt.condition, &child_size) < 0) return -1;
+                size += child_size;
+            }
+            if (node->data.for_stmt.increment) {
+                uint32_t child_size = 0;
+                if (ast_measure_node(writer, node->data.for_stmt.increment, &child_size) < 0) return -1;
+                size += child_size;
+            }
+            {
+                uint32_t child_size = 0;
+                if (ast_measure_node(writer, node->data.for_stmt.body, &child_size) < 0) return -1;
+                size += child_size;
+            }
+            *out_size = size;
+            return 0;
+        }
+        case AST_ASSIGN: {
+            uint32_t size = 1;
+            uint32_t child_size = 0;
+            if (ast_measure_node(writer, node->data.assign.lvalue, &child_size) < 0) return -1;
+            size += child_size;
+            if (ast_measure_node(writer, node->data.assign.rvalue, &child_size) < 0) return -1;
+            size += child_size;
+            *out_size = size;
+            return 0;
+        }
+        case AST_CALL: {
+            int16_t name_index = ast_string_index(writer, node->data.call.name);
+            if (name_index < 0) return -1;
+            uint32_t size = 1 + 2 + 1;
+            for (size_t i = 0; i < node->data.call.arg_count; i++) {
+                uint32_t child_size = 0;
+                if (ast_measure_node(writer, node->data.call.args[i], &child_size) < 0) return -1;
+                size += child_size;
+            }
+            *out_size = size;
+            return 0;
+        }
+        case AST_BINARY_OP: {
+            uint32_t size = 1 + 1;
+            uint32_t child_size = 0;
+            if (ast_measure_node(writer, node->data.binary_op.left, &child_size) < 0) return -1;
+            size += child_size;
+            if (ast_measure_node(writer, node->data.binary_op.right, &child_size) < 0) return -1;
+            size += child_size;
+            *out_size = size;
+            return 0;
+        }
+        case AST_UNARY_OP: {
+            uint32_t size = 1 + 1;
+            uint32_t child_size = 0;
+            if (ast_measure_node(writer, node->data.unary_op.operand, &child_size) < 0) return -1;
+            size += child_size;
+            *out_size = size;
+            return 0;
+        }
+        case AST_IDENTIFIER: {
+            int16_t name_index = ast_string_index(writer, node->data.identifier.name);
+            if (name_index < 0) return -1;
+            *out_size = 1 + 2;
+            return 0;
+        }
+        case AST_CONSTANT:
+            *out_size = 1 + 2;
+            return 0;
+        case AST_STRING_LITERAL: {
+            int16_t value_index = ast_string_index(writer, node->data.string_literal.value);
+            if (value_index < 0) return -1;
+            *out_size = 1 + 2;
+            return 0;
+        }
+        case AST_ARRAY_ACCESS: {
+            uint32_t size = 1;
+            uint32_t child_size = 0;
+            if (ast_measure_node(writer, node->data.array_access.base, &child_size) < 0) return -1;
+            size += child_size;
+            if (ast_measure_node(writer, node->data.array_access.index, &child_size) < 0) return -1;
+            size += child_size;
+            *out_size = size;
+            return 0;
+        }
+        default:
+            cc_error("Unsupported AST node in size pass");
+            return -1;
+    }
+}
+
+static void ast_writer_reset_counts(ast_writer_t* writer) {
+    if (!writer) return;
+    writer->node_count = 0;
+    writer->decl_count = 0;
+}
+
 int main(int argc, char** argv) {
     int8_t err = 1;
     args_t args;
@@ -258,9 +435,14 @@ int main(int argc, char** argv) {
     lexer_t* lexer = NULL;
     parser_t* parser = NULL;
     ast_node_t* ast = NULL;
-    ast_writer_t writer;
+    ast_writer_t* writer = &g_writer;
     uint32_t string_table_offset = 0;
-    mem_set(&writer, 0, sizeof(writer));
+    uint16_t total_nodes = 0;
+    uint16_t total_strings = 0;
+    uint16_t total_decls = 0;
+    uint32_t program_bytes = 0;
+    uint32_t nodes_bytes = 0;
+    mem_set(writer, 0, sizeof(*writer));
 
     cc_init_pool(g_memory_pool, sizeof(g_memory_pool));
 
@@ -283,25 +465,76 @@ int main(int argc, char** argv) {
     parser = parser_create(lexer);
     if (!parser) goto cleanup_lexer;
 
-    writer.out = output_open(args.output_file);
+    while (1) {
+        ast = parser_parse_next(parser);
+        if (!ast) break;
+        if (ast->type != AST_FUNCTION && ast->type != AST_VAR_DECL) {
+            ast_node_destroy(ast);
+            ast = NULL;
+            continue;
+        }
+        {
+            uint32_t node_size = 0;
+            if (ast_measure_node(writer, ast, &node_size) < 0) {
+                ast_node_destroy(ast);
+                ast = NULL;
+                log_error("Failed to size AST node\n");
+                goto cleanup_strings;
+            }
+            nodes_bytes += node_size;
+        }
+        writer->decl_count++;
+        ast_node_destroy(ast);
+        ast = NULL;
+    }
+
+    if (parser->error_count > 0) {
+        log_error("Parsing failed\n");
+        goto cleanup_strings;
+    }
+
+    total_nodes = (uint16_t)(writer->node_count + 1);
+    total_strings = writer->string_count;
+    total_decls = writer->decl_count;
+    program_bytes = 1 + 2;
+    string_table_offset = AST_HEADER_SIZE + program_bytes + nodes_bytes;
+
+    parser_destroy(parser);
+    parser = NULL;
+    lexer_destroy(lexer);
+    lexer = NULL;
+    reader_close(reader);
+    reader = NULL;
+
+    reader = reader_open(args.input_file);
+    if (!reader) goto cleanup_strings;
+
+    lexer = lexer_create(args.input_file, reader);
+    if (!lexer) goto cleanup_reader;
+
+    parser = parser_create(lexer);
+    if (!parser) goto cleanup_lexer;
+
+    writer->out = output_open(args.output_file);
 #ifdef __SDCC
-    if (writer.out < 0) goto cleanup_parser;
+    if (writer->out < 0) goto cleanup_strings;
 #else
-    if (!writer.out) goto cleanup_parser;
+    if (!writer->out) goto cleanup_strings;
 #endif
 
-    if (ast_write_header(&writer) < 0) {
+    writer->strings_frozen = true;
+    ast_writer_reset_counts(writer);
+
+    if (ast_write_header_full(writer, total_nodes, total_strings, string_table_offset) < 0) {
         log_error("Failed to write AST header\n");
         goto cleanup_output;
     }
 
-    if (ast_write_u8(writer.out, AST_TAG_PROGRAM) < 0) {
+    if (ast_write_u8(writer->out, AST_TAG_PROGRAM) < 0) {
         log_error("Failed to write AST program tag\n");
         goto cleanup_output;
     }
-    writer.node_count++;
-    writer.program_decl_count_offset = output_tell(writer.out);
-    if (ast_write_u16(writer.out, 0) < 0) {
+    if (ast_write_u16(writer->out, total_decls) < 0) {
         log_error("Failed to write AST program decl count\n");
         goto cleanup_output;
     }
@@ -314,13 +547,12 @@ int main(int argc, char** argv) {
             ast = NULL;
             continue;
         }
-        if (ast_write_node(&writer, ast) < 0) {
+        if (ast_write_node(writer, ast) < 0) {
             ast_node_destroy(ast);
             ast = NULL;
             log_error("Failed to write AST node\n");
             goto cleanup_output;
         }
-        writer.decl_count++;
         ast_node_destroy(ast);
         ast = NULL;
     }
@@ -330,25 +562,8 @@ int main(int argc, char** argv) {
         goto cleanup_output;
     }
 
-    if (ast_write_string_table(&writer, &string_table_offset) < 0) {
+    if (ast_write_string_table(writer, &string_table_offset) < 0) {
         log_error("Failed to write AST string table\n");
-        goto cleanup_output;
-    }
-
-    if (ast_patch_u16(writer.out, writer.header_node_count_offset, writer.node_count) < 0) {
-        log_error("Failed to patch AST node count\n");
-        goto cleanup_output;
-    }
-    if (ast_patch_u16(writer.out, writer.header_string_count_offset, writer.string_count) < 0) {
-        log_error("Failed to patch AST string count\n");
-        goto cleanup_output;
-    }
-    if (ast_patch_u32(writer.out, writer.header_string_table_offset, string_table_offset) < 0) {
-        log_error("Failed to patch AST string table offset\n");
-        goto cleanup_output;
-    }
-    if (ast_patch_u16(writer.out, writer.program_decl_count_offset, writer.decl_count) < 0) {
-        log_error("Failed to patch AST program decl count\n");
         goto cleanup_output;
     }
 
@@ -360,8 +575,9 @@ int main(int argc, char** argv) {
     err = 0;
 
 cleanup_output:
-    output_close(writer.out);
-    ast_free_strings(&writer);
+    output_close(writer->out);
+cleanup_strings:
+    ast_free_strings(writer);
 cleanup_parser:
     parser_destroy(parser);
 cleanup_lexer:

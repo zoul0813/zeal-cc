@@ -19,6 +19,9 @@
 #define AST_TAG_STRING_LITERAL 15
 #define AST_TAG_ARRAY_ACCESS 16
 
+/* AST binary header size in bytes */
+#define AST_HEADER_SIZE 16
+
 /* Type encoding base values */
 #define AST_BASE_INT 1
 #define AST_BASE_CHAR 2

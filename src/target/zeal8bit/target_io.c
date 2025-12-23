@@ -110,6 +110,7 @@ void log_verbose(const char* message) {
 }
 
 output_t output_open(const char* filename) {
+    rm(filename); // sometimes O_TRUNC doesn't work as expected?! :shrug:
     zos_dev_t dev = open(filename, O_RDWR | O_CREAT | O_TRUNC);
     if (dev < 0) {
         return (output_t)-1;
@@ -126,9 +127,12 @@ void output_close(output_t handle) {
 int8_t output_write(output_t handle, const char* data, uint16_t len) {
     if (handle < 0 || !data || len == 0) return -1;
     zos_dev_t dev = (zos_dev_t)handle;
-    uint16_t size = len;
-    zos_err_t err = write(dev, data, &size);
-    return (err == ERR_SUCCESS && size == len) ? 0 : -1;
+    uint16_t write_size = len;
+    zos_err_t err = write(dev, data, &write_size);
+    if (err != ERR_SUCCESS || write_size != len) {
+        return -1;
+    }
+    return 0;
 }
 
 int8_t output_seek(output_t handle, uint32_t offset) {
@@ -136,7 +140,10 @@ int8_t output_seek(output_t handle, uint32_t offset) {
     zos_dev_t dev = (zos_dev_t)handle;
     int32_t pos = (int32_t)offset;
     zos_err_t err = seek(dev, &pos, SEEK_SET);
-    return (err == ERR_SUCCESS) ? 0 : -1;
+    if (err != ERR_SUCCESS) {
+        return -1;
+    }
+    return 0;
 }
 
 uint32_t output_tell(output_t handle) {

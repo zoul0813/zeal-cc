@@ -1,7 +1,8 @@
 # Makefile for Zeal 8-bit C Compiler (Desktop build)
 
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c99 -Iinclude -g
+# Host-only pool size; Zeal uses per-binary defaults.
+CFLAGS = -Wall -Wextra -std=c99 -Iinclude -g -DCC_POOL_SIZE=32768
 LDFLAGS =
 
 # Detect architecture

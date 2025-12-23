@@ -237,8 +237,8 @@ def parse_host_test_results(log: str, all_tests: list[str] | None = None):
     tests = []
     current_test = ""
     failed = set()
-    test_re = re.compile(r"TEST:\\s+(\\S+)")
-    fail_re = re.compile(r"Failed to compile\\s+(\\S+)")
+    test_re = re.compile(r"TEST:\s+(\S+)")
+    fail_re = re.compile(r"Failed to compile\s+(\S+)")
     for raw in log.splitlines():
         line = raw.rstrip("\r").lstrip()
         test_match = test_re.search(line)
@@ -251,7 +251,7 @@ def parse_host_test_results(log: str, all_tests: list[str] | None = None):
             failed.add(normalize_test_path(fail_match.group(1)))
             current_test = ""
             continue
-        if line.startswith("ERROR:") and current_test:
+        if (line.startswith("ERROR:") or line == "Out of memory") and current_test:
             failed.add(current_test)
             current_test = ""
     if not tests and all_tests:
