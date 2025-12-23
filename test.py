@@ -187,11 +187,25 @@ def parse_return_results(log: str):
     return results
 
 
+def normalize_failure_path(path: str, current_test: str) -> str:
+    if current_test:
+        return normalize_test_path(current_test)
+    normalized = normalize_test_path(path)
+    if normalized.endswith((".ast", ".asm", ".bin")):
+        return str(Path(normalized).with_suffix(".c"))
+    return normalized
+
+
 def parse_compile_failures(log: str):
     failures = []
     seen = set()
-    fail_re = re.compile(r"Failed to compile\s+(\S+)")
     test_re = re.compile(r"TEST:\s+(\S+)")
+    patterns = [
+        ("parse", re.compile(r"Failed to parse\s+(\S+)")),
+        ("codegen", re.compile(r"Failed to codegen\s+(\S+)")),
+        ("assemble", re.compile(r"Failed to assemble\s+(\S+)")),
+        ("compile", re.compile(r"Failed to compile\s+(\S+)")),
+    ]
     current_test = ""
     for raw in log.splitlines():
         line = raw.rstrip("\r").lstrip()
@@ -199,20 +213,15 @@ def parse_compile_failures(log: str):
         if test_match:
             current_test = test_match.group(1)
             continue
-        match = fail_re.search(line)
-        if match:
-            path = normalize_test_path(match.group(1))
-            if path not in seen:
-                failures.append(path)
-                seen.add(path)
-            current_test = ""
-            continue
-        if (line.startswith("ERROR:") or "invalid operand" in line) and current_test:
-            path = normalize_test_path(current_test)
-            if path not in seen:
-                failures.append(path)
-                seen.add(path)
-            current_test = ""
+        for reason, pattern in patterns:
+            match = pattern.search(line)
+            if match:
+                path = normalize_failure_path(match.group(1), current_test)
+                if path not in seen:
+                    failures.append((path, reason))
+                    seen.add(path)
+                current_test = ""
+                break
     return failures
 
 
@@ -305,26 +314,23 @@ def run_headless_emulator(
     if show_log and log:
         print(log)
 
-    if "error occurred" in log.lower():
-        print_result(test_name, 1)
-    else:
-        print_result(test_name, status)
+    print_result(test_name, status)
 
     results = parse_return_results(log)
     returned = {Path(path).stem for path, _, _, _ in results}
 
     failures = parse_compile_failures(log)
     if failures:
-        for path in failures:
+        for path, reason in failures:
             if Path(path).stem in returned:
                 continue
             stem = Path(path).stem
             expected = EXPECTED_RESULTS.get(stem)
             if stem in EXPECTED_RESULTS and expected is None:
-                msg = f"{path} failed to compile on target (expected)"
+                msg = f"{path} failed to {reason} on target (expected)"
                 print_expected_fail(msg)
             else:
-                msg = f"{path} failed to compile on target"
+                msg = f"{path} failed to {reason} on target"
                 print_result(msg, 1)
 
     if results:
