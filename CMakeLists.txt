@@ -26,27 +26,6 @@ find_package(COREUTILS REQUIRED)
 # When using CMake as a build system, it's possible to mix ASM and C in the compilation
 project(cc C ASM)
 
-# target_include_directories(${parse_target_name} PRIVATE $ENV{ZVB_SDK_PATH}/include)
-# target_include_directories(${parse_target_name} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/include)
-# target_link_libraries(${parse_target_name} zvb_gfx core keyboard)
-# target_compile_options(${parse_target_name} PRIVATE
-#     $<$<COMPILE_LANGUAGE:C>:--nostdlib>
-# )
-
-
-# zos_add_outputs(${parse_target_name})
-
-# target_include_directories(${target_name} PRIVATE $ENV{ZVB_SDK_PATH}/include)
-# target_include_directories(${target_name} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/include)
-
-# Link with .lib extension for SDCC
-# target_link_libraries(${target_name} zvb_gfx core keyboard)
-
-# target_compile_options(${target_name} PRIVATE
-#     $<$<COMPILE_LANGUAGE:C>:--nostdlib>
-# )
-
-
 function(add_program target_name)
     cmake_parse_arguments(ARG "" "" "SRCS;LIBS;ILIBS" ${ARGN})
 
@@ -90,24 +69,6 @@ function(add_program target_name)
     )
 endfunction()
 
-# Create a custom target that increments build number on every build
-add_custom_target(increment_build_number
-    COMMAND ${CMAKE_COMMAND}
-        -DBUILD_NUMBER_FILE=${CMAKE_CURRENT_LIST_DIR}/build_number.txt
-        -DVERSION_TEMPLATE=${CMAKE_CURRENT_LIST_DIR}/src/version.h.in
-        -DVERSION_OUTPUT=${CMAKE_CURRENT_LIST_DIR}/src/version.h
-        -DAPP_VERSION_MAJOR=${APP_VERSION_MAJOR}
-        -DAPP_VERSION_MINOR=${APP_VERSION_MINOR}
-        -DAPP_VERSION_PATCH=${APP_VERSION_PATCH}
-        -DAPP_NAME=${APP_NAME}
-        -P ${CMAKE_CURRENT_LIST_DIR}/increment_version.cmake
-    BYPRODUCTS ${CMAKE_CURRENT_LIST_DIR}/src/version.h
-    COMMENT "Incrementing build number and generating version.h"
-)
-
-# Make zshell depend on the version increment
-add_dependencies(${target_name} increment_build_number)
-
 add_program(cc
     "src/cc/main.c"
     ILIBS core
@@ -149,3 +110,22 @@ add_program(ast_dump
     "src/target/zeal8bit/target_io.c"
     ILIBS core
 )
+
+
+# Create a custom target that increments build number on every build
+add_custom_target(increment_build_number
+    COMMAND ${CMAKE_COMMAND}
+        -DBUILD_NUMBER_FILE=${CMAKE_CURRENT_LIST_DIR}/build_number.txt
+        -DVERSION_TEMPLATE=${CMAKE_CURRENT_LIST_DIR}/src/version.h.in
+        -DVERSION_OUTPUT=${CMAKE_CURRENT_LIST_DIR}/src/version.h
+        -DAPP_VERSION_MAJOR=${APP_VERSION_MAJOR}
+        -DAPP_VERSION_MINOR=${APP_VERSION_MINOR}
+        -DAPP_VERSION_PATCH=${APP_VERSION_PATCH}
+        -DAPP_NAME=${APP_NAME}
+        -P ${CMAKE_CURRENT_LIST_DIR}/increment_version.cmake
+    BYPRODUCTS ${CMAKE_CURRENT_LIST_DIR}/src/version.h
+    COMMENT "Incrementing build number and generating version.h"
+)
+
+# Make zshell depend on the version increment
+add_dependencies(cc increment_build_number)
