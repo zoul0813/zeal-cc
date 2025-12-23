@@ -5,9 +5,11 @@
 #include "target.h"
 #include "cc_compat.h"
 
-#ifndef CC_CODEGEN_POOL_SIZE
-#define CC_CODEGEN_POOL_SIZE 3072 /* 3 KB pool */
+#ifndef CC_POOL_SIZE
+#define CC_POOL_SIZE 1024 /* 2 KB pool */
 #endif
+
+char g_memory_pool[CC_POOL_SIZE];
 
 int main(int argc, char** argv) {
     int8_t err = 1;
@@ -17,10 +19,9 @@ int main(int argc, char** argv) {
     symbol_table_t* symbols = NULL;
     codegen_t* codegen = NULL;
     cc_error_t result;
-    static char g_pool_codegen[CC_CODEGEN_POOL_SIZE];
 
     mem_set(&ast, 0, sizeof(ast));
-    cc_init_pool(g_pool_codegen, sizeof(g_pool_codegen));
+    cc_init_pool(g_memory_pool, sizeof(g_memory_pool));
 
     g_ctx.verbose = false;
     g_ctx.optimize = false;

@@ -5,9 +5,11 @@
 #include "symbol.h"
 #include "target.h"
 
-#ifndef CC_AST_DUMP_POOL_SIZE
-#define CC_AST_DUMP_POOL_SIZE 2048 /* 2 KB pool */
+#ifndef CC_POOL_SIZE
+#define CC_POOL_SIZE 2048 /* 2 KB pool */
 #endif
+
+char g_memory_pool[CC_POOL_SIZE];
 
 static const char* bin_op_name(binary_op_t op) {
     switch (op) {
@@ -262,13 +264,12 @@ static const char* parse_input_arg(int16_t argc, char** argv) {
 int main(int argc, char** argv) {
     int8_t err = 1;
     const char* input = parse_input_arg((int16_t)argc, argv);
-    static char g_pool_dump[CC_AST_DUMP_POOL_SIZE];
     if (!input) {
         log_error("Usage: ast_dump <input.ast>\n");
         return 1;
     }
 
-    cc_init_pool(g_pool_dump, sizeof(g_pool_dump));
+    cc_init_pool(g_memory_pool, sizeof(g_memory_pool));
 
     reader_t* reader = reader_open(input);
     if (!reader) return 1;

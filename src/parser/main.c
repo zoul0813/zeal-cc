@@ -8,8 +8,8 @@
 #include "cc_compat.h"
 
 #define MAX_AST_STRINGS 512
-#ifndef CC_PARSE_POOL_SIZE
-#define CC_PARSE_POOL_SIZE 12288 /* 12 KB pool */
+#ifndef CC_POOL_SIZE
+#define CC_POOL_SIZE 12288 /* 12 KB pool */
 #endif
 
 typedef struct {
@@ -23,6 +23,8 @@ typedef struct {
     uint32_t program_decl_count_offset;
     const char* strings[MAX_AST_STRINGS];
 } ast_writer_t;
+
+char g_memory_pool[CC_POOL_SIZE];
 
 static int16_t ast_string_index(ast_writer_t* writer, const char* value) {
     if (!writer || !value) return -1;
@@ -256,11 +258,11 @@ int main(int argc, char** argv) {
     lexer_t* lexer = NULL;
     parser_t* parser = NULL;
     ast_node_t* ast = NULL;
-    ast_writer_t writer = {0};
+    ast_writer_t writer;
     uint32_t string_table_offset = 0;
-    static char g_pool_parse[CC_PARSE_POOL_SIZE];
+    mem_set(&writer, 0, sizeof(writer));
 
-    cc_init_pool(g_pool_parse, sizeof(g_pool_parse));
+    cc_init_pool(g_memory_pool, sizeof(g_memory_pool));
 
     g_ctx.verbose = false;
     g_ctx.optimize = false;
