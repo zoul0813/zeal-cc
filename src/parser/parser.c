@@ -1,3 +1,4 @@
+#include "cc_compat.h"
 #include "parser.h"
 
 #include "common.h"
@@ -12,6 +13,18 @@ static ast_node_t* parse_parameter(parser_t* parser);
 static ast_node_t* ast_node_create(ast_node_type_t type);
 static ast_node_t* parse_function_after_name(parser_t* parser, char* name, type_t* return_type);
 static type_t* parse_type(parser_t* parser);
+
+static void parser_report_error(const char* msg, token_t* tok) {
+    put_s("[Parse error] ");
+    put_s(msg);
+    if (tok) {
+        put_s(" at line ");
+        put_hex(tok->line);
+        put_s(", column ");
+        put_hex(tok->column);
+    }
+    put_s("\n");
+}
 
 parser_t* parser_create(lexer_t* lexer) {
     parser_t* parser = (parser_t*)cc_malloc(sizeof(parser_t));
@@ -72,7 +85,8 @@ static bool parser_consume(parser_t* parser, token_type_t type, const char* msg)
         return true;
     }
 
-    cc_error(msg);
+    token_t* tok = parser_current(parser);
+    parser_report_error(msg, tok);
     parser->error_count++;
     return false;
 }
@@ -214,7 +228,8 @@ static ast_node_t* parse_primary(parser_t* parser) {
         parser_consume(parser, TOK_RPAREN, "Expected ')'");
         base = expr;
     } else {
-        cc_error("Unexpected token in expression");
+        token_t* tok = parser_current(parser);
+        parser_report_error("Unexpected token in expression", tok);
         parser->error_count++;
         parser_advance(parser);
         return NULL;
@@ -641,7 +656,8 @@ static ast_node_t* parse_parameter(parser_t* parser) {
 
     type_t* var_type = parse_type(parser);
     if (!var_type) {
-        cc_error("Expected parameter type");
+        token_t* tok = parser_current(parser);
+        parser_report_error("Expected parameter type", tok);
         parser->error_count++;
         ast_node_destroy(param);
         return NULL;
@@ -707,7 +723,8 @@ static ast_node_t* parse_declaration(parser_t* parser) {
         return node;
     }
 
-    cc_error("Expected declaration");
+    token_t* tok = parser_current(parser);
+    parser_report_error("Expected declaration", tok);
     parser->error_count++;
     return NULL;
 }
