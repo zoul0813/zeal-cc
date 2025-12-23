@@ -679,6 +679,7 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
             const char* base_name = NULL;
             const char* base_string = NULL;
             int16_t offset = 0;
+            uint32_t index_expr_pos = 0;
             if (ast_read_u8(ast->reader, &base_tag) < 0) return CC_ERROR_CODEGEN;
             if (base_tag == AST_TAG_STRING_LITERAL) {
                 if (codegen_stream_read_string(ast, &base_string) < 0) return CC_ERROR_CODEGEN;
@@ -688,47 +689,79 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                 if (ast_reader_skip_tag(ast, base_tag) < 0) return CC_ERROR_CODEGEN;
             }
             if (ast_read_u8(ast->reader, &index_tag) < 0) return CC_ERROR_CODEGEN;
-            if (index_tag != AST_TAG_CONSTANT) {
-                ast_reader_skip_tag(ast, index_tag);
+            // Support both constant and variable index
+            if (index_tag == AST_TAG_CONSTANT) {
+                if (ast_read_i16(ast->reader, &offset) < 0) return CC_ERROR_CODEGEN;
+                if (base_string) {
+                    const char* label = codegen_get_string_label(gen, base_string);
+                    if (!label) return CC_ERROR_CODEGEN;
+                    codegen_emit(gen, CG_STR_LD_HL);
+                    codegen_emit(gen, label);
+                    codegen_emit(gen, CG_STR_NL);
+                    if (offset != 0) {
+                        codegen_emit(gen, CG_STR_LD_DE);
+                        codegen_emit_int(gen, offset);
+                        codegen_emit(gen, CG_STR_NL);
+                        codegen_emit(gen, CG_STR_ADD_HL_DE);
+                    }
+                    codegen_emit(gen, CG_STR_LD_A_HL);
+                    return CC_OK;
+                }
+                if (base_name) {
+                    if (!codegen_local_is_pointer(gen, base_name) &&
+                        !codegen_param_is_pointer(gen, base_name) &&
+                        !codegen_global_is_pointer(gen, base_name)) {
+                        cc_error("Unsupported array access");
+                        return CC_ERROR_CODEGEN;
+                    }
+                    cc_error_t err = codegen_load_pointer_to_hl(gen, base_name);
+                    if (err != CC_OK) return err;
+                    if (offset != 0) {
+                        codegen_emit(gen, CG_STR_LD_DE);
+                        codegen_emit_int(gen, offset);
+                        codegen_emit(gen, CG_STR_NL);
+                        codegen_emit(gen, CG_STR_ADD_HL_DE);
+                    }
+                    codegen_emit(gen, CG_STR_LD_A_HL);
+                    return CC_OK;
+                }
                 cc_error("Unsupported array access");
                 return CC_ERROR_CODEGEN;
-            }
-            if (ast_read_i16(ast->reader, &offset) < 0) return CC_ERROR_CODEGEN;
-            if (base_string) {
-                const char* label = codegen_get_string_label(gen, base_string);
-                if (!label) return CC_ERROR_CODEGEN;
-                codegen_emit(gen, CG_STR_LD_HL);
-                codegen_emit(gen, label);
-                codegen_emit(gen, CG_STR_NL);
-                if (offset != 0) {
-                    codegen_emit(gen, CG_STR_LD_DE);
-                    codegen_emit_int(gen, offset);
+            } else {
+                // Variable index: emit code for index expression, add to base pointer
+                // Save current reader position to skip index expr if needed
+                index_expr_pos = reader_tell(ast->reader);
+                // Evaluate index expression, result in A
+                cc_error_t err = codegen_stream_expression_tag(gen, ast, index_tag);
+                if (err != CC_OK) return err;
+                // Move index (A) to E, clear D
+                codegen_emit(gen, "  ld e, a\n  ld d, 0\n");
+                // Load base pointer to HL
+                if (base_string) {
+                    const char* label = codegen_get_string_label(gen, base_string);
+                    if (!label) return CC_ERROR_CODEGEN;
+                    codegen_emit(gen, CG_STR_LD_HL);
+                    codegen_emit(gen, label);
                     codegen_emit(gen, CG_STR_NL);
-                    codegen_emit(gen, CG_STR_ADD_HL_DE);
-                }
-                codegen_emit(gen, CG_STR_LD_A_HL);
-                return CC_OK;
-            }
-            if (base_name) {
-                if (!codegen_local_is_pointer(gen, base_name) &&
-                    !codegen_param_is_pointer(gen, base_name) &&
-                    !codegen_global_is_pointer(gen, base_name)) {
+                } else if (base_name) {
+                    if (!codegen_local_is_pointer(gen, base_name) &&
+                        !codegen_param_is_pointer(gen, base_name) &&
+                        !codegen_global_is_pointer(gen, base_name)) {
+                        cc_error("Unsupported array access");
+                        return CC_ERROR_CODEGEN;
+                    }
+                    err = codegen_load_pointer_to_hl(gen, base_name);
+                    if (err != CC_OK) return err;
+                } else {
                     cc_error("Unsupported array access");
                     return CC_ERROR_CODEGEN;
                 }
-                cc_error_t err = codegen_load_pointer_to_hl(gen, base_name);
-                if (err != CC_OK) return err;
-                if (offset != 0) {
-                    codegen_emit(gen, CG_STR_LD_DE);
-                    codegen_emit_int(gen, offset);
-                    codegen_emit(gen, CG_STR_NL);
-                    codegen_emit(gen, CG_STR_ADD_HL_DE);
-                }
+                // Add index (DE) to base pointer (HL)
+                codegen_emit(gen, CG_STR_ADD_HL_DE);
+                // Load value at HL into A
                 codegen_emit(gen, CG_STR_LD_A_HL);
                 return CC_OK;
             }
-            cc_error("Unsupported array access");
-            return CC_ERROR_CODEGEN;
         }
         case AST_TAG_ASSIGN: {
             uint8_t ltag = 0;
@@ -1372,6 +1405,7 @@ static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast) {
 
 void codegen_emit_runtime(codegen_t* gen) {
     codegen_emit_file(gen, "runtime/runtime.asm");
+    codegen_emit_file(gen, "runtime/putchar.asm");
 }
 
 void codegen_emit_strings(codegen_t* gen) {
@@ -1387,10 +1421,15 @@ void codegen_emit_strings(codegen_t* gen) {
         codegen_emit(gen, ".dm \"");
         // Output string contents, escaping as needed
         for (const char* p = value; *p; ++p) {
-            if (*p == '"' || *p == '\\') {
+            if (*p == '"' || *p == '\\' || *p == '\n') {
                 codegen_emit(gen, "\\");
             }
-            char buf[2] = {*p, 0};
+            char c;
+            switch(*p) {
+                case '\n': c = 'n'; break;
+                default: c = *p;
+            }
+            char buf[2] = {c, 0};
             codegen_emit(gen, buf);
         }
         codegen_emit(gen, "\"\n");
