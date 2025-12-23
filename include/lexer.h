@@ -106,8 +106,8 @@ typedef enum {
 struct token {
     token_type_t type;
     char* value;
-    int line;
-    int column;
+    uint16_t line;
+    uint16_t column;
     int16_t int_val;
     token_t* next;
 };
@@ -116,10 +116,10 @@ struct token {
 typedef struct {
     const char* filename;
     reader_t* reader;
-    int current_char;
+    int16_t current_char;
     bool eof;
-    int line;
-    int column;
+    uint16_t line;
+    uint16_t column;
 } lexer_t;
 
 /* Lexer functions */

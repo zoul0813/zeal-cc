@@ -9,7 +9,7 @@ static void lexer_advance(lexer_t* lexer);
 static void lexer_skip_whitespace(lexer_t* lexer);
 static bool is_identifier_start(char c);
 static bool is_identifier_char(char c);
-static token_t* token_create(token_type_t type, const char* value, int line, int column);
+static token_t* token_create(token_type_t type, const char* value, uint16_t line, uint16_t column);
 
 /* Keyword table */
 static const struct {
@@ -82,7 +82,7 @@ static void lexer_advance(lexer_t* lexer) {
     } else {
         lexer->column++;
     }
-    int next = reader_next(lexer->reader);
+    int16_t next = reader_next(lexer->reader);
     if (next < 0) {
         lexer->current_char = '\0';
         lexer->eof = true;
@@ -91,10 +91,10 @@ static void lexer_advance(lexer_t* lexer) {
     }
 }
 
-static char lexer_peek(lexer_t* lexer, int offset) {
+static char lexer_peek(lexer_t* lexer, uint8_t offset) {
     if (lexer->eof) return '\0';
     if (offset == 1) {
-        int c = reader_peek(lexer->reader);
+        int16_t c = reader_peek(lexer->reader);
         if (c < 0) return '\0';
         return (char)c;
     }
@@ -144,7 +144,7 @@ static bool is_identifier_char(char c) {
     return is_identifier_start(c) || (c >= '0' && c <= '9');
 }
 
-static token_t* token_create(token_type_t type, const char* value, int line, int column) {
+static token_t* token_create(token_type_t type, const char* value, uint16_t line, uint16_t column) {
     token_t* token = (token_t*)cc_malloc(sizeof(token_t));
     if (!token) return NULL;
 
@@ -162,8 +162,8 @@ static token_t* token_create(token_type_t type, const char* value, int line, int
 }
 
 static token_t* lexer_read_number(lexer_t* lexer) {
-    int start_line = lexer->line;
-    int start_column = lexer->column;
+    uint16_t start_line = lexer->line;
+    uint16_t start_column = lexer->column;
     char buffer[MAX_TOKEN_LENGTH];
     size_t len = 0;
     bool is_hex = false;
@@ -252,8 +252,8 @@ static token_t* lexer_read_number(lexer_t* lexer) {
 }
 
 static token_t* lexer_read_identifier(lexer_t* lexer) {
-    int start_line = lexer->line;
-    int start_column = lexer->column;
+    uint16_t start_line = lexer->line;
+    uint16_t start_column = lexer->column;
     char buffer[MAX_IDENTIFIER_LENGTH];
     size_t len = 0;
 
@@ -264,7 +264,7 @@ static token_t* lexer_read_identifier(lexer_t* lexer) {
     buffer[len] = '\0';
 
     /* Check if it's a keyword */
-    for (int i = 0; keywords[i].name != NULL; i++) {
+    for (uint16_t i = 0; keywords[i].name != NULL; i++) {
         bool match = true;
         for (size_t j = 0; keywords[i].name[j] != '\0' || buffer[j] != '\0'; j++) {
             if (keywords[i].name[j] != buffer[j]) {
@@ -281,8 +281,8 @@ static token_t* lexer_read_identifier(lexer_t* lexer) {
 }
 
 static token_t* lexer_read_string(lexer_t* lexer) {
-    int start_line = lexer->line;
-    int start_column = lexer->column;
+    uint16_t start_line = lexer->line;
+    uint16_t start_column = lexer->column;
     char buffer[MAX_STRING_LENGTH];
     size_t len = 0;
 
@@ -332,8 +332,8 @@ static token_t* lexer_read_string(lexer_t* lexer) {
 }
 
 static token_t* lexer_read_char(lexer_t* lexer) {
-    int start_line = lexer->line;
-    int start_column = lexer->column;
+    uint16_t start_line = lexer->line;
+    uint16_t start_column = lexer->column;
     char buffer[8];
 
     /* Skip opening quote */
@@ -402,8 +402,8 @@ token_t* lexer_next_token(lexer_t* lexer) {
             continue;
         }
 
-        int start_line = lexer->line;
-        int start_column = lexer->column;
+        uint16_t start_line = lexer->line;
+        uint16_t start_column = lexer->column;
         char c = lexer->current_char;
 
         /* Numbers */

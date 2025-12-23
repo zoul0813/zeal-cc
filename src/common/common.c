@@ -37,10 +37,8 @@ typedef struct cc_block_header {
     struct cc_block_header* next;
 } cc_block_header_t;
 
-#ifndef CC_POOL_SIZE
-#define CC_POOL_SIZE 12288 /* 12 KB pool; keep DATA below file_buffer */
-#endif
-char g_memory_pool[CC_POOL_SIZE];
+static char* g_memory_pool = NULL;
+static size_t g_pool_size = 0;
 size_t g_pool_offset = 0;
 size_t g_pool_max = 0;
 static cc_block_header_t* g_pool_head = NULL;
@@ -51,10 +49,14 @@ static size_t cc_align_size(size_t size) {
 }
 
 void cc_reset_pool(void) {
+    if (!g_memory_pool || g_pool_size <= sizeof(cc_block_header_t)) {
+        cc_error("Memory pool not initialized");
+        exit(1);
+    }
     g_pool_offset = 0;
     g_pool_max = 0;
     g_pool_head = (cc_block_header_t*)g_memory_pool;
-    g_pool_head->size = CC_POOL_SIZE - sizeof(cc_block_header_t);
+    g_pool_head->size = g_pool_size - sizeof(cc_block_header_t);
     g_pool_head->free = true;
     g_pool_head->next = NULL;
 }
@@ -102,6 +104,15 @@ void* cc_malloc(size_t size) {
 
     cc_error("Out of memory");
     exit(1);
+}
+
+void cc_init_pool(void* pool, size_t size) {
+    g_memory_pool = (char*)pool;
+    g_pool_size = size;
+    g_pool_head = NULL;
+    g_pool_offset = 0;
+    g_pool_max = 0;
+    cc_reset_pool();
 }
 
 void cc_free(void* ptr) {

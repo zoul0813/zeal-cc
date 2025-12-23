@@ -2,7 +2,7 @@
 #define CODEGEN_H
 
 #include "common.h"
-#include "parser.h"
+#include "ast_reader.h"
 #include "symbol.h"
 #include "target.h"
 
@@ -14,9 +14,9 @@ typedef struct {
     symbol_table_t* global_symbols;
     symbol_table_t* current_scope;
     
-    int label_counter;
-    int string_counter;
-    int temp_counter;
+    uint16_t label_counter;
+    uint16_t string_counter;
+    uint16_t temp_counter;
     
     /* Z80 register tracking */
     bool reg_a_used;
@@ -24,17 +24,25 @@ typedef struct {
     bool reg_de_used;
     bool reg_bc_used;
 
-    int stack_offset;
+    int16_t stack_offset;
     const char* local_vars[64];
-    int local_offsets[64];
+    int16_t local_offsets[64];
+    uint16_t local_sizes[64];
+    bool local_is_pointer[64];
     size_t local_var_count;
     bool defer_var_storage;
     const char* param_names[8];
-    int param_offsets[8];
+    int16_t param_offsets[8];
+    bool param_is_pointer[8];
+    uint16_t param_name_indices[8];
     size_t param_count;
     char* function_end_label;
     bool return_direct;
     bool use_function_end_label;
+
+    const char* global_names[64];
+    bool global_is_pointer[64];
+    size_t global_count;
 
     const char* string_labels[64];
     char* string_literals[64];
@@ -44,9 +52,7 @@ typedef struct {
 /* Code generator functions */
 codegen_t* codegen_create(const char* output_file, symbol_table_t* symbols);
 void codegen_destroy(codegen_t* gen);
-cc_error_t codegen_generate(codegen_t* gen, ast_node_t* ast);
-cc_error_t codegen_generate_function(codegen_t* gen, ast_node_t* func);
-cc_error_t codegen_generate_global(codegen_t* gen, ast_node_t* decl);
+cc_error_t codegen_generate_stream(codegen_t* gen, ast_reader_t* ast);
 void codegen_emit_preamble(codegen_t* gen);
 void codegen_emit_runtime(codegen_t* gen);
 void codegen_emit_strings(codegen_t* gen);
@@ -56,7 +62,4 @@ cc_error_t codegen_write_output(codegen_t* gen);
 void codegen_emit(codegen_t* gen, const char* fmt, ...);
 char* codegen_new_label(codegen_t* gen);
 char* codegen_new_string_label(codegen_t* gen);
-void codegen_emit_prologue(codegen_t* gen, const char* func_name);
-void codegen_emit_epilogue(codegen_t* gen);
-
 #endif /* CODEGEN_H */

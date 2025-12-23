@@ -1,7 +1,8 @@
 # Makefile for Zeal 8-bit C Compiler (Desktop build)
 
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c99 -Iinclude -g
+# Host-only pool size; Zeal uses per-binary defaults.
+CFLAGS = -Wall -Wextra -std=c99 -Iinclude -g -DCC_POOL_SIZE=32768
 LDFLAGS =
 
 # Detect architecture
@@ -16,18 +17,45 @@ else
 endif
 
 # Source files
-SRCS = src/main.c src/common.c src/lexer.c src/parser.c src/symbol.c src/codegen.c \
+SRCS = src/cc/main.c src/common/common.c src/common/ast_read.c src/common/ast_write.c src/common/ast_reader.c src/parser/lexer.c src/parser/parser.c src/common/type.c src/common/symbol_table.c src/codegen/codegen.c src/codegen/codegen_strings.c \
        src/target/modern/target_args.c src/target/modern/target_io.c
 OBJS = $(SRCS:.c=.o)
 
 # Output binary with architecture suffix
 TARGET = bin/cc_$(ARCH)
 
+PARSE_SRCS = src/parser/main.c src/common/common.c src/common/ast_write.c src/parser/lexer.c src/parser/parser.c src/common/type.c \
+             src/target/modern/target_args.c src/target/modern/target_io.c
+PARSE_OBJS = $(PARSE_SRCS:.c=.o)
+PARSE_TARGET = bin/cc_parse_$(ARCH)
+
+CODEGEN_SRCS = src/codegen/main.c src/codegen/codegen.c src/codegen/codegen_strings.c src/common/common.c src/common/ast_read.c src/common/ast_reader.c \
+               src/common/symbol_table.c src/common/type.c src/target/modern/target_args.c src/target/modern/target_io.c
+CODEGEN_OBJS = $(CODEGEN_SRCS:.c=.o)
+CODEGEN_TARGET = bin/cc_codegen_$(ARCH)
+
+AST_DUMP_SRCS = src/tools/ast_dump.c src/common/common.c src/common/ast_read.c src/common/ast_reader.c src/common/symbol_table.c src/common/type.c \
+                src/target/modern/target_io.c
+AST_DUMP_OBJS = $(AST_DUMP_SRCS:.c=.o)
+AST_DUMP_TARGET = bin/ast_dump_$(ARCH)
+
 .PHONY: all clean test
 
-all: $(TARGET)
+all: $(TARGET) $(PARSE_TARGET) $(CODEGEN_TARGET) $(AST_DUMP_TARGET)
 
 $(TARGET): $(OBJS)
+	@mkdir -p bin
+	$(CC) $(LDFLAGS) -o $@ $^
+
+$(PARSE_TARGET): $(PARSE_OBJS)
+	@mkdir -p bin
+	$(CC) $(LDFLAGS) -o $@ $^
+
+$(CODEGEN_TARGET): $(CODEGEN_OBJS)
+	@mkdir -p bin
+	$(CC) $(LDFLAGS) -o $@ $^
+
+$(AST_DUMP_TARGET): $(AST_DUMP_OBJS)
 	@mkdir -p bin
 	$(CC) $(LDFLAGS) -o $@ $^
 
@@ -36,6 +64,9 @@ $(TARGET): $(OBJS)
 
 clean:
 	rm -f $(OBJS) $(TARGET)
+	rm -f $(PARSE_OBJS) $(PARSE_TARGET)
+	rm -f $(CODEGEN_OBJS) $(CODEGEN_TARGET)
+	rm -f $(AST_DUMP_OBJS) $(AST_DUMP_TARGET)
 	rm -rf bin/*.o
 
 test: $(TARGET)

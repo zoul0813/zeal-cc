@@ -53,8 +53,8 @@ typedef struct {
     const char* output_file;
     bool verbose;
     bool optimize;
-    int error_count;
-    int warning_count;
+    uint16_t error_count;
+    uint16_t warning_count;
 } compiler_ctx_t;
 
 /* Global context */
@@ -67,7 +67,7 @@ void* cc_malloc(size_t size);
 void cc_free(void* ptr);
 char* cc_strdup(const char* str);
 void cc_reset_pool(void);
-extern char g_memory_pool[];
+void cc_init_pool(void* pool, size_t size);
 extern size_t g_pool_offset;
 extern size_t g_pool_max;
 
