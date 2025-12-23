@@ -138,18 +138,18 @@ main:
 ```
 
 ### Multiple Functions
-**Input (locals_params.c):**
+**Input (params.c):**
 ```c
 int add(int a, int b) {
     return a + b;
 }
 
 int main() {
-    int x;
-    int y;
-    x = 5;
-    y = 10;
-    return add(x, y);
+    int x = 5;
+    int y = 10;
+    int sum = add(x, y);
+
+    return sum + add(2, 3);
 }
 ```
 
@@ -191,14 +191,13 @@ Run individual tests:
 ./bin/cc tests/if.c tests/if.asm      # If statement
 ./bin/cc tests/while.c tests/while.asm  # While loop
 ./bin/cc tests/for.c tests/for.asm    # For loop
-./bin/cc tests/locals_params.c tests/locals_params.asm          # Locals + params
-./bin/cc tests/params.c tests/params.asm  # Functions with parameters
+./bin/cc tests/params.c tests/params.asm  # Locals + function parameters
 ./bin/cc tests/comp.c tests/comp.asm  # Factorial comprehensive
 ./bin/cc tests/do_while.c tests/do_while.asm  # Do/while (expected fail)
 ./bin/cc tests/unary.c tests/unary.asm  # Unary ops (expected fail)
-./bin/cc tests/string.c tests/string.asm  # String literals
 ./bin/cc tests/char.c tests/char.asm    # Char literals
 ./bin/cc tests/global.c tests/global.asm  # Global variables
+./bin/cc tests/pointer.c tests/pointer.asm  # Pointer + string literal indexing
 ```
 
 All test artifacts (`.asm`, `.o`, `.bin`, etc.) are stored in `tests/` for version control and review.
@@ -215,14 +214,14 @@ All test artifacts (`.asm`, `.o`, `.bin`, etc.) are stored in `tests/` for versi
 
 ## Current Limitations
 
-- Parser is simplified and needs expansion (no pointers/arrays/structs)
+- Parser is simplified and needs expansion (no arrays/structs; pointer declarators are limited)
 - Fixed 12 KB static pool allocator; no dynamic malloc on target
 - 512-byte input reader buffer; very large source files are not supported
 - No optimization passes yet
 - Limited error reporting
 - `long` (32-bit) is currently unsupported
-- Not yet supported in codegen: do/while, unary ops, ternary operator, arrays, pointers, structs
-- Not yet supported in codegen: ternary operator (?:)
+- Not yet supported in codegen: do/while, ternary operator, arrays, structs
+- Pointer support is limited: address-of/deref, pointer assignment, and constant indexing only
 
 ## Next Steps
 
