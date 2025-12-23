@@ -32,7 +32,7 @@ EXPECTED_RESULTS = {
     "if": "2A",
     "math": "3A",
     "params": "14",
-    "pointer": "73",
+    "pointer": "86",
     "simple_return": "0C",
     "struct": None,
     "ternary": None,

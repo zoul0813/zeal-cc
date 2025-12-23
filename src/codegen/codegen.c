@@ -1383,14 +1383,19 @@ void codegen_emit_strings(codegen_t* gen) {
         if (!label || !value) continue;
         codegen_emit(gen, label);
         codegen_emit(gen, ":\n");
-        size_t idx = 0;
-        while (value[idx]) {
-            codegen_emit(gen, CG_STR_DB);
-            codegen_emit_int(gen, (unsigned char)value[idx]);
-            codegen_emit(gen, CG_STR_NL);
-            idx++;
+        // Emit .dm "String"
+        codegen_emit(gen, ".dm \"");
+        // Output string contents, escaping as needed
+        for (const char* p = value; *p; ++p) {
+            if (*p == '"' || *p == '\\') {
+                codegen_emit(gen, "\\");
+            }
+            char buf[2] = {*p, 0};
+            codegen_emit(gen, buf);
         }
-        codegen_emit(gen, CG_STR_DB_ZERO);
+        codegen_emit(gen, "\"\n");
+        // Emit .db 0
+        codegen_emit(gen, ".db 0\n");
     }
 }
 

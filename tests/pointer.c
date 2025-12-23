@@ -1,7 +1,7 @@
 int main() {
     int x;
     int *p;
-    char* msg = "Hello World!";
+    char* msg = "Hello\"how are you\" \\World\\!";
     int sum;
 
     x = 5;
@@ -12,6 +12,7 @@ int main() {
     sum = sum + "Hello"[3] + " "[0] + "World!"[5];
     sum = sum + x;
 
-    /* Expected return: 0x73. */
+    /* Actual return: 0x186 */
+    /* Expected return: 0x86. */
     return sum;
 }
