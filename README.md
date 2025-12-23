@@ -138,18 +138,18 @@ main:
 ```
 
 ### Multiple Functions
-**Input (locals_params.c):**
+**Input (params.c):**
 ```c
 int add(int a, int b) {
     return a + b;
 }
 
 int main() {
-    int x;
-    int y;
-    x = 5;
-    y = 10;
-    return add(x, y);
+    int x = 5;
+    int y = 10;
+    int sum = add(x, y);
+
+    return sum + add(2, 3);
 }
 ```
 
@@ -191,16 +191,13 @@ Run individual tests:
 ./bin/cc tests/if.c tests/if.asm      # If statement
 ./bin/cc tests/while.c tests/while.asm  # While loop
 ./bin/cc tests/for.c tests/for.asm    # For loop
-./bin/cc tests/locals_params.c tests/locals_params.asm          # Locals + params
-./bin/cc tests/params.c tests/params.asm  # Functions with parameters
+./bin/cc tests/params.c tests/params.asm  # Locals + function parameters
 ./bin/cc tests/comp.c tests/comp.asm  # Factorial comprehensive
 ./bin/cc tests/do_while.c tests/do_while.asm  # Do/while (expected fail)
 ./bin/cc tests/unary.c tests/unary.asm  # Unary ops (expected fail)
-./bin/cc tests/string.c tests/string.asm  # String literals
-./bin/cc tests/char_ptr.c tests/char_ptr.asm  # Char pointer literals
 ./bin/cc tests/char.c tests/char.asm    # Char literals
 ./bin/cc tests/global.c tests/global.asm  # Global variables
-./bin/cc tests/pointer.c tests/pointer.asm  # Pointer basics
+./bin/cc tests/pointer.c tests/pointer.asm  # Pointer + string literal indexing
 ```
 
 All test artifacts (`.asm`, `.o`, `.bin`, etc.) are stored in `tests/` for version control and review.

@@ -10,6 +10,17 @@ cc_parse h:/tests/assign.c h:/tests/assign.ast
 : echo Failed to assemble h:/tests/assign.asm
 : echo Failed to compile tests/assign.c
 
+echo TEST: h:/tests/array.c
+cc_parse h:/tests/array.c h:/tests/array.ast
+: echo Failed to parse h:/tests/array.c
+? cc_codegen h:/tests/array.ast h:/tests/array.asm
+: echo Failed to codegen h:/tests/array.ast
+? zealasm h:/tests/array.asm h:/tests/array.bin
+? return tests/array.bin
+: echo Failed to assemble h:/tests/array.asm
+: echo Failed to compile tests/array.c
+: echo Expected failure: h:/tests/array.c
+
 echo TEST: h:/tests/char.c
 cc_parse h:/tests/char.c h:/tests/char.ast
 : echo Failed to parse h:/tests/char.c
@@ -19,16 +30,6 @@ cc_parse h:/tests/char.c h:/tests/char.ast
 ? return tests/char.bin
 : echo Failed to assemble h:/tests/char.asm
 : echo Failed to compile tests/char.c
-
-echo TEST: h:/tests/char_ptr.c
-cc_parse h:/tests/char_ptr.c h:/tests/char_ptr.ast
-: echo Failed to parse h:/tests/char_ptr.c
-? cc_codegen h:/tests/char_ptr.ast h:/tests/char_ptr.asm
-: echo Failed to codegen h:/tests/char_ptr.ast
-? zealasm h:/tests/char_ptr.asm h:/tests/char_ptr.bin
-? return tests/char_ptr.bin
-: echo Failed to assemble h:/tests/char_ptr.asm
-: echo Failed to compile tests/char_ptr.c
 
 echo TEST: h:/tests/comp.c
 cc_parse h:/tests/comp.c h:/tests/comp.ast
@@ -49,6 +50,17 @@ cc_parse h:/tests/compares.c h:/tests/compares.ast
 ? return tests/compares.bin
 : echo Failed to assemble h:/tests/compares.asm
 : echo Failed to compile tests/compares.c
+
+echo TEST: h:/tests/do_while.c
+cc_parse h:/tests/do_while.c h:/tests/do_while.ast
+: echo Failed to parse h:/tests/do_while.c
+? cc_codegen h:/tests/do_while.ast h:/tests/do_while.asm
+: echo Failed to codegen h:/tests/do_while.ast
+? zealasm h:/tests/do_while.asm h:/tests/do_while.bin
+? return tests/do_while.bin
+: echo Failed to assemble h:/tests/do_while.asm
+: echo Failed to compile tests/do_while.c
+: echo Expected failure: h:/tests/do_while.c
 
 echo TEST: h:/tests/expr.c
 cc_parse h:/tests/expr.c h:/tests/expr.ast
@@ -90,16 +102,6 @@ cc_parse h:/tests/if.c h:/tests/if.ast
 : echo Failed to assemble h:/tests/if.asm
 : echo Failed to compile tests/if.c
 
-echo TEST: h:/tests/locals_params.c
-cc_parse h:/tests/locals_params.c h:/tests/locals_params.ast
-: echo Failed to parse h:/tests/locals_params.c
-? cc_codegen h:/tests/locals_params.ast h:/tests/locals_params.asm
-: echo Failed to codegen h:/tests/locals_params.ast
-? zealasm h:/tests/locals_params.asm h:/tests/locals_params.bin
-? return tests/locals_params.bin
-: echo Failed to assemble h:/tests/locals_params.asm
-: echo Failed to compile tests/locals_params.c
-
 echo TEST: h:/tests/math.c
 cc_parse h:/tests/math.c h:/tests/math.ast
 : echo Failed to parse h:/tests/math.c
@@ -140,15 +142,38 @@ cc_parse h:/tests/simple_return.c h:/tests/simple_return.ast
 : echo Failed to assemble h:/tests/simple_return.asm
 : echo Failed to compile tests/simple_return.c
 
-echo TEST: h:/tests/string.c
-cc_parse h:/tests/string.c h:/tests/string.ast
-: echo Failed to parse h:/tests/string.c
-? cc_codegen h:/tests/string.ast h:/tests/string.asm
-: echo Failed to codegen h:/tests/string.ast
-? zealasm h:/tests/string.asm h:/tests/string.bin
-? return tests/string.bin
-: echo Failed to assemble h:/tests/string.asm
-: echo Failed to compile tests/string.c
+echo TEST: h:/tests/struct.c
+cc_parse h:/tests/struct.c h:/tests/struct.ast
+: echo Failed to parse h:/tests/struct.c
+? cc_codegen h:/tests/struct.ast h:/tests/struct.asm
+: echo Failed to codegen h:/tests/struct.ast
+? zealasm h:/tests/struct.asm h:/tests/struct.bin
+? return tests/struct.bin
+: echo Failed to assemble h:/tests/struct.asm
+: echo Failed to compile tests/struct.c
+: echo Expected failure: h:/tests/struct.c
+
+echo TEST: h:/tests/ternary.c
+cc_parse h:/tests/ternary.c h:/tests/ternary.ast
+: echo Failed to parse h:/tests/ternary.c
+? cc_codegen h:/tests/ternary.ast h:/tests/ternary.asm
+: echo Failed to codegen h:/tests/ternary.ast
+? zealasm h:/tests/ternary.asm h:/tests/ternary.bin
+? return tests/ternary.bin
+: echo Failed to assemble h:/tests/ternary.asm
+: echo Failed to compile tests/ternary.c
+: echo Expected failure: h:/tests/ternary.c
+
+echo TEST: h:/tests/unary.c
+cc_parse h:/tests/unary.c h:/tests/unary.ast
+: echo Failed to parse h:/tests/unary.c
+? cc_codegen h:/tests/unary.ast h:/tests/unary.asm
+: echo Failed to codegen h:/tests/unary.ast
+? zealasm h:/tests/unary.asm h:/tests/unary.bin
+? return tests/unary.bin
+: echo Failed to assemble h:/tests/unary.asm
+: echo Failed to compile tests/unary.c
+: echo Expected failure: h:/tests/unary.c
 
 echo TEST: h:/tests/while.c
 cc_parse h:/tests/while.c h:/tests/while.ast

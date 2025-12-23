@@ -22,7 +22,6 @@ TESTS_FAILED = 0
 EXPECTED_RESULTS = {
     "assign": "15",
     "array": None,
-    "char_ptr": "BF",
     "char": "41",
     "comp": "4E",
     "compares": "3F",
@@ -31,12 +30,10 @@ EXPECTED_RESULTS = {
     "for": "0A",
     "global": "0A",
     "if": "2A",
-    "locals_params": "0F",
     "math": "3A",
-    "params": "05",
-    "pointer": "07",
+    "params": "14",
+    "pointer": "73",
     "simple_return": "0C",
-    "string": "AD",
     "struct": None,
     "ternary": None,
     "unary": None,
@@ -235,35 +232,53 @@ def normalize_test_path(path: str) -> str:
 
 def parse_host_test_results(log: str, all_tests: list[str] | None = None):
     tests = []
-    current_test = ""
-    failed = set()
+    results = {}
     test_re = re.compile(r"TEST:\s+(\S+)")
     fail_re = re.compile(r"Failed to compile\s+(\S+)")
+    ok_re = re.compile(r"OK:\s+(\S+)")
+    expected_re = re.compile(r"Expected failure:\s+(\S+)")
+    unexpected_re = re.compile(r"Unexpected pass:\s+(\S+)")
     for raw in log.splitlines():
         line = raw.rstrip("\r").lstrip()
         test_match = test_re.search(line)
         if test_match:
-            current_test = normalize_test_path(test_match.group(1))
-            tests.append(current_test)
+            path = normalize_test_path(test_match.group(1))
+            tests.append(path)
+            continue
+        ok_match = ok_re.search(line)
+        if ok_match:
+            path = normalize_test_path(ok_match.group(1))
+            results[path] = "ok"
             continue
         fail_match = fail_re.search(line)
         if fail_match:
-            failed.add(normalize_test_path(fail_match.group(1)))
-            current_test = ""
+            path = normalize_test_path(fail_match.group(1))
+            results[path] = "fail"
             continue
-        if (line.startswith("ERROR:") or line == "Out of memory") and current_test:
-            failed.add(current_test)
-            current_test = ""
+        expected_match = expected_re.search(line)
+        if expected_match:
+            path = normalize_test_path(expected_match.group(1))
+            results[path] = "expected_fail"
+            continue
+        unexpected_match = unexpected_re.search(line)
+        if unexpected_match:
+            path = normalize_test_path(unexpected_match.group(1))
+            results[path] = "unexpected_pass"
+            continue
+        if line == "Out of memory":
+            last = tests[-1] if tests else ""
+            if last:
+                results[last] = "fail"
     if not tests and all_tests:
         tests = list(all_tests)
-    results = []
+    output = []
     seen = set()
     for path in tests:
         if path in seen:
             continue
         seen.add(path)
-        results.append((path, path not in failed))
-    return results
+        output.append((path, results.get(path, "fail")))
+    return output
 
 
 def run_headless_emulator(
@@ -396,8 +411,14 @@ def main(argv: list[str] | None = None) -> int:
                 all_tests = [str(p) for p in sorted(Path("tests").glob("*.c"))]
                 results = parse_host_test_results(host_log, all_tests=all_tests)
                 if results:
-                    for path, ok in results:
-                        print_result(f"Host compile {path}", 0 if ok else 1)
+                    for path, status in results:
+                        if status == "expected_fail":
+                            print_expected_fail(f"Host compile {path} (expected fail)")
+                            continue
+                        if status == "unexpected_pass":
+                            print_result(f"Host compile {path} (unexpected pass)", 1)
+                            continue
+                        print_result(f"Host compile {path}", 0 if status == "ok" else 1)
                 else:
                     print_result("Host test.sh", host_tests.returncode)
         else:

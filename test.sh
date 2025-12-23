@@ -27,21 +27,31 @@ rm -f tests/*.asm tests/*.bin tests/*.ast
 
 TESTS=(
   assign
+  array
   char
-  char_ptr
   comp
   compares
+  do_while
   expr
   for
   global
   if
-  locals_params
   math
   params
   pointer
   simple_return
-  string
+  struct
+  ternary
+  unary
   while
+)
+
+EXPECTED_FAILS=(
+  array
+  do_while
+  struct
+  ternary
+  unary
 )
 
 FAILED=0
@@ -51,18 +61,42 @@ run_test() {
   local src="tests/${name}.c"
   local ast="tests/${name}.ast"
   local asm="tests/${name}.asm"
+  local expect_fail=0
+
+  for fail in "${EXPECTED_FAILS[@]}"; do
+    if [[ "$name" == "$fail" ]]; then
+      expect_fail=1
+      break
+    fi
+  done
 
   echo "TEST: ${src}"
   if ! "$CC_PARSE" "$src" "$ast"; then
-    echo "Failed to compile ${src}"
-    FAILED=1
+    if [[ "$expect_fail" -eq 1 ]]; then
+      echo "Failed to compile ${src}"
+      echo "Expected failure: ${src}"
+    else
+      echo "Failed to compile ${src}"
+      FAILED=1
+    fi
     return
   fi
   if ! "$CC_CODEGEN" "$ast" "$asm"; then
-    echo "Failed to compile ${src}"
+    if [[ "$expect_fail" -eq 1 ]]; then
+      echo "Failed to compile ${src}"
+      echo "Expected failure: ${src}"
+    else
+      echo "Failed to compile ${src}"
+      FAILED=1
+    fi
+    return
+  fi
+  if [[ "$expect_fail" -eq 1 ]]; then
+    echo "Unexpected pass: ${src}"
     FAILED=1
     return
   fi
+  echo "OK: ${src}"
 }
 
 for test_name in "${TESTS[@]}"; do
