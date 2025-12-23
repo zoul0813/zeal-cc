@@ -67,7 +67,7 @@ void* cc_malloc(size_t size);
 void cc_free(void* ptr);
 char* cc_strdup(const char* str);
 void cc_reset_pool(void);
-extern char g_memory_pool[];
+void cc_init_pool(void* pool, size_t size);
 extern size_t g_pool_offset;
 extern size_t g_pool_max;
 

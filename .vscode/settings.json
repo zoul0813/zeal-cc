@@ -12,7 +12,8 @@
     "*.ztp": "hexEditor.hexedit",
     "*.zts": "hexEditor.hexedit",
     "*.ztm": "hexEditor.hexedit",
-    "*.bin": "hexEditor.hexedit"
+    "*.bin": "hexEditor.hexedit",
+    "*.ast": "hexEditor.hexedit"
   },
   "C_Cpp.default.forcedInclude": ["${ZDE_PATH}/includes/vscode.h"],
   "C_Cpp.clang_format_sortIncludes": false,
@@ -21,8 +22,6 @@
   "editor.insertSpaces": true,
   "editor.detectIndentation": false,
   "files.associations": {
-    "*.asm": "z80-macroasm",
-    "compare": "c",
-    "cstdint": "c"
-}
+    "*.asm": "z80-macroasm"
+  }
 }

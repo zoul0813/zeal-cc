@@ -424,6 +424,9 @@ int8_t ast_reader_init(ast_reader_t* ast, reader_t* reader) {
     if (ast_read_u16(reader, &ast->string_count) < 0) return -1;
     if (ast_read_u32(reader, &ast->string_table_offset) < 0) return -1;
     if (ast->string_count > 0 && ast->string_table_offset < AST_HEADER_SIZE) return -1;
+    ast->decl_count = 0;
+    ast->decl_index = 0;
+    ast->program_started = 0;
     return 0;
 }
 
@@ -462,10 +465,170 @@ int8_t ast_reader_load_strings(ast_reader_t* ast) {
     return 0;
 }
 
+const char* ast_reader_string(ast_reader_t* ast, uint16_t index) {
+    if (!ast || !ast->strings || index >= ast->string_count) return NULL;
+    return ast->strings[index];
+}
+
+int8_t ast_reader_read_type_info(ast_reader_t* ast, uint8_t* base, uint8_t* depth) {
+    if (!ast || !ast->reader || !base || !depth) return -1;
+    if (ast_read_u8(ast->reader, base) < 0) return -1;
+    if (ast_read_u8(ast->reader, depth) < 0) return -1;
+    return 0;
+}
+
+int8_t ast_reader_begin_program(ast_reader_t* ast, uint16_t* decl_count) {
+    uint8_t tag = 0;
+    uint16_t count = 0;
+    if (!ast || !ast->reader || !decl_count) return -1;
+    if (reader_seek(ast->reader, AST_HEADER_SIZE) < 0) return -1;
+    if (ast_read_u8(ast->reader, &tag) < 0) return -1;
+    if (tag != AST_TAG_PROGRAM) return -1;
+    if (ast_read_u16(ast->reader, &count) < 0) return -1;
+    ast->decl_count = count;
+    ast->decl_index = 0;
+    ast->program_started = 1;
+    *decl_count = count;
+    return 0;
+}
+
+ast_node_t* ast_reader_read_decl(ast_reader_t* ast) {
+    if (!ast || !ast->reader) return NULL;
+    if (!ast->program_started) return NULL;
+    if (ast->decl_index >= ast->decl_count) return NULL;
+    ast_node_t* node = ast_read_node(ast);
+    if (!node) return NULL;
+    ast->decl_index++;
+    return node;
+}
+
 ast_node_t* ast_reader_read_root(ast_reader_t* ast) {
     if (!ast || !ast->reader) return NULL;
     if (reader_seek(ast->reader, AST_HEADER_SIZE) < 0) return NULL;
     return ast_read_node(ast);
+}
+
+int8_t ast_reader_skip_tag(ast_reader_t* ast, uint8_t tag) {
+    if (!ast || !ast->reader) return -1;
+    switch (tag) {
+        case AST_TAG_PROGRAM: {
+            uint16_t decl_count = 0;
+            if (ast_read_u16(ast->reader, &decl_count) < 0) return -1;
+            for (uint16_t i = 0; i < decl_count; i++) {
+                if (ast_reader_skip_node(ast) < 0) return -1;
+            }
+            return 0;
+        }
+        case AST_TAG_FUNCTION: {
+            uint16_t name_index = 0;
+            uint8_t param_count = 0;
+            uint8_t base = 0;
+            uint8_t depth = 0;
+            if (ast_read_u16(ast->reader, &name_index) < 0) return -1;
+            if (ast_reader_read_type_info(ast, &base, &depth) < 0) return -1;
+            if (ast_read_u8(ast->reader, &param_count) < 0) return -1;
+            for (uint8_t i = 0; i < param_count; i++) {
+                if (ast_reader_skip_node(ast) < 0) return -1;
+            }
+            return ast_reader_skip_node(ast);
+        }
+        case AST_TAG_VAR_DECL: {
+            uint16_t name_index = 0;
+            uint8_t has_init = 0;
+            uint8_t base = 0;
+            uint8_t depth = 0;
+            if (ast_read_u16(ast->reader, &name_index) < 0) return -1;
+            if (ast_reader_read_type_info(ast, &base, &depth) < 0) return -1;
+            if (ast_read_u8(ast->reader, &has_init) < 0) return -1;
+            if (has_init) return ast_reader_skip_node(ast);
+            return 0;
+        }
+        case AST_TAG_COMPOUND_STMT: {
+            uint16_t stmt_count = 0;
+            if (ast_read_u16(ast->reader, &stmt_count) < 0) return -1;
+            for (uint16_t i = 0; i < stmt_count; i++) {
+                if (ast_reader_skip_node(ast) < 0) return -1;
+            }
+            return 0;
+        }
+        case AST_TAG_RETURN_STMT: {
+            uint8_t has_expr = 0;
+            if (ast_read_u8(ast->reader, &has_expr) < 0) return -1;
+            if (has_expr) return ast_reader_skip_node(ast);
+            return 0;
+        }
+        case AST_TAG_IF_STMT: {
+            uint8_t has_else = 0;
+            if (ast_read_u8(ast->reader, &has_else) < 0) return -1;
+            if (ast_reader_skip_node(ast) < 0) return -1;
+            if (ast_reader_skip_node(ast) < 0) return -1;
+            if (has_else) return ast_reader_skip_node(ast);
+            return 0;
+        }
+        case AST_TAG_WHILE_STMT:
+            if (ast_reader_skip_node(ast) < 0) return -1;
+            return ast_reader_skip_node(ast);
+        case AST_TAG_FOR_STMT: {
+            uint8_t has_init = 0;
+            uint8_t has_cond = 0;
+            uint8_t has_inc = 0;
+            if (ast_read_u8(ast->reader, &has_init) < 0) return -1;
+            if (ast_read_u8(ast->reader, &has_cond) < 0) return -1;
+            if (ast_read_u8(ast->reader, &has_inc) < 0) return -1;
+            if (has_init && ast_reader_skip_node(ast) < 0) return -1;
+            if (has_cond && ast_reader_skip_node(ast) < 0) return -1;
+            if (has_inc && ast_reader_skip_node(ast) < 0) return -1;
+            return ast_reader_skip_node(ast);
+        }
+        case AST_TAG_ASSIGN:
+            if (ast_reader_skip_node(ast) < 0) return -1;
+            return ast_reader_skip_node(ast);
+        case AST_TAG_CALL: {
+            uint16_t name_index = 0;
+            uint8_t arg_count = 0;
+            if (ast_read_u16(ast->reader, &name_index) < 0) return -1;
+            if (ast_read_u8(ast->reader, &arg_count) < 0) return -1;
+            for (uint8_t i = 0; i < arg_count; i++) {
+                if (ast_reader_skip_node(ast) < 0) return -1;
+            }
+            return 0;
+        }
+        case AST_TAG_BINARY_OP: {
+            uint8_t op = 0;
+            if (ast_read_u8(ast->reader, &op) < 0) return -1;
+            if (ast_reader_skip_node(ast) < 0) return -1;
+            return ast_reader_skip_node(ast);
+        }
+        case AST_TAG_UNARY_OP: {
+            uint8_t op = 0;
+            if (ast_read_u8(ast->reader, &op) < 0) return -1;
+            return ast_reader_skip_node(ast);
+        }
+        case AST_TAG_IDENTIFIER: {
+            uint16_t name_index = 0;
+            return ast_read_u16(ast->reader, &name_index);
+        }
+        case AST_TAG_CONSTANT: {
+            int16_t value = 0;
+            return ast_read_i16(ast->reader, &value);
+        }
+        case AST_TAG_STRING_LITERAL: {
+            uint16_t value_index = 0;
+            return ast_read_u16(ast->reader, &value_index);
+        }
+        case AST_TAG_ARRAY_ACCESS:
+            if (ast_reader_skip_node(ast) < 0) return -1;
+            return ast_reader_skip_node(ast);
+        default:
+            return -1;
+    }
+}
+
+int8_t ast_reader_skip_node(ast_reader_t* ast) {
+    uint8_t tag = 0;
+    if (!ast || !ast->reader) return -1;
+    if (ast_read_u8(ast->reader, &tag) < 0) return -1;
+    return ast_reader_skip_tag(ast, tag);
 }
 
 void ast_reader_destroy(ast_reader_t* ast) {
@@ -480,6 +643,9 @@ void ast_reader_destroy(ast_reader_t* ast) {
     ast->string_count = 0;
     ast->node_count = 0;
     ast->string_table_offset = 0;
+    ast->decl_count = 0;
+    ast->decl_index = 0;
+    ast->program_started = 0;
 }
 
 void ast_tree_destroy(ast_node_t* node) {

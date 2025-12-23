@@ -5,18 +5,22 @@
 #include "target.h"
 #include "cc_compat.h"
 
+#ifndef CC_CODEGEN_POOL_SIZE
+#define CC_CODEGEN_POOL_SIZE 3072 /* 3 KB pool */
+#endif
+
 int main(int argc, char** argv) {
     int8_t err = 1;
     args_t args;
     reader_t* reader = NULL;
     ast_reader_t ast;
-    ast_node_t* root = NULL;
     symbol_table_t* symbols = NULL;
     codegen_t* codegen = NULL;
     cc_error_t result;
+    static char g_pool_codegen[CC_CODEGEN_POOL_SIZE];
 
     mem_set(&ast, 0, sizeof(ast));
-    cc_reset_pool();
+    cc_init_pool(g_pool_codegen, sizeof(g_pool_codegen));
 
     g_ctx.verbose = false;
     g_ctx.optimize = false;
@@ -41,16 +45,10 @@ int main(int argc, char** argv) {
         log_error("Failed to read AST string table\n");
         goto cleanup_reader;
     }
-    root = ast_reader_read_root(&ast);
-    if (!root) {
-        log_error("Failed to read AST node stream\n");
-        goto cleanup_reader;
-    }
-
     symbols = symbol_table_create(NULL);
     if (!symbols) {
         log_error("Failed to create symbol table\n");
-        goto cleanup_ast;
+        goto cleanup_reader;
     }
 
     codegen = codegen_create(args.output_file, symbols);
@@ -59,7 +57,7 @@ int main(int argc, char** argv) {
         goto cleanup_symbols;
     }
 
-    result = codegen_generate(codegen, root);
+    result = codegen_generate_stream(codegen, &ast);
     if (result != CC_OK) {
         log_error("Code generation failed\n");
         goto cleanup_codegen;
@@ -82,8 +80,6 @@ cleanup_codegen:
     codegen_destroy(codegen);
 cleanup_symbols:
     symbol_table_destroy(symbols);
-cleanup_ast:
-    ast_tree_destroy(root);
 cleanup_reader:
     ast_reader_destroy(&ast);
     reader_close(reader);
