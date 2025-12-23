@@ -64,6 +64,68 @@ def print_expected_fail(test_name: str) -> None:
     TESTS_PASSED += 1
 
 
+def status_label(status: str) -> str:
+    if status == "ok":
+        return "Check"
+    if status == "expected_fail":
+        return "Expected"
+    if status == "unexpected_pass":
+        return "Unexpected"
+    if status == "missing":
+        return "Missing"
+    return "Fail"
+
+
+def format_status(status: str, width: int) -> str:
+    label = f"{status_label(status):<{width}}"
+    if status == "ok":
+        return f"{GREEN}{label}{NC}"
+    if status == "expected_fail":
+        return f"{YELLOW}{label}{NC}"
+    if status == "unexpected_pass":
+        return f"{RED}{label}{NC}"
+    if status == "missing":
+        return f"{YELLOW}{label}{NC}"
+    return f"{RED}{label}{NC}"
+
+
+def update_counts(status: str) -> None:
+    global TESTS_RUN, TESTS_PASSED, TESTS_FAILED
+    if status == "missing":
+        return
+    TESTS_RUN += 1
+    if status in ("ok", "expected_fail"):
+        TESTS_PASSED += 1
+    else:
+        TESTS_FAILED += 1
+
+
+def print_results_table(host_results, zeal_results, zeal_messages) -> None:
+    tests = sorted({*host_results.keys(), *zeal_results.keys()})
+    header_test = "test"
+    header_host = "host"
+    header_zeal = "zeal-native"
+    test_width = max(len(header_test), max((len(t) for t in tests), default=0))
+    host_width = max(len(header_host), len("Unexpected"))
+    zeal_width = max(len(header_zeal), len("Unexpected"))
+
+    print(f"{header_test:<{test_width}} | {header_host:<{host_width}} | {header_zeal:<{zeal_width}}")
+    print(f"{'-' * test_width}-+-{'-' * host_width}-+-{'-' * zeal_width}")
+
+    for test in tests:
+        host_status = host_results.get(test, "missing")
+        zeal_status = zeal_results.get(test, "missing")
+        update_counts(host_status)
+        update_counts(zeal_status)
+        host_label = format_status(host_status, host_width)
+        zeal_label = format_status(zeal_status, zeal_width)
+        print(f"{test:<{test_width}} | {host_label} | {zeal_label}")
+        if host_status in ("fail", "unexpected_pass"):
+            print(f"  > host: compile failed")
+        if zeal_status in ("fail", "unexpected_pass"):
+            msg = zeal_messages.get(test, "failure")
+            print(f"  > zeal-native: {msg}")
+
 def run_cmd(cmd, quiet=False):
     try:
         if quiet:
@@ -230,14 +292,56 @@ def normalize_test_path(path: str) -> str:
     return path
 
 
+def normalize_test_case(path: str) -> str:
+    normalized = normalize_test_path(path)
+    if normalized.endswith((".ast", ".asm", ".bin")):
+        return str(Path(normalized).with_suffix(".c"))
+    if normalized.endswith(".c"):
+        return normalized
+    return str(Path(normalized).with_suffix(".c"))
+
+
+def parse_zeal_test_results(log: str):
+    results = {}
+    messages = {}
+    failures = parse_compile_failures(log)
+    for path, reason in failures:
+        path = normalize_test_case(path)
+        stem = Path(path).stem
+        expected = EXPECTED_RESULTS.get(stem)
+        if stem in EXPECTED_RESULTS and expected is None:
+            results[path] = "expected_fail"
+            messages[path] = f"failed to {reason} (expected)"
+        else:
+            results[path] = "fail"
+            messages[path] = f"failed to {reason}"
+
+    returns = parse_return_results(log)
+    for path, expected, actual, ok in returns:
+        path = normalize_test_case(path)
+        if path in results and results[path] in ("fail", "expected_fail"):
+            continue
+        if Path(path).stem in EXPECTED_RESULTS and expected is None:
+            results[path] = "unexpected_pass"
+            messages[path] = f"unexpected pass (returned ${actual})"
+            continue
+        if ok:
+            results[path] = "ok"
+        else:
+            results[path] = "fail"
+            if expected:
+                messages[path] = f"expected ${expected}, got ${actual}"
+            else:
+                messages[path] = f"returned ${actual}"
+    return results, messages
+
+
 def parse_host_test_results(log: str, all_tests: list[str] | None = None):
     tests = []
     results = {}
     test_re = re.compile(r"TEST:\s+(\S+)")
     fail_re = re.compile(r"Failed to compile\s+(\S+)")
     ok_re = re.compile(r"OK:\s+(\S+)")
-    expected_re = re.compile(r"Expected failure:\s+(\S+)")
-    unexpected_re = re.compile(r"Unexpected pass:\s+(\S+)")
     for raw in log.splitlines():
         line = raw.rstrip("\r").lstrip()
         test_match = test_re.search(line)
@@ -255,16 +359,6 @@ def parse_host_test_results(log: str, all_tests: list[str] | None = None):
             path = normalize_test_path(fail_match.group(1))
             results[path] = "fail"
             continue
-        expected_match = expected_re.search(line)
-        if expected_match:
-            path = normalize_test_path(expected_match.group(1))
-            results[path] = "expected_fail"
-            continue
-        unexpected_match = unexpected_re.search(line)
-        if unexpected_match:
-            path = normalize_test_path(unexpected_match.group(1))
-            results[path] = "unexpected_pass"
-            continue
         if line == "Out of memory":
             last = tests[-1] if tests else ""
             if last:
@@ -277,7 +371,16 @@ def parse_host_test_results(log: str, all_tests: list[str] | None = None):
         if path in seen:
             continue
         seen.add(path)
-        output.append((path, results.get(path, "fail")))
+        status = results.get(path)
+        if status is None:
+            status = "missing"
+        stem = Path(path).stem
+        expected = EXPECTED_RESULTS.get(stem)
+        if status == "ok" and stem in EXPECTED_RESULTS and expected is None:
+            status = "unexpected_pass"
+        if status == "fail" and stem in EXPECTED_RESULTS and expected is None:
+            status = "expected_fail"
+        output.append((path, status))
     return output
 
 
@@ -287,13 +390,13 @@ def run_headless_emulator(
     test_name: str,
     show_log: bool = False,
     log_path: Path | None = None,
-) -> None:
+) -> tuple[int | None, str]:
     if shutil.which("zeal-native") is None:
         print(f"{YELLOW}⚠{NC}  Skipping {test_name} (zeal-native not found)")
-        return
+        return None, ""
     if not Path(img).exists() or not Path(eeprom).exists():
         print(f"{YELLOW}⚠{NC}  Skipping {test_name} (image(s) missing)")
-        return
+        return None, ""
 
     try:
         zealasm_src = Path(".zeal8bit/zealasm")
@@ -317,48 +420,17 @@ def run_headless_emulator(
         print(f"{RED}X{NC} {test_name} timed out after 30s (possible hang/reset loop)")
         if exc.stdout:
             print(exc.stdout)
-        print_result(test_name, 1)
-        return
+        return 1, ""
     except Exception as exc:
         print(f"{RED}X{NC} {test_name} failed to run zeal-native: {exc}")
-        print_result(test_name, 1)
-        return
+        return 1, ""
 
     if log_path:
         log_path.write_text(log)
     if show_log and log:
         print(log)
 
-    print_result(test_name, status)
-
-    results = parse_return_results(log)
-    returned = {Path(path).stem for path, _, _, _ in results}
-
-    failures = parse_compile_failures(log)
-    if failures:
-        for path, reason in failures:
-            if Path(path).stem in returned:
-                continue
-            stem = Path(path).stem
-            expected = EXPECTED_RESULTS.get(stem)
-            if stem in EXPECTED_RESULTS and expected is None:
-                msg = f"{path} failed to {reason} on target (expected)"
-                print_expected_fail(msg)
-            else:
-                msg = f"{path} failed to {reason} on target"
-                print_result(msg, 1)
-
-    if results:
-        for path, expected, actual, ok in results:
-            if Path(path).stem in EXPECTED_RESULTS and expected is None:
-                msg = f"{path} returned ${actual} (unexpected pass)"
-                print_result(msg, 1)
-                continue
-            if expected:
-                msg = f"{path} expected ${expected}, got ${actual}"
-            else:
-                msg = f"{path} got ${actual}"
-            print_result(msg, 0 if ok else 1)
+    return status, log
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -392,6 +464,9 @@ def main(argv: list[str] | None = None) -> int:
     arch = host_arch()
     cc_parse = Path(f"bin/cc_parse_{arch}")
     cc_codegen = Path(f"bin/cc_codegen_{arch}")
+    host_results = {}
+    zeal_results = {}
+    zeal_messages = {}
 
     if not args.headless_only:
         print_header("Building Host Target")
@@ -411,14 +486,7 @@ def main(argv: list[str] | None = None) -> int:
                 all_tests = [str(p) for p in sorted(Path("tests").glob("*.c"))]
                 results = parse_host_test_results(host_log, all_tests=all_tests)
                 if results:
-                    for path, status in results:
-                        if status == "expected_fail":
-                            print_expected_fail(f"Host compile {path} (expected fail)")
-                            continue
-                        if status == "unexpected_pass":
-                            print_result(f"Host compile {path} (unexpected pass)", 1)
-                            continue
-                        print_result(f"Host compile {path}", 0 if status == "ok" else 1)
+                    host_results = {path: status for path, status in results}
                 else:
                     print_result("Host test.sh", host_tests.returncode)
         else:
@@ -434,16 +502,23 @@ def main(argv: list[str] | None = None) -> int:
     if zos_status == 0:
         clean_test_artifacts()
         ensure_reset_in_test_zs()
-        run_headless_emulator(
+        zeal_status, zeal_log = run_headless_emulator(
             ".zeal8bit/headless.img",
             ".zeal8bit/eeprom.img",
             "zeal-native headless boot",
             show_log=args.headless_log,
             log_path=args.headless_log_file,
         )
+        if zeal_status is not None:
+            print_result("zeal-native headless boot", zeal_status)
+        if zeal_log:
+            zeal_results, zeal_messages = parse_zeal_test_results(zeal_log)
         comment_reset_in_test_zs()
     else:
         print(f"{YELLOW}⚠{NC}  Skipping zeal-native headless boot (ZOS build failed)")
+
+    print_header("Test Results")
+    print_results_table(host_results, zeal_results, zeal_messages)
 
     print_header("Test Summary")
     print(f"Total tests run:    {BLUE}{TESTS_RUN}{NC}")

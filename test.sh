@@ -46,13 +46,6 @@ TESTS=(
   while
 )
 
-EXPECTED_FAILS=(
-  array
-  do_while
-  struct
-  ternary
-  unary
-)
 
 FAILED=0
 
@@ -61,38 +54,14 @@ run_test() {
   local src="tests/${name}.c"
   local ast="tests/${name}.ast"
   local asm="tests/${name}.asm"
-  local expect_fail=0
-
-  for fail in "${EXPECTED_FAILS[@]}"; do
-    if [[ "$name" == "$fail" ]]; then
-      expect_fail=1
-      break
-    fi
-  done
-
   echo "TEST: ${src}"
   if ! "$CC_PARSE" "$src" "$ast"; then
-    if [[ "$expect_fail" -eq 1 ]]; then
-      echo "Failed to compile ${src}"
-      echo "Expected failure: ${src}"
-    else
-      echo "Failed to compile ${src}"
-      FAILED=1
-    fi
+    echo "Failed to compile ${src}"
+    FAILED=1
     return
   fi
   if ! "$CC_CODEGEN" "$ast" "$asm"; then
-    if [[ "$expect_fail" -eq 1 ]]; then
-      echo "Failed to compile ${src}"
-      echo "Expected failure: ${src}"
-    else
-      echo "Failed to compile ${src}"
-      FAILED=1
-    fi
-    return
-  fi
-  if [[ "$expect_fail" -eq 1 ]]; then
-    echo "Unexpected pass: ${src}"
+    echo "Failed to compile ${src}"
     FAILED=1
     return
   fi
