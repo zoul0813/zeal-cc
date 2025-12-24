@@ -44,6 +44,7 @@ TESTS=(
   ternary
   unary
   while
+  zealos
 )
 
 

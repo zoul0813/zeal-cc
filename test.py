@@ -38,7 +38,7 @@ EXPECTED_RESULTS = {
     "ternary": None,
     "unary": None,
     "while": "0A",
-    "zealos": "0E",
+    "zealos": "EA",
 }
 
 
