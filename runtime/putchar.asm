@@ -9,8 +9,8 @@
     ; .globl _putchar
 _putchar:
     ; Store the character to print in E, ignore high byte
-    ld d, 0
-    ld e, l
+    ; ld d, 0
+    ld e, a
     ; Add the character to the buffer and increment the index
     ld a, (_putchar_idx)
     ld c, a ; Backup A

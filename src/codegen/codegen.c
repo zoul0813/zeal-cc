@@ -463,25 +463,35 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
             const char* name = codegen_stream_string(ast, name_index);
             if (!name) return CC_ERROR_CODEGEN;
             int16_t offset = 0;
-            if (codegen_local_offset(gen, name, &offset)) {
-                codegen_emit(gen, CG_STR_LD_A_IX_PREFIX);
-                codegen_emit_int(gen, offset);
-                codegen_emit(gen, ")  ; Load local: ");
-            } else if (codegen_param_offset_by_id(gen, name_index, &offset)) {
-                codegen_emit(gen, CG_STR_LD_A_IX_PREFIX);
-                codegen_emit_int(gen, offset);
-                codegen_emit(gen, ")  ; Load param: ");
-            } else if (codegen_param_offset(gen, name, &offset)) {
-                codegen_emit(gen, CG_STR_LD_A_IX_PREFIX);
-                codegen_emit_int(gen, offset);
-                codegen_emit(gen, ")  ; Load param: ");
+            /* If this identifier is a pointer, load full pointer into HL */
+            if (codegen_local_is_pointer(gen, name) || codegen_param_is_pointer(gen, name) || codegen_global_is_pointer(gen, name)) {
+                cc_error_t err = codegen_load_pointer_to_hl(gen, name);
+                if (err != CC_OK) return err;
+                codegen_emit(gen, "  ; Load pointer: ");
+                codegen_emit(gen, name);
+                codegen_emit(gen, "\n");
             } else {
-                codegen_emit(gen, CG_STR_LD_A_LPAREN);
-                codegen_emit_mangled_var(gen, name);
-                codegen_emit(gen, ")  ; Load variable: ");
+                /* default: load 8-bit value into A */
+                if (codegen_local_offset(gen, name, &offset)) {
+                    codegen_emit(gen, CG_STR_LD_A_IX_PREFIX);
+                    codegen_emit_int(gen, offset);
+                    codegen_emit(gen, ")  ; Load local: ");
+                } else if (codegen_param_offset_by_id(gen, name_index, &offset)) {
+                    codegen_emit(gen, CG_STR_LD_A_IX_PREFIX);
+                    codegen_emit_int(gen, offset);
+                    codegen_emit(gen, ")  ; Load param: ");
+                } else if (codegen_param_offset(gen, name, &offset)) {
+                    codegen_emit(gen, CG_STR_LD_A_IX_PREFIX);
+                    codegen_emit_int(gen, offset);
+                    codegen_emit(gen, ")  ; Load param: ");
+                } else {
+                    codegen_emit(gen, CG_STR_LD_A_LPAREN);
+                    codegen_emit_mangled_var(gen, name);
+                    codegen_emit(gen, ")  ; Load variable: ");
+                }
+                codegen_emit(gen, name);
+                codegen_emit(gen, "\n");
             }
-            codegen_emit(gen, name);
-            codegen_emit(gen, "\n");
             return CC_OK;
         }
         case AST_TAG_UNARY_OP: {
@@ -652,7 +662,12 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                     if (ast_read_u8(ast->reader, &arg_tag) < 0) return CC_ERROR_CODEGEN;
                     cc_error_t err = codegen_stream_expression_tag(gen, ast, arg_tag);
                     if (err != CC_OK) return err;
-                    codegen_emit(gen, CG_STR_LD_L_A_H_ZERO_PUSH_HL);
+                    if (arg_tag == AST_TAG_IDENTIFIER || arg_tag == AST_TAG_ARRAY_ACCESS || arg_tag == AST_TAG_STRING_LITERAL) {
+                        /* these can produce a pointer in HL; push HL directly */
+                        codegen_emit(gen, "  push hl\n");
+                    } else {
+                        codegen_emit(gen, CG_STR_LD_L_A_H_ZERO_PUSH_HL);
+                    }
                 }
                 if (reader_seek(ast->reader, end_pos) < 0) return CC_ERROR_CODEGEN;
             }
