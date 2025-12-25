@@ -6,8 +6,7 @@ void put_c(char c) {
 void put_s(char* str) {
     int i = 0;
     while (str[i] != 0) {
-        // put_c(str[i]);
-        _putchar(str[i]);
+        put_c(str[i]);
         i = i + 1;
     }
 }

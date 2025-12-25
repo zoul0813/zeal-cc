@@ -446,6 +446,9 @@ static uint32_t g_arg_offsets[16];
 static const char* g_param_names[8];
 static bool g_param_is_pointer[8];
 static uint16_t g_param_name_indices[8];
+/* Indicates whether the last expression emitted left its result in HL (true)
+   or in A (false). Used by call-site code to decide how to push arguments. */
+static bool g_result_in_hl = false;
 
 static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* ast, uint8_t tag) {
     switch (tag) {
@@ -463,34 +466,41 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
             const char* name = codegen_stream_string(ast, name_index);
             if (!name) return CC_ERROR_CODEGEN;
             int16_t offset = 0;
-            /* If this identifier is a pointer, load full pointer into HL */
-            if (codegen_local_is_pointer(gen, name) || codegen_param_is_pointer(gen, name) || codegen_global_is_pointer(gen, name)) {
+            /* If the identifier is a pointer (local/param/global), emit code that
+               loads the full 16-bit pointer into HL. Otherwise emit code that
+               loads the 8-bit value into A (existing behavior). */
+            if (codegen_local_is_pointer(gen, name) ||
+                codegen_param_is_pointer(gen, name) ||
+                codegen_global_is_pointer(gen, name)) {
                 cc_error_t err = codegen_load_pointer_to_hl(gen, name);
                 if (err != CC_OK) return err;
-                codegen_emit(gen, "  ; Load pointer: ");
+                /* Mark that the expression result is in HL (not A). */
+                g_result_in_hl = true;
+                codegen_emit(gen, "  ; pointer: ");
                 codegen_emit(gen, name);
                 codegen_emit(gen, "\n");
             } else {
-                /* default: load 8-bit value into A */
                 if (codegen_local_offset(gen, name, &offset)) {
                     codegen_emit(gen, CG_STR_LD_A_IX_PREFIX);
                     codegen_emit_int(gen, offset);
-                    codegen_emit(gen, ")  ; Load local: ");
+                    codegen_emit(gen, ")  ; local: ");
                 } else if (codegen_param_offset_by_id(gen, name_index, &offset)) {
                     codegen_emit(gen, CG_STR_LD_A_IX_PREFIX);
                     codegen_emit_int(gen, offset);
-                    codegen_emit(gen, ")  ; Load param: ");
+                    codegen_emit(gen, ")  ; param: ");
                 } else if (codegen_param_offset(gen, name, &offset)) {
                     codegen_emit(gen, CG_STR_LD_A_IX_PREFIX);
                     codegen_emit_int(gen, offset);
-                    codegen_emit(gen, ")  ; Load param: ");
+                    codegen_emit(gen, ")  ; param: ");
                 } else {
                     codegen_emit(gen, CG_STR_LD_A_LPAREN);
                     codegen_emit_mangled_var(gen, name);
-                    codegen_emit(gen, ")  ; Load variable: ");
+                    codegen_emit(gen, ")  ; variable: ");
                 }
                 codegen_emit(gen, name);
                 codegen_emit(gen, "\n");
+                /* result stays in A */
+                g_result_in_hl = false;
             }
             return CC_OK;
         }
@@ -538,22 +548,22 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                     break;
                 case OP_MUL:
                     codegen_emit(gen,
-                        "; Multiplication (A * L)\n"
+                        "; (A * L)\n"
                         "  call __mul_a_l\n");
                     break;
                 case OP_DIV:
                     codegen_emit(gen,
-                        "; Division (A / L)\n"
+                        "; (A / L)\n"
                         "  call __div_a_l\n");
                     break;
                 case OP_MOD:
                     codegen_emit(gen,
-                        "; Modulo (A % L)\n"
+                        "; (A % L)\n"
                         "  call __mod_a_l\n");
                     break;
                 case OP_EQ:
                     codegen_emit(gen,
-                        "; Equality test (A == L)\n"
+                        "; (A == L)\n"
                         "  cp l\n");
                     codegen_emit(gen, CG_STR_LD_A_ZERO);
                     {
@@ -565,7 +575,7 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                     break;
                 case OP_NE:
                     codegen_emit(gen,
-                        "; Inequality test (A != L)\n"
+                        "; (A != L)\n"
                         "  cp l\n");
                     codegen_emit(gen, CG_STR_LD_A_ZERO);
                     {
@@ -577,7 +587,7 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                     break;
                 case OP_LT:
                     codegen_emit(gen,
-                        "; Less than test (A < L)\n"
+                        "; (A < L)\n"
                         "  cp l\n");
                     codegen_emit(gen, CG_STR_LD_A_ZERO);
                     {
@@ -589,7 +599,7 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                     break;
                 case OP_GT:
                     codegen_emit(gen,
-                        "; Greater than test (A > L)\n"
+                        "; (A > L)\n"
                         "  sub l\n");
                     codegen_emit(gen, CG_STR_LD_A_ZERO);
                     {
@@ -602,7 +612,7 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                     break;
                 case OP_LE:
                     codegen_emit(gen,
-                        "; Less or equal test (A <= L)\n"
+                        "; (A <= L)\n"
                         "  sub l\n");
                     codegen_emit(gen, CG_STR_LD_A_ZERO);
                     {
@@ -618,7 +628,7 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                     break;
                 case OP_GE:
                     codegen_emit(gen,
-                        "; Greater or equal test (A >= L)\n"
+                        "; (A >= L)\n"
                         "  cp l\n");
                     codegen_emit(gen, CG_STR_LD_A_ZERO);
                     {
@@ -640,7 +650,7 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
             if (ast_read_u8(ast->reader, &arg_count) < 0) return CC_ERROR_CODEGEN;
             const char* name = codegen_stream_string(ast, name_index);
             if (!name) return CC_ERROR_CODEGEN;
-            codegen_emit(gen, "; Call function: ");
+            codegen_emit(gen, "; call: ");
             codegen_emit(gen, name);
             codegen_emit(gen, "\n");
 
@@ -662,8 +672,9 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                     if (ast_read_u8(ast->reader, &arg_tag) < 0) return CC_ERROR_CODEGEN;
                     cc_error_t err = codegen_stream_expression_tag(gen, ast, arg_tag);
                     if (err != CC_OK) return err;
-                    if (arg_tag == AST_TAG_IDENTIFIER || arg_tag == AST_TAG_ARRAY_ACCESS || arg_tag == AST_TAG_STRING_LITERAL) {
-                        /* these can produce a pointer in HL; push HL directly */
+                    /* If the expression left a 16-bit result in HL, push HL directly.
+                       Otherwise widen A to HL and push as before. */
+                    if (g_result_in_hl) {
                         codegen_emit(gen, "  push hl\n");
                     } else {
                         codegen_emit(gen, CG_STR_LD_L_A_H_ZERO_PUSH_HL);
@@ -940,7 +951,7 @@ static cc_error_t codegen_stream_statement_tag(codegen_t* gen, ast_reader_t* ast
             if (ast_read_u8(ast->reader, &has_init) < 0) return CC_ERROR_CODEGEN;
             name = codegen_stream_string(ast, name_index);
             if (!name) return CC_ERROR_CODEGEN;
-            codegen_emit(gen, "; Variable: ");
+            codegen_emit(gen, "; var: ");
             codegen_emit(gen, name);
             codegen_emit(gen, "\n");
             if (has_init) {
@@ -1350,7 +1361,7 @@ static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast) {
     const char* name = codegen_stream_string(ast, name_index);
     if (!name) return CC_ERROR_CODEGEN;
     bool is_pointer = codegen_stream_type_is_pointer(depth);
-    codegen_emit(gen, "; Global variable: ");
+    codegen_emit(gen, "; glob: ");
     codegen_emit(gen, name);
     codegen_emit(gen, "\n");
     codegen_emit_mangled_var(gen, name);
@@ -1364,7 +1375,8 @@ static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast) {
                 if (codegen_stream_read_string(ast, &init_str) < 0) return CC_ERROR_CODEGEN;
                 const char* label = codegen_get_string_label(gen, init_str);
                 if (!label) return CC_ERROR_CODEGEN;
-                codegen_emit(gen, CG_STR_COLON_DW);
+                codegen_emit(gen, CG_STR_COLON);
+                codegen_emit(gen, CG_STR_DW);
                 codegen_emit(gen, label);
                 codegen_emit(gen, CG_STR_NL);
                 return CC_OK;
@@ -1377,27 +1389,34 @@ static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast) {
                 if (op == OP_ADDR && operand_tag == AST_TAG_IDENTIFIER) {
                     const char* ident = NULL;
                     if (codegen_stream_read_identifier(ast, &ident) < 0) return CC_ERROR_CODEGEN;
-                    codegen_emit(gen, CG_STR_COLON_DW);
+                    codegen_emit(gen, CG_STR_COLON);
+                    codegen_emit(gen, CG_STR_DW);
                     codegen_emit_mangled_var(gen, ident);
                     codegen_emit(gen, CG_STR_NL);
                     return CC_OK;
                 }
                 ast_reader_skip_tag(ast, operand_tag);
-                codegen_emit(gen, CG_STR_COLON_DW_ZERO);
+                codegen_emit(gen, CG_STR_COLON);
+                codegen_emit(gen, CG_STR_DW);
+                codegen_emit_int(gen, 0);
                 return CC_OK;
             }
             if (tag == AST_TAG_CONSTANT) {
                 int16_t value = 0;
                 if (ast_read_i16(ast->reader, &value) < 0) return CC_ERROR_CODEGEN;
                 if (value == 0) {
-                    codegen_emit(gen, CG_STR_COLON_DW_ZERO);
+                    codegen_emit(gen, CG_STR_COLON);
+                    codegen_emit(gen, CG_STR_DW);
+                    codegen_emit_int(gen, 0);
                     return CC_OK;
                 }
             } else {
                 ast_reader_skip_tag(ast, tag);
             }
         }
-        codegen_emit(gen, CG_STR_COLON_DW_ZERO);
+        codegen_emit(gen, CG_STR_COLON);
+        codegen_emit(gen, CG_STR_DW);
+        codegen_emit_int(gen, 0);
         return CC_OK;
     }
 
@@ -1407,14 +1426,17 @@ static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast) {
         if (tag == AST_TAG_CONSTANT) {
             int16_t value = 0;
             if (ast_read_i16(ast->reader, &value) < 0) return CC_ERROR_CODEGEN;
-            codegen_emit(gen, CG_STR_COLON_DB);
+            codegen_emit(gen, CG_STR_COLON);
+            codegen_emit(gen, CG_STR_DB);
             codegen_emit_int(gen, value);
             codegen_emit(gen, CG_STR_NL);
             return CC_OK;
         }
         ast_reader_skip_tag(ast, tag);
     }
-    codegen_emit(gen, CG_STR_COLON_DB_ZERO);
+    codegen_emit(gen, CG_STR_COLON);
+    codegen_emit(gen, CG_STR_DB);
+    codegen_emit_int(gen, 0);
     return CC_OK;
 }
 
