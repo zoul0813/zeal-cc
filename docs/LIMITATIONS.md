@@ -26,4 +26,7 @@
 ## Output
 - Assembly output is Z80 and intended for Zealasm.
 - The output uses `org 0x4000` and a minimal `crt0` stub.
-- Program return values are expected in register `A`.
+- Program return values are expected in register `A` for 8-bit results and in
+  `HL` for 16-bit results (including `int` and pointers). The ZOS exit code is
+  8-bit, so `crt0` truncates `main`'s return value to the low byte (`L`) before
+  calling `_exit`.

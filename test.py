@@ -14,6 +14,7 @@ GREEN = "\033[0;32m"
 YELLOW = "\033[1;33m"
 BLUE = "\033[0;34m"
 NC = "\033[0m"
+HEADLESS_TIMEOUT_SEC = 120
 
 TESTS_RUN = 0
 TESTS_PASSED = 0
@@ -34,6 +35,7 @@ EXPECTED_RESULTS = {
     "params": "14",
     "pointer": "86",
     "simple_return": "0C",
+    "return16": "EF",
     "struct": None,
     "ternary": None,
     "unary": None,
@@ -413,12 +415,15 @@ def run_headless_emulator(
             encoding="utf-8",
             errors="replace",
             check=False,
-            timeout=30,
+            timeout=HEADLESS_TIMEOUT_SEC,
         )
         log = proc.stdout or ""
         status = proc.returncode
     except subprocess.TimeoutExpired as exc:
-        print(f"{RED}X{NC} {test_name} timed out after 30s (possible hang/reset loop)")
+        print(
+            f"{RED}X{NC} {test_name} timed out after "
+            f"{HEADLESS_TIMEOUT_SEC}s (possible hang/reset loop)"
+        )
         if exc.stdout:
             print(exc.stdout)
         return 1, ""

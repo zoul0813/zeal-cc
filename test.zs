@@ -142,6 +142,16 @@ cc_parse h:/tests/simple_return.c h:/tests/simple_return.ast
 : echo Failed to assemble h:/tests/simple_return.asm
 : echo Failed to compile tests/simple_return.c
 
+echo TEST: h:/tests/return16.c
+cc_parse h:/tests/return16.c h:/tests/return16.ast
+: echo Failed to parse h:/tests/return16.c
+? cc_codegen h:/tests/return16.ast h:/tests/return16.asm
+: echo Failed to codegen h:/tests/return16.ast
+? zealasm h:/tests/return16.asm h:/tests/return16.bin
+? return tests/return16.bin
+: echo Failed to assemble h:/tests/return16.asm
+: echo Failed to compile tests/return16.c
+
 echo TEST: h:/tests/struct.c
 cc_parse h:/tests/struct.c h:/tests/struct.ast
 : echo Failed to parse h:/tests/struct.c

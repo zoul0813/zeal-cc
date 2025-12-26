@@ -11,23 +11,12 @@ typedef struct {
     const char* output_file;
     output_t output_handle;
     
-    symbol_table_t* global_symbols;
-    symbol_table_t* current_scope;
-    
     uint16_t label_counter;
     uint16_t string_counter;
-    uint16_t temp_counter;
-    
-    /* Z80 register tracking */
-    bool reg_a_used;
-    bool reg_hl_used;
-    bool reg_de_used;
-    bool reg_bc_used;
 
     int16_t stack_offset;
     const char* local_vars[64];
     int16_t local_offsets[64];
-    uint16_t local_sizes[64];
     bool local_is_pointer[64];
     size_t local_var_count;
     bool defer_var_storage;
@@ -39,6 +28,9 @@ typedef struct {
     char* function_end_label;
     bool return_direct;
     bool use_function_end_label;
+    bool function_return_is_16;
+    uint16_t function_return_flags[64];
+    size_t function_count;
 
     const char* global_names[64];
     bool global_is_pointer[64];
@@ -50,7 +42,7 @@ typedef struct {
 } codegen_t;
 
 /* Code generator functions */
-codegen_t* codegen_create(const char* output_file, symbol_table_t* symbols);
+codegen_t* codegen_create(const char* output_file);
 void codegen_destroy(codegen_t* gen);
 cc_error_t codegen_generate_stream(codegen_t* gen, ast_reader_t* ast);
 void codegen_emit_preamble(codegen_t* gen);

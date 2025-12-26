@@ -27,7 +27,7 @@ find_package(COREUTILS REQUIRED)
 project(cc C ASM)
 
 function(add_program target_name)
-    cmake_parse_arguments(ARG "" "" "SRCS;LIBS;ILIBS" ${ARGN})
+    cmake_parse_arguments(ARG "" "" "SRCS;LIBS;ILIBS;DEFS" ${ARGN})
 
     add_executable(${target_name} ${ARG_UNPARSED_ARGUMENTS})
     target_include_directories(${target_name} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/include)
@@ -35,7 +35,11 @@ function(add_program target_name)
 
     target_compile_options(${target_name} PRIVATE
         $<$<COMPILE_LANGUAGE:C>:--nostdlib>
+        $<$<COMPILE_LANGUAGE:C>:--opt-code-size>
     )
+    if(ARG_DEFS)
+        target_compile_definitions(${target_name} PRIVATE ${ARG_DEFS})
+    endif()
 
     if(ARG_LIBS)
         target_link_libraries(${target_name} PRIVATE ${ARG_LIBS})
@@ -91,10 +95,15 @@ add_program(cc_codegen
     "src/codegen/codegen.c"
     "src/codegen/codegen_strings.c"
     "src/common/common.c"
-    "src/common/symbol_table.c"
-    "src/common/type.c"
     "src/common/ast_read.c"
-    "src/common/ast_reader.c"
+    "src/common/ast_reader/ast_reader_init.c"
+    "src/common/ast_reader/ast_reader_load_strings.c"
+    "src/common/ast_reader/ast_reader_string.c"
+    "src/common/ast_reader/ast_reader_read_type_info.c"
+    "src/common/ast_reader/ast_reader_begin_program.c"
+    "src/common/ast_reader/ast_reader_skip_tag.c"
+    "src/common/ast_reader/ast_reader_skip_node.c"
+    "src/common/ast_reader/ast_reader_destroy.c"
     "src/target/zeal8bit/target_args.c"
     "src/target/zeal8bit/target_io.c"
     ILIBS core
@@ -103,10 +112,14 @@ add_program(cc_codegen
 add_program(ast_dump
     "src/tools/ast_dump.c"
     "src/common/common.c"
-    "src/common/symbol_table.c"
     "src/common/type.c"
     "src/common/ast_read.c"
-    "src/common/ast_reader.c"
+    "src/common/ast_reader/ast_reader_init.c"
+    "src/common/ast_reader/ast_reader_load_strings.c"
+    "src/common/ast_reader/ast_reader_string.c"
+    "src/common/ast_reader/ast_reader_read_type_info.c"
+    "src/common/ast_reader/ast_reader_begin_program.c"
+    "src/common/ast_reader/ast_reader_destroy.c"
     "src/target/zeal8bit/target_io.c"
     ILIBS core
 )

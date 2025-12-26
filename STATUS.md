@@ -115,7 +115,7 @@
 
 ## Current Test Status
 
-- ✅ Host: `tests/*.c` compile to `.asm` (includes simple_return/locals_params/assign/array/compares/comp/expr/for/if/math/params/pointer/struct/while/do_while/unary/string/char/char_ptr/ternary).
+- ✅ Host: `tests/*.c` compile to `.asm` (includes simple_return/return16/locals_params/assign/array/compares/comp/expr/for/if/math/params/pointer/struct/while/do_while/unary/string/char/char_ptr/ternary).
 - ✅ Target: headless run passes; `test.zs` includes current tests.
 - ⚠️ Expected-fail tests (tracked in `test.py`): array, struct, do_while, unary, ternary.
 
@@ -137,6 +137,7 @@ done
 
 # Individual tests (all output in tests/)
 ./bin/cc tests/simple_return.c tests/simple_return.asm        # Simple return
+./bin/cc tests/return16.c tests/return16.asm  # 16-bit return value
 ./bin/cc tests/expr.c tests/expr.asm  # Expression precedence
 ./bin/cc tests/assign.c tests/assign.asm  # Assignment chaining
 ./bin/cc tests/compares.c tests/compares.asm  # Comparisons

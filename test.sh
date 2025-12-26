@@ -40,6 +40,7 @@ TESTS=(
   params
   pointer
   simple_return
+  return16
   struct
   ternary
   unary

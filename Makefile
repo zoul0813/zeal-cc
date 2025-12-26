@@ -17,7 +17,9 @@ else
 endif
 
 # Source files
-SRCS = src/cc/main.c src/common/common.c src/common/ast_read.c src/common/ast_write.c src/common/ast_reader.c src/parser/lexer.c src/parser/parser.c src/common/type.c src/common/symbol_table.c src/codegen/codegen.c src/codegen/codegen_strings.c \
+SRCS = src/cc/main.c src/common/common.c src/common/ast_read.c src/common/ast_write.c src/parser/lexer.c src/parser/parser.c src/common/type.c src/common/symbol_table.c src/codegen/codegen.c src/codegen/codegen_strings.c \
+       src/common/ast_reader/ast_reader_init.c src/common/ast_reader/ast_reader_load_strings.c src/common/ast_reader/ast_reader_string.c src/common/ast_reader/ast_reader_read_type_info.c \
+       src/common/ast_reader/ast_reader_begin_program.c src/common/ast_reader/ast_reader_skip_tag.c src/common/ast_reader/ast_reader_skip_node.c src/common/ast_reader/ast_reader_destroy.c \
        src/target/modern/target_args.c src/target/modern/target_io.c
 OBJS = $(SRCS:.c=.o)
 
@@ -29,12 +31,17 @@ PARSE_SRCS = src/parser/main.c src/common/common.c src/common/ast_write.c src/pa
 PARSE_OBJS = $(PARSE_SRCS:.c=.o)
 PARSE_TARGET = bin/cc_parse_$(ARCH)
 
-CODEGEN_SRCS = src/codegen/main.c src/codegen/codegen.c src/codegen/codegen_strings.c src/common/common.c src/common/ast_read.c src/common/ast_reader.c \
-               src/common/symbol_table.c src/common/type.c src/target/modern/target_args.c src/target/modern/target_io.c
+CODEGEN_SRCS = src/codegen/main.c src/codegen/codegen.c src/codegen/codegen_strings.c src/common/common.c src/common/ast_read.c \
+               src/common/ast_reader/ast_reader_init.c src/common/ast_reader/ast_reader_load_strings.c src/common/ast_reader/ast_reader_string.c src/common/ast_reader/ast_reader_read_type_info.c \
+               src/common/ast_reader/ast_reader_begin_program.c src/common/ast_reader/ast_reader_skip_tag.c src/common/ast_reader/ast_reader_skip_node.c src/common/ast_reader/ast_reader_destroy.c \
+               src/target/modern/target_args.c src/target/modern/target_io.c
 CODEGEN_OBJS = $(CODEGEN_SRCS:.c=.o)
 CODEGEN_TARGET = bin/cc_codegen_$(ARCH)
 
-AST_DUMP_SRCS = src/tools/ast_dump.c src/common/common.c src/common/ast_read.c src/common/ast_reader.c src/common/symbol_table.c src/common/type.c \
+AST_DUMP_SRCS = src/tools/ast_dump.c src/common/common.c src/common/ast_read.c src/common/type.c \
+                src/common/ast_reader/ast_reader_init.c src/common/ast_reader/ast_reader_load_strings.c src/common/ast_reader/ast_reader_string.c src/common/ast_reader/ast_reader_read_type_info.c \
+                src/common/ast_reader/ast_reader_begin_program.c src/common/ast_reader/ast_reader_skip_tag.c src/common/ast_reader/ast_reader_skip_node.c src/common/ast_reader/ast_reader_destroy.c \
+                src/common/ast_reader/ast_read_node.c src/common/ast_reader/ast_reader_read_decl.c src/common/ast_reader/ast_reader_read_root.c src/common/ast_reader/ast_tree_destroy.c \
                 src/target/modern/target_io.c
 AST_DUMP_OBJS = $(AST_DUMP_SRCS:.c=.o)
 AST_DUMP_TARGET = bin/ast_dump_$(ARCH)

@@ -6,6 +6,7 @@
 #else
 #include <string.h>
 #define mem_set memset
+#define mem_cmp memcmp
 #define str_cmp strcmp
 #define str_len strlen
 #define str_chr strchr

@@ -184,6 +184,7 @@ main:
 Run individual tests:
 ```bash
 ./bin/cc tests/simple_return.c tests/simple_return.asm      # Simple return
+./bin/cc tests/return16.c tests/return16.asm  # 16-bit return value
 ./bin/cc tests/expr.c tests/expr.asm  # Expression precedence
 ./bin/cc tests/assign.c tests/assign.asm  # Assignment chaining
 ./bin/cc tests/compares.c tests/compares.asm  # Comparisons

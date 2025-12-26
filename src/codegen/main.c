@@ -1,7 +1,6 @@
 #include "ast_reader.h"
 #include "codegen.h"
 #include "common.h"
-#include "symbol.h"
 #include "target.h"
 #include "cc_compat.h"
 
@@ -16,7 +15,6 @@ int main(int argc, char** argv) {
     args_t args;
     reader_t* reader = NULL;
     ast_reader_t ast;
-    symbol_table_t* symbols = NULL;
     codegen_t* codegen = NULL;
     cc_error_t result;
 
@@ -46,16 +44,10 @@ int main(int argc, char** argv) {
         log_error("Failed to read AST string table\n");
         goto cleanup_reader;
     }
-    symbols = symbol_table_create(NULL);
-    if (!symbols) {
-        log_error("Failed to create symbol table\n");
-        goto cleanup_reader;
-    }
-
-    codegen = codegen_create(args.output_file, symbols);
+    codegen = codegen_create(args.output_file);
     if (!codegen) {
         log_error("Failed to open output file\n");
-        goto cleanup_symbols;
+        goto cleanup_reader;
     }
 
     result = codegen_generate_stream(codegen, &ast);
@@ -79,8 +71,6 @@ int main(int argc, char** argv) {
 
 cleanup_codegen:
     codegen_destroy(codegen);
-cleanup_symbols:
-    symbol_table_destroy(symbols);
 cleanup_reader:
     ast_reader_destroy(&ast);
     reader_close(reader);
