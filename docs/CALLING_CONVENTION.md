@@ -47,7 +47,6 @@ pointers).
 - `IX` is used for parameter access; locals are on the stack.
 
 ## Pending Work
-- 16-bit parameters and return values (fully consistent codegen).
 - Consistent type sizing and stack cleanup for mixed-width params.
 
 When the calling convention is implemented, both call sites and function

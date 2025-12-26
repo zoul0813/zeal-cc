@@ -8,21 +8,18 @@
 
 /* Code generator structure */
 typedef struct {
-    const char* output_file;
     output_t output_handle;
     
     uint16_t label_counter;
-    uint16_t string_counter;
 
     int16_t stack_offset;
     const char* local_vars[64];
     int16_t local_offsets[64];
-    bool local_is_pointer[64];
+    bool local_is_16[64];
     size_t local_var_count;
-    bool defer_var_storage;
     const char* param_names[8];
     int16_t param_offsets[8];
-    bool param_is_pointer[8];
+    bool param_is_16[8];
     uint16_t param_name_indices[8];
     size_t param_count;
     char* function_end_label;
@@ -33,7 +30,7 @@ typedef struct {
     size_t function_count;
 
     const char* global_names[64];
-    bool global_is_pointer[64];
+    bool global_is_16[64];
     size_t global_count;
 
     const char* string_labels[64];

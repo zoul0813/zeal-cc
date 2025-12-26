@@ -75,7 +75,6 @@
 
 ### Phase 5: Code Generator (incomplete tasks)
 
-- ❌ 16-bit locals/params and return values (8-bit only today)
 - ❌ Array addressing and dereference codegen
 
 ## ⏳ Not Started

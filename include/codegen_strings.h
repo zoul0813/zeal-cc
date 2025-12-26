@@ -42,7 +42,6 @@ extern const char CG_STR_DB[];
 extern const char CG_STR_DW[];
 extern const char CG_STR_DM[];
 extern const char CG_STR_DS[];
-extern const char CG_STR_IX_PLUS[];
 extern const char CG_STR_LD_A_HL[];
 extern const char CG_STR_LD_HL_A[];
 extern const char CG_STR_LD_A_IX_PREFIX[];
