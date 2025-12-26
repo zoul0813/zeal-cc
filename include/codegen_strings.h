@@ -35,6 +35,7 @@ extern const char CG_STR_SUB_L[];
 extern const char CG_STR_CP_L[];
 extern const char CG_STR_CALL[];
 extern const char CG_STR_LD_L_A_H_ZERO_PUSH_HL[];
+extern const char CG_STR_PUSH_HL[];
 extern const char CG_STR_POP_BC[];
 extern const char CG_STR_PUSH_IX[];
 extern const char CG_STR_COLON[];

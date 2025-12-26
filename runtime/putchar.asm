@@ -81,7 +81,7 @@ _fflush_stdout:
     ; Return value in DE will be kept, set it to 0
     ld d, a
     ld e, a
-    jr _putchar_flush
+    jp _putchar_flush
 
 _putchar_idx:
     .ds 1

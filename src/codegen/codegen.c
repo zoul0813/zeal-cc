@@ -695,118 +695,237 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
             if (ast_read_u8(ast->reader, &op) < 0) return CC_ERROR_CODEGEN;
             uint8_t left_tag = 0;
             if (ast_read_u8(ast->reader, &left_tag) < 0) return CC_ERROR_CODEGEN;
-            cc_error_t err = codegen_stream_expression_tag(gen, ast, left_tag);
-            if (err != CC_OK) return err;
-            codegen_emit(gen, CG_STR_PUSH_AF);
-            uint8_t right_tag = 0;
-            if (ast_read_u8(ast->reader, &right_tag) < 0) return CC_ERROR_CODEGEN;
-            err = codegen_stream_expression_tag(gen, ast, right_tag);
-            if (err != CC_OK) return err;
-            codegen_emit(gen, CG_STR_LD_L_A_POP_AF);
-            switch (op) {
-                case OP_ADD:
-                    codegen_emit(gen, CG_STR_ADD_A_L);
-                    break;
-                case OP_SUB:
-                    codegen_emit(gen, CG_STR_SUB_L);
-                    break;
-                case OP_MUL:
-                    codegen_emit(gen,
-                        "; (A * L)\n"
-                        "  call __mul_a_l\n");
-                    break;
-                case OP_DIV:
-                    codegen_emit(gen,
-                        "; (A / L)\n"
-                        "  call __div_a_l\n");
-                    break;
-                case OP_MOD:
-                    codegen_emit(gen,
-                        "; (A % L)\n"
-                        "  call __mod_a_l\n");
-                    break;
-                case OP_EQ:
-                    codegen_emit(gen,
-                        "; (A == L)\n"
-                        "  cp l\n");
-                    codegen_emit(gen, CG_STR_LD_A_ZERO);
-                    {
-                        char* end = codegen_new_label(gen);
-                        codegen_emit_jump(gen, CG_STR_JR_NZ, end);
-                        codegen_emit(gen, CG_STR_LD_A_ONE);
-                        codegen_emit_label(gen, end);
-                    }
-                    break;
-                case OP_NE:
-                    codegen_emit(gen,
-                        "; (A != L)\n"
-                        "  cp l\n");
-                    codegen_emit(gen, CG_STR_LD_A_ZERO);
-                    {
-                        char* end = codegen_new_label(gen);
-                        codegen_emit_jump(gen, CG_STR_JR_Z, end);
-                        codegen_emit(gen, CG_STR_LD_A_ONE);
-                        codegen_emit_label(gen, end);
-                    }
-                    break;
-                case OP_LT:
-                    codegen_emit(gen,
-                        "; (A < L)\n"
-                        "  cp l\n");
-                    codegen_emit(gen, CG_STR_LD_A_ZERO);
-                    {
-                        char* end = codegen_new_label(gen);
-                        codegen_emit_jump(gen, CG_STR_JR_NC, end);
-                        codegen_emit(gen, CG_STR_LD_A_ONE);
-                        codegen_emit_label(gen, end);
-                    }
-                    break;
-                case OP_GT:
-                    codegen_emit(gen,
-                        "; (A > L)\n"
-                        "  sub l\n");
-                    codegen_emit(gen, CG_STR_LD_A_ZERO);
-                    {
-                        char* end = codegen_new_label(gen);
-                        codegen_emit_jump(gen, CG_STR_JR_Z, end);
-                        codegen_emit_jump(gen, CG_STR_JR_C, end);
-                        codegen_emit(gen, CG_STR_LD_A_ONE);
-                        codegen_emit_label(gen, end);
-                    }
-                    break;
-                case OP_LE:
-                    codegen_emit(gen,
-                        "; (A <= L)\n"
-                        "  sub l\n");
-                    codegen_emit(gen, CG_STR_LD_A_ZERO);
-                    {
+            if (g_expect_result_in_hl) {
+                bool prev_expect = g_expect_result_in_hl;
+                g_expect_result_in_hl = true;
+                cc_error_t err = codegen_stream_expression_tag(gen, ast, left_tag);
+                if (err != CC_OK) return err;
+                if (!g_result_in_hl) {
+                    codegen_emit(gen, "  ld l, a\n  ld h, 0\n");
+                }
+                codegen_emit(gen, CG_STR_PUSH_HL);
+                uint8_t right_tag = 0;
+                if (ast_read_u8(ast->reader, &right_tag) < 0) return CC_ERROR_CODEGEN;
+                g_expect_result_in_hl = true;
+                err = codegen_stream_expression_tag(gen, ast, right_tag);
+                g_expect_result_in_hl = prev_expect;
+                if (err != CC_OK) return err;
+                if (!g_result_in_hl) {
+                    codegen_emit(gen, "  ld l, a\n  ld h, 0\n");
+                }
+                codegen_emit(gen, "  pop de\n");
+                switch (op) {
+                    case OP_ADD:
+                        codegen_emit(gen, "  add hl, de\n");
+                        break;
+                    case OP_SUB:
+                        codegen_emit(gen, "  ex de, hl\n  or a\n  sbc hl, de\n");
+                        break;
+                    case OP_MUL:
+                        codegen_emit(gen,
+                            "; (DE * HL)\n"
+                            "  ex de, hl\n"
+                            "  call __mul_hl_de\n");
+                        break;
+                    case OP_DIV:
+                        codegen_emit(gen,
+                            "; (DE / HL)\n"
+                            "  ex de, hl\n"
+                            "  call __div_hl_de\n");
+                        break;
+                    case OP_MOD:
+                        codegen_emit(gen,
+                            "; (DE % HL)\n"
+                            "  ex de, hl\n"
+                            "  call __mod_hl_de\n");
+                        break;
+                    case OP_EQ: {
                         char* end = codegen_new_label(gen);
                         char* set = codegen_new_label(gen);
+                        codegen_emit(gen, "  ex de, hl\n  or a\n  sbc hl, de\n");
+                        codegen_emit(gen, "  ld hl, 0\n");
+                        codegen_emit_jump(gen, CG_STR_JR_Z, set);
+                        codegen_emit_jump(gen, CG_STR_JR, end);
+                        codegen_emit_label(gen, set);
+                        codegen_emit(gen, "  ld hl, 1\n");
+                        codegen_emit_label(gen, end);
+                        break;
+                    }
+                    case OP_NE: {
+                        char* end = codegen_new_label(gen);
+                        char* set = codegen_new_label(gen);
+                        codegen_emit(gen, "  ex de, hl\n  or a\n  sbc hl, de\n");
+                        codegen_emit(gen, "  ld hl, 0\n");
+                        codegen_emit_jump(gen, CG_STR_JR_NZ, set);
+                        codegen_emit_jump(gen, CG_STR_JR, end);
+                        codegen_emit_label(gen, set);
+                        codegen_emit(gen, "  ld hl, 1\n");
+                        codegen_emit_label(gen, end);
+                        break;
+                    }
+                    case OP_LT: {
+                        char* end = codegen_new_label(gen);
+                        char* set = codegen_new_label(gen);
+                        codegen_emit(gen, "  ex de, hl\n  or a\n  sbc hl, de\n");
+                        codegen_emit(gen, "  ld hl, 0\n");
+                        codegen_emit_jump(gen, CG_STR_JR_C, set);
+                        codegen_emit_jump(gen, CG_STR_JR, end);
+                        codegen_emit_label(gen, set);
+                        codegen_emit(gen, "  ld hl, 1\n");
+                        codegen_emit_label(gen, end);
+                        break;
+                    }
+                    case OP_GT: {
+                        char* end = codegen_new_label(gen);
+                        codegen_emit(gen, "  ex de, hl\n  or a\n  sbc hl, de\n");
+                        codegen_emit(gen, "  ld hl, 0\n");
+                        codegen_emit_jump(gen, CG_STR_JR_Z, end);
+                        codegen_emit_jump(gen, CG_STR_JR_C, end);
+                        codegen_emit(gen, "  ld hl, 1\n");
+                        codegen_emit_label(gen, end);
+                        break;
+                    }
+                    case OP_LE: {
+                        char* end = codegen_new_label(gen);
+                        char* set = codegen_new_label(gen);
+                        codegen_emit(gen, "  ex de, hl\n  or a\n  sbc hl, de\n");
+                        codegen_emit(gen, "  ld hl, 0\n");
                         codegen_emit_jump(gen, CG_STR_JR_Z, set);
                         codegen_emit_jump(gen, CG_STR_JR_C, set);
                         codegen_emit_jump(gen, CG_STR_JR, end);
                         codegen_emit_label(gen, set);
-                        codegen_emit(gen, CG_STR_LD_A_ONE);
+                        codegen_emit(gen, "  ld hl, 1\n");
                         codegen_emit_label(gen, end);
+                        break;
                     }
-                    break;
-                case OP_GE:
-                    codegen_emit(gen,
-                        "; (A >= L)\n"
-                        "  cp l\n");
-                    codegen_emit(gen, CG_STR_LD_A_ZERO);
-                    {
+                    case OP_GE: {
                         char* end = codegen_new_label(gen);
+                        codegen_emit(gen, "  ex de, hl\n  or a\n  sbc hl, de\n");
+                        codegen_emit(gen, "  ld hl, 0\n");
                         codegen_emit_jump(gen, CG_STR_JR_C, end);
-                        codegen_emit(gen, CG_STR_LD_A_ONE);
+                        codegen_emit(gen, "  ld hl, 1\n");
                         codegen_emit_label(gen, end);
+                        break;
                     }
-                    break;
-                default:
-                    return CC_ERROR_CODEGEN;
+                    default:
+                        return CC_ERROR_CODEGEN;
+                }
+                g_result_in_hl = true;
+                return CC_OK;
+            } else {
+                cc_error_t err = codegen_stream_expression_tag(gen, ast, left_tag);
+                if (err != CC_OK) return err;
+                codegen_emit(gen, CG_STR_PUSH_AF);
+                uint8_t right_tag = 0;
+                if (ast_read_u8(ast->reader, &right_tag) < 0) return CC_ERROR_CODEGEN;
+                err = codegen_stream_expression_tag(gen, ast, right_tag);
+                if (err != CC_OK) return err;
+                codegen_emit(gen, CG_STR_LD_L_A_POP_AF);
+                switch (op) {
+                    case OP_ADD:
+                        codegen_emit(gen, CG_STR_ADD_A_L);
+                        break;
+                    case OP_SUB:
+                        codegen_emit(gen, CG_STR_SUB_L);
+                        break;
+                    case OP_MUL:
+                        codegen_emit(gen,
+                            "; (A * L)\n"
+                            "  call __mul_a_l\n");
+                        break;
+                    case OP_DIV:
+                        codegen_emit(gen,
+                            "; (A / L)\n"
+                            "  call __div_a_l\n");
+                        break;
+                    case OP_MOD:
+                        codegen_emit(gen,
+                            "; (A % L)\n"
+                            "  call __mod_a_l\n");
+                        break;
+                    case OP_EQ:
+                        codegen_emit(gen,
+                            "; (A == L)\n"
+                            "  cp l\n");
+                        codegen_emit(gen, CG_STR_LD_A_ZERO);
+                        {
+                            char* end = codegen_new_label(gen);
+                            codegen_emit_jump(gen, CG_STR_JR_NZ, end);
+                            codegen_emit(gen, CG_STR_LD_A_ONE);
+                            codegen_emit_label(gen, end);
+                        }
+                        break;
+                    case OP_NE:
+                        codegen_emit(gen,
+                            "; (A != L)\n"
+                            "  cp l\n");
+                        codegen_emit(gen, CG_STR_LD_A_ZERO);
+                        {
+                            char* end = codegen_new_label(gen);
+                            codegen_emit_jump(gen, CG_STR_JR_Z, end);
+                            codegen_emit(gen, CG_STR_LD_A_ONE);
+                            codegen_emit_label(gen, end);
+                        }
+                        break;
+                    case OP_LT:
+                        codegen_emit(gen,
+                            "; (A < L)\n"
+                            "  cp l\n");
+                        codegen_emit(gen, CG_STR_LD_A_ZERO);
+                        {
+                            char* end = codegen_new_label(gen);
+                            codegen_emit_jump(gen, CG_STR_JR_NC, end);
+                            codegen_emit(gen, CG_STR_LD_A_ONE);
+                            codegen_emit_label(gen, end);
+                        }
+                        break;
+                    case OP_GT:
+                        codegen_emit(gen,
+                            "; (A > L)\n"
+                            "  sub l\n");
+                        codegen_emit(gen, CG_STR_LD_A_ZERO);
+                        {
+                            char* end = codegen_new_label(gen);
+                            codegen_emit_jump(gen, CG_STR_JR_Z, end);
+                            codegen_emit_jump(gen, CG_STR_JR_C, end);
+                            codegen_emit(gen, CG_STR_LD_A_ONE);
+                            codegen_emit_label(gen, end);
+                        }
+                        break;
+                    case OP_LE:
+                        codegen_emit(gen,
+                            "; (A <= L)\n"
+                            "  sub l\n");
+                        codegen_emit(gen, CG_STR_LD_A_ZERO);
+                        {
+                            char* end = codegen_new_label(gen);
+                            char* set = codegen_new_label(gen);
+                            codegen_emit_jump(gen, CG_STR_JR_Z, set);
+                            codegen_emit_jump(gen, CG_STR_JR_C, set);
+                            codegen_emit_jump(gen, CG_STR_JR, end);
+                            codegen_emit_label(gen, set);
+                            codegen_emit(gen, CG_STR_LD_A_ONE);
+                            codegen_emit_label(gen, end);
+                        }
+                        break;
+                    case OP_GE:
+                        codegen_emit(gen,
+                            "; (A >= L)\n"
+                            "  cp l\n");
+                        codegen_emit(gen, CG_STR_LD_A_ZERO);
+                        {
+                            char* end = codegen_new_label(gen);
+                            codegen_emit_jump(gen, CG_STR_JR_C, end);
+                            codegen_emit(gen, CG_STR_LD_A_ONE);
+                            codegen_emit_label(gen, end);
+                        }
+                        break;
+                    default:
+                        return CC_ERROR_CODEGEN;
+                }
+                g_result_in_hl = false;
+                return CC_OK;
             }
-            g_result_in_hl = false;
-            return CC_OK;
         }
         case AST_TAG_CALL: {
             uint16_t name_index = 0;
@@ -1047,7 +1166,8 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
             bool expect_hl = lvalue_is_16 &&
                              (rtag == AST_TAG_CONSTANT ||
                               rtag == AST_TAG_IDENTIFIER ||
-                              rtag == AST_TAG_CALL);
+                              rtag == AST_TAG_CALL ||
+                              rtag == AST_TAG_BINARY_OP);
             g_expect_result_in_hl = expect_hl;
             cc_error_t err = codegen_stream_expression_tag(gen, ast, rtag);
             g_expect_result_in_hl = prev_expect;
@@ -1107,7 +1227,11 @@ static cc_error_t codegen_stream_statement_tag(codegen_t* gen, ast_reader_t* ast
                 uint8_t expr_tag = 0;
                 if (ast_read_u8(ast->reader, &expr_tag) < 0) return CC_ERROR_CODEGEN;
                 bool prev_expect = g_expect_result_in_hl;
-                bool expect_hl = gen->function_return_is_16 && expr_tag == AST_TAG_CONSTANT;
+                bool expect_hl = gen->function_return_is_16 &&
+                                 (expr_tag == AST_TAG_CONSTANT ||
+                                  expr_tag == AST_TAG_IDENTIFIER ||
+                                  expr_tag == AST_TAG_CALL ||
+                                  expr_tag == AST_TAG_BINARY_OP);
                 g_expect_result_in_hl = expect_hl;
                 cc_error_t err = codegen_stream_expression_tag(gen, ast, expr_tag);
                 g_expect_result_in_hl = prev_expect;
