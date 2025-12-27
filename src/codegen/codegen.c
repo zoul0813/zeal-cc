@@ -804,7 +804,7 @@ static cc_error_t codegen_statement_return(codegen_t* gen, ast_reader_t* ast, ui
                 g_result_in_hl = true;
             }
         } else if (g_result_in_hl) {
-            codegen_emit(gen, "  ld a, l\n");
+            codegen_emit(gen, CG_STR_LD_A_L);
             g_result_in_hl = false;
         }
     } else {
@@ -1263,7 +1263,7 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                 if (is_16bit) {
                     cc_error_t err = codegen_load_pointer_to_hl(gen, name);
                     if (err != CC_OK) return err;
-                    codegen_emit(gen, "  ld a, l\n");
+                    codegen_emit(gen, CG_STR_LD_A_L);
                     g_result_in_hl = true;
                     return CC_OK;
                 }
@@ -1389,7 +1389,7 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
             }
             g_result_in_hl = codegen_function_return_is_16bit(gen, name_index);
             if (g_result_in_hl && !g_expect_result_in_hl) {
-                codegen_emit(gen, "  ld a, l\n");
+                codegen_emit(gen, CG_STR_LD_A_L);
                 g_result_in_hl = false;
             }
             return CC_OK;
