@@ -1,15 +1,5 @@
 cd h:/
 
-echo TEST: h:/tests/assign.c
-cc_parse h:/tests/assign.c h:/tests/assign.ast
-: echo Failed to parse h:/tests/assign.c
-? cc_codegen h:/tests/assign.ast h:/tests/assign.asm
-: echo Failed to codegen h:/tests/assign.ast
-? zealasm h:/tests/assign.asm h:/tests/assign.bin
-? return tests/assign.bin
-: echo Failed to assemble h:/tests/assign.asm
-: echo Failed to compile tests/assign.c
-
 echo TEST: h:/tests/array.c
 cc_parse h:/tests/array.c h:/tests/array.ast
 : echo Failed to parse h:/tests/array.c
@@ -20,6 +10,16 @@ cc_parse h:/tests/array.c h:/tests/array.ast
 : echo Failed to assemble h:/tests/array.asm
 : echo Failed to compile tests/array.c
 : echo Expected failure: h:/tests/array.c
+
+echo TEST: h:/tests/assign.c
+cc_parse h:/tests/assign.c h:/tests/assign.ast
+: echo Failed to parse h:/tests/assign.c
+? cc_codegen h:/tests/assign.ast h:/tests/assign.asm
+: echo Failed to codegen h:/tests/assign.ast
+? zealasm h:/tests/assign.asm h:/tests/assign.bin
+? return tests/assign.bin
+: echo Failed to assemble h:/tests/assign.asm
+: echo Failed to compile tests/assign.c
 
 echo TEST: h:/tests/char.c
 cc_parse h:/tests/char.c h:/tests/char.ast
@@ -142,16 +142,6 @@ cc_parse h:/tests/simple_return.c h:/tests/simple_return.ast
 : echo Failed to assemble h:/tests/simple_return.asm
 : echo Failed to compile tests/simple_return.c
 
-echo TEST: h:/tests/return16.c
-cc_parse h:/tests/return16.c h:/tests/return16.ast
-: echo Failed to parse h:/tests/return16.c
-? cc_codegen h:/tests/return16.ast h:/tests/return16.asm
-: echo Failed to codegen h:/tests/return16.ast
-? zealasm h:/tests/return16.asm h:/tests/return16.bin
-? return tests/return16.bin
-: echo Failed to assemble h:/tests/return16.asm
-: echo Failed to compile tests/return16.c
-
 echo TEST: h:/tests/struct.c
 cc_parse h:/tests/struct.c h:/tests/struct.ast
 : echo Failed to parse h:/tests/struct.c
@@ -194,6 +184,16 @@ cc_parse h:/tests/while.c h:/tests/while.ast
 ? return tests/while.bin
 : echo Failed to assemble h:/tests/while.asm
 : echo Failed to compile tests/while.c
+
+echo TEST: h:/tests/return16.c
+cc_parse h:/tests/return16.c h:/tests/return16.ast
+: echo Failed to parse h:/tests/return16.c
+? cc_codegen h:/tests/return16.ast h:/tests/return16.asm
+: echo Failed to codegen h:/tests/return16.ast
+? zealasm h:/tests/return16.asm h:/tests/return16.bin
+? return tests/return16.bin
+: echo Failed to assemble h:/tests/return16.asm
+: echo Failed to compile tests/return16.c
 
 echo TEST: h:/tests/zealos.c
 cc_parse h:/tests/zealos.c h:/tests/zealos.ast

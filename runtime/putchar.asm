@@ -1,4 +1,6 @@
-; .equ STD_BUFFER_SIZE, 80
+; int _putchar(char c)
+
+    ; .equ STD_BUFFER_SIZE, 80
 
     ; int _putchar(int c)
     ; Print a character on the standard output. Output is buffered.

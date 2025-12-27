@@ -494,19 +494,12 @@ char* codegen_new_label(codegen_t* gen) {
     uint16_t i = 0;
     label[i++] = '_';
     label[i++] = 'l';
-    if (n == 0) {
-        label[i++] = '0';
-    } else {
-        char temp[8];
-        uint16_t j = 0;
-        while (n > 0 && j < (uint16_t)sizeof(temp)) {
-            temp[j++] = '0' + (n % 10);
-            n /= 10;
-        }
-        while (j > 0) {
-            label[i++] = temp[--j];
-        }
+    for (uint16_t pos = 0; pos < 6; pos++) {
+        uint16_t digit = n % 10;
+        label[i + 5 - pos] = (char)('0' + digit);
+        n /= 10;
     }
+    i += 6;
     label[i] = '\0';
     return label;
 }
@@ -1862,8 +1855,10 @@ static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast) {
 }
 
 void codegen_emit_runtime(codegen_t* gen) {
-    codegen_emit_file(gen, "runtime/runtime.asm");
+    codegen_emit(gen, "; Run-time Library\n");
     codegen_emit_file(gen, "runtime/putchar.asm");
+    codegen_emit_file(gen, "runtime/math_8.asm");
+    codegen_emit_file(gen, "runtime/math_16.asm");
 }
 
 void codegen_emit_strings(codegen_t* gen) {
