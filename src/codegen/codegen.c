@@ -609,6 +609,147 @@ typedef struct {
 
 static bool codegen_emit_compare_table(codegen_t* gen, uint8_t op,
                                        const compare_entry_t* table, size_t count,
+                                       bool output_in_hl);
+
+static cc_error_t codegen_emit_binary_op_hl(codegen_t* gen, ast_reader_t* ast, uint8_t op,
+                                            uint8_t left_tag, bool output_in_hl) {
+    bool prev_expect = g_expect_result_in_hl;
+    g_expect_result_in_hl = true;
+    cc_error_t err = codegen_stream_expression_tag(gen, ast, left_tag);
+    if (err != CC_OK) return err;
+    if (!g_result_in_hl) {
+        codegen_emit(gen, CG_STR_LD_L_A_H_ZERO);
+    }
+    codegen_emit(gen, CG_STR_PUSH_HL);
+    uint8_t right_tag = 0;
+    if (ast_read_u8(ast->reader, &right_tag) < 0) return CC_ERROR_CODEGEN;
+    g_expect_result_in_hl = true;
+    err = codegen_stream_expression_tag(gen, ast, right_tag);
+    g_expect_result_in_hl = prev_expect;
+    if (err != CC_OK) return err;
+    if (!g_result_in_hl) {
+        codegen_emit(gen, CG_STR_LD_L_A_H_ZERO);
+    }
+    codegen_emit(gen, "  pop de\n");
+    if (codegen_op_is_compare(op)) {
+        static const compare_entry_t compare16_table[] = {
+            { OP_EQ, NULL, CG_STR_JR_Z,  NULL },
+            { OP_NE, NULL, CG_STR_JR_NZ, NULL },
+            { OP_LT, NULL, CG_STR_JR_C,  NULL },
+            { OP_LE, NULL, CG_STR_JR_Z,  CG_STR_JR_C },
+            { OP_GE, NULL, CG_STR_JR_NC, NULL },
+        };
+        codegen_emit(gen, CG_STR_EX_DE_HL_OR_A_SBC_HL_DE);
+        if (codegen_emit_compare_table(gen, op, compare16_table,
+                                       sizeof(compare16_table) / sizeof(compare16_table[0]),
+                                       output_in_hl)) {
+            g_result_in_hl = output_in_hl;
+            return CC_OK;
+        }
+        if (op == OP_GT) {
+            codegen_emit_compare_fallthrough(gen, CG_STR_JR_Z, CG_STR_JR_C, output_in_hl);
+            g_result_in_hl = output_in_hl;
+            return CC_OK;
+        }
+        return CC_ERROR_CODEGEN;
+    }
+    switch (op) {
+        case OP_ADD:
+            codegen_emit(gen, "  add hl, de\n");
+            break;
+        case OP_SUB:
+            codegen_emit(gen, CG_STR_EX_DE_HL_OR_A_SBC_HL_DE);
+            break;
+        case OP_MUL:
+            codegen_emit(gen,
+                "; (DE * HL)\n"
+                "  ex de, hl\n"
+                "  call __mul_hl_de\n");
+            break;
+        case OP_DIV:
+            codegen_emit(gen,
+                "; (DE / HL)\n"
+                "  ex de, hl\n"
+                "  call __div_hl_de\n");
+            break;
+        case OP_MOD:
+            codegen_emit(gen,
+                "; (DE % HL)\n"
+                "  ex de, hl\n"
+                "  call __mod_hl_de\n");
+            break;
+        default:
+            return CC_ERROR_CODEGEN;
+    }
+    g_result_in_hl = true;
+    return CC_OK;
+}
+
+static cc_error_t codegen_emit_binary_op_a(codegen_t* gen, ast_reader_t* ast, uint8_t op,
+                                           uint8_t left_tag) {
+    cc_error_t err = codegen_stream_expression_tag(gen, ast, left_tag);
+    if (err != CC_OK) return err;
+    codegen_emit(gen, CG_STR_PUSH_AF);
+    uint8_t right_tag = 0;
+    if (ast_read_u8(ast->reader, &right_tag) < 0) return CC_ERROR_CODEGEN;
+    err = codegen_stream_expression_tag(gen, ast, right_tag);
+    if (err != CC_OK) return err;
+    codegen_emit(gen, CG_STR_LD_L_A_POP_AF);
+    if (codegen_op_is_compare(op)) {
+        static const compare_entry_t compare8_table[] = {
+            { OP_EQ, "; (A == L)\n  cp l\n", CG_STR_JR_Z,  NULL },
+            { OP_NE, "; (A != L)\n  cp l\n", CG_STR_JR_NZ, NULL },
+            { OP_LT, "; (A < L)\n  cp l\n", CG_STR_JR_C,  NULL },
+            { OP_LE, "; (A <= L)\n  sub l\n", CG_STR_JR_Z, CG_STR_JR_C },
+            { OP_GE, "; (A >= L)\n  cp l\n", CG_STR_JR_NC, NULL },
+        };
+        if (codegen_emit_compare_table(gen, op, compare8_table,
+                                       sizeof(compare8_table) / sizeof(compare8_table[0]),
+                                       false)) {
+            g_result_in_hl = false;
+            return CC_OK;
+        }
+        if (op == OP_GT) {
+            codegen_emit(gen,
+                "; (A > L)\n"
+                "  sub l\n");
+            codegen_emit_compare_fallthrough(gen, CG_STR_JR_Z, CG_STR_JR_C, false);
+            g_result_in_hl = false;
+            return CC_OK;
+        }
+        return CC_ERROR_CODEGEN;
+    }
+    switch (op) {
+        case OP_ADD:
+            codegen_emit(gen, CG_STR_ADD_A_L);
+            break;
+        case OP_SUB:
+            codegen_emit(gen, CG_STR_SUB_L);
+            break;
+        case OP_MUL:
+            codegen_emit(gen,
+                "; (A * L)\n"
+                "  call __mul_a_l\n");
+            break;
+        case OP_DIV:
+            codegen_emit(gen,
+                "; (A / L)\n"
+                "  call __div_a_l\n");
+            break;
+        case OP_MOD:
+            codegen_emit(gen,
+                "; (A % L)\n"
+                "  call __mod_a_l\n");
+            break;
+        default:
+            return CC_ERROR_CODEGEN;
+    }
+    g_result_in_hl = false;
+    return CC_OK;
+}
+
+static bool codegen_emit_compare_table(codegen_t* gen, uint8_t op,
+                                       const compare_entry_t* table, size_t count,
                                        bool output_in_hl) {
     for (size_t i = 0; i < count; i++) {
         if (table[i].op != op) {
@@ -871,149 +1012,10 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                 force_16bit_compare = left_is_16 || right_is_16;
             }
             if (g_expect_result_in_hl || (is_compare && force_16bit_compare)) {
-                bool prev_expect = g_expect_result_in_hl;
                 bool output_in_hl = g_expect_result_in_hl;
-                g_expect_result_in_hl = true;
-                cc_error_t err = codegen_stream_expression_tag(gen, ast, left_tag);
-                if (err != CC_OK) return err;
-                if (!g_result_in_hl) {
-                    codegen_emit(gen, CG_STR_LD_L_A_H_ZERO);
-                }
-                codegen_emit(gen, CG_STR_PUSH_HL);
-                uint8_t right_tag = 0;
-                if (ast_read_u8(ast->reader, &right_tag) < 0) return CC_ERROR_CODEGEN;
-                g_expect_result_in_hl = true;
-                err = codegen_stream_expression_tag(gen, ast, right_tag);
-                g_expect_result_in_hl = prev_expect;
-                if (err != CC_OK) return err;
-                if (!g_result_in_hl) {
-                    codegen_emit(gen, CG_STR_LD_L_A_H_ZERO);
-                }
-                codegen_emit(gen, "  pop de\n");
-                if (codegen_op_is_compare(op)) {
-                    static const compare_entry_t compare16_table[] = {
-                        { OP_EQ, NULL, CG_STR_JR_Z,  NULL },
-                        { OP_NE, NULL, CG_STR_JR_NZ, NULL },
-                        { OP_LT, NULL, CG_STR_JR_C,  NULL },
-                        { OP_LE, NULL, CG_STR_JR_Z,  CG_STR_JR_C },
-                        { OP_GE, NULL, CG_STR_JR_NC, NULL },
-                    };
-                    codegen_emit(gen, CG_STR_EX_DE_HL_OR_A_SBC_HL_DE);
-                    if (codegen_emit_compare_table(gen, op, compare16_table,
-                                                   sizeof(compare16_table) / sizeof(compare16_table[0]),
-                                                   output_in_hl)) {
-                        g_result_in_hl = output_in_hl;
-                        return CC_OK;
-                    }
-                    if (op == OP_GT) {
-                        codegen_emit_compare_fallthrough(gen, CG_STR_JR_Z, CG_STR_JR_C, output_in_hl);
-                        g_result_in_hl = output_in_hl;
-                        return CC_OK;
-                    }
-                    return CC_ERROR_CODEGEN;
-                }
-                switch (op) {
-                    case OP_ADD:
-                        codegen_emit(gen, "  add hl, de\n");
-                        break;
-                    case OP_SUB:
-                        codegen_emit(gen, CG_STR_EX_DE_HL_OR_A_SBC_HL_DE);
-                        break;
-                    case OP_MUL:
-                        codegen_emit(gen,
-                            "; (DE * HL)\n"
-                            "  ex de, hl\n"
-                            "  call __mul_hl_de\n");
-                        break;
-                    case OP_DIV:
-                        codegen_emit(gen,
-                            "; (DE / HL)\n"
-                            "  ex de, hl\n"
-                            "  call __div_hl_de\n");
-                        break;
-                    case OP_MOD:
-                        codegen_emit(gen,
-                            "; (DE % HL)\n"
-                            "  ex de, hl\n"
-                            "  call __mod_hl_de\n");
-                        break;
-                    default:
-                        return CC_ERROR_CODEGEN;
-                }
-                g_result_in_hl = true;
-                return CC_OK;
+                return codegen_emit_binary_op_hl(gen, ast, op, left_tag, output_in_hl);
             } else {
-                cc_error_t err = codegen_stream_expression_tag(gen, ast, left_tag);
-                if (err != CC_OK) return err;
-                codegen_emit(gen, CG_STR_PUSH_AF);
-                uint8_t right_tag = 0;
-                if (ast_read_u8(ast->reader, &right_tag) < 0) return CC_ERROR_CODEGEN;
-                err = codegen_stream_expression_tag(gen, ast, right_tag);
-                if (err != CC_OK) return err;
-                codegen_emit(gen, CG_STR_LD_L_A_POP_AF);
-                if (codegen_op_is_compare(op)) {
-                    static const compare_entry_t compare8_table[] = {
-                        { OP_EQ, "; (A == L)\n  cp l\n", CG_STR_JR_Z,  NULL },
-                        { OP_NE, "; (A != L)\n  cp l\n", CG_STR_JR_NZ, NULL },
-                        { OP_LT, "; (A < L)\n  cp l\n", CG_STR_JR_C,  NULL },
-                        { OP_LE, "; (A <= L)\n  sub l\n", CG_STR_JR_Z, CG_STR_JR_C },
-                        { OP_GE, "; (A >= L)\n  cp l\n", CG_STR_JR_NC, NULL },
-                    };
-                    if (codegen_emit_compare_table(gen, op, compare8_table,
-                                                   sizeof(compare8_table) / sizeof(compare8_table[0]),
-                                                   false)) {
-                        g_result_in_hl = false;
-                        return CC_OK;
-                    }
-                    if (op == OP_GT) {
-                        codegen_emit(gen,
-                            "; (A > L)\n"
-                            "  sub l\n");
-                        codegen_emit_compare_fallthrough(gen, CG_STR_JR_Z, CG_STR_JR_C, false);
-                        g_result_in_hl = false;
-                        return CC_OK;
-                    }
-                    return CC_ERROR_CODEGEN;
-                }
-                switch (op) {
-                    case OP_ADD:
-                        codegen_emit(gen, CG_STR_ADD_A_L);
-                        break;
-                    case OP_SUB:
-                        codegen_emit(gen, CG_STR_SUB_L);
-                        break;
-                    case OP_MUL:
-                        codegen_emit(gen,
-                            "; (A * L)\n"
-                            "  call __mul_a_l\n");
-                        break;
-                    case OP_DIV:
-                        codegen_emit(gen,
-                            "; (A / L)\n"
-                            "  call __div_a_l\n");
-                        break;
-                    case OP_MOD:
-                        codegen_emit(gen,
-                            "; (A % L)\n"
-                            "  call __mod_a_l\n");
-                        break;
-                    case OP_EQ:
-                        return CC_ERROR_CODEGEN;
-                    case OP_NE:
-                        return CC_ERROR_CODEGEN;
-                    case OP_LT:
-                        return CC_ERROR_CODEGEN;
-                    case OP_GT:
-                        return CC_ERROR_CODEGEN;
-                    case OP_LE:
-                        return CC_ERROR_CODEGEN;
-                    case OP_GE:
-                        return CC_ERROR_CODEGEN;
-                    default:
-                        return CC_ERROR_CODEGEN;
-                }
-                g_result_in_hl = false;
-                return CC_OK;
+                return codegen_emit_binary_op_a(gen, ast, op, left_tag);
             }
         }
         case AST_TAG_CALL: {
