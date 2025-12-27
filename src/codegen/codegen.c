@@ -607,9 +607,26 @@ typedef struct {
     const char* jump2;
 } compare_entry_t;
 
+typedef struct {
+    uint8_t op;
+    const char* seq;
+} op_emit_entry_t;
+
 static bool codegen_emit_compare_table(codegen_t* gen, uint8_t op,
                                        const compare_entry_t* table, size_t count,
                                        bool output_in_hl);
+
+static bool codegen_emit_op_table(codegen_t* gen, uint8_t op,
+                                  const op_emit_entry_t* table, size_t count) {
+    for (size_t i = 0; i < count; i++) {
+        if (table[i].op != op) {
+            continue;
+        }
+        codegen_emit(gen, table[i].seq);
+        return true;
+    }
+    return false;
+}
 
 static cc_error_t codegen_emit_binary_op_hl(codegen_t* gen, ast_reader_t* ast, uint8_t op,
                                             uint8_t left_tag, bool output_in_hl) {
@@ -653,33 +670,18 @@ static cc_error_t codegen_emit_binary_op_hl(codegen_t* gen, ast_reader_t* ast, u
         }
         return CC_ERROR_CODEGEN;
     }
-    switch (op) {
-        case OP_ADD:
-            codegen_emit(gen, "  add hl, de\n");
-            break;
-        case OP_SUB:
-            codegen_emit(gen, CG_STR_EX_DE_HL_OR_A_SBC_HL_DE);
-            break;
-        case OP_MUL:
-            codegen_emit(gen,
-                "; (DE * HL)\n"
-                "  ex de, hl\n"
-                "  call __mul_hl_de\n");
-            break;
-        case OP_DIV:
-            codegen_emit(gen,
-                "; (DE / HL)\n"
-                "  ex de, hl\n"
-                "  call __div_hl_de\n");
-            break;
-        case OP_MOD:
-            codegen_emit(gen,
-                "; (DE % HL)\n"
-                "  ex de, hl\n"
-                "  call __mod_hl_de\n");
-            break;
-        default:
+    {
+        static const op_emit_entry_t op16_table[] = {
+            { OP_ADD, "  add hl, de\n" },
+            { OP_SUB, "  ex de, hl\n  or a\n  sbc hl, de\n" },
+            { OP_MUL, "; (DE * HL)\n  ex de, hl\n  call __mul_hl_de\n" },
+            { OP_DIV, "; (DE / HL)\n  ex de, hl\n  call __div_hl_de\n" },
+            { OP_MOD, "; (DE % HL)\n  ex de, hl\n  call __mod_hl_de\n" },
+        };
+        if (!codegen_emit_op_table(gen, op, op16_table,
+                                   sizeof(op16_table) / sizeof(op16_table[0]))) {
             return CC_ERROR_CODEGEN;
+        }
     }
     g_result_in_hl = true;
     return CC_OK;
@@ -719,30 +721,18 @@ static cc_error_t codegen_emit_binary_op_a(codegen_t* gen, ast_reader_t* ast, ui
         }
         return CC_ERROR_CODEGEN;
     }
-    switch (op) {
-        case OP_ADD:
-            codegen_emit(gen, CG_STR_ADD_A_L);
-            break;
-        case OP_SUB:
-            codegen_emit(gen, CG_STR_SUB_L);
-            break;
-        case OP_MUL:
-            codegen_emit(gen,
-                "; (A * L)\n"
-                "  call __mul_a_l\n");
-            break;
-        case OP_DIV:
-            codegen_emit(gen,
-                "; (A / L)\n"
-                "  call __div_a_l\n");
-            break;
-        case OP_MOD:
-            codegen_emit(gen,
-                "; (A % L)\n"
-                "  call __mod_a_l\n");
-            break;
-        default:
+    {
+        static const op_emit_entry_t op8_table[] = {
+            { OP_ADD, "  add a, l\n" },
+            { OP_SUB, "  sub l\n" },
+            { OP_MUL, "; (A * L)\n  call __mul_a_l\n" },
+            { OP_DIV, "; (A / L)\n  call __div_a_l\n" },
+            { OP_MOD, "; (A % L)\n  call __mod_a_l\n" },
+        };
+        if (!codegen_emit_op_table(gen, op, op8_table,
+                                   sizeof(op8_table) / sizeof(op8_table[0]))) {
             return CC_ERROR_CODEGEN;
+        }
     }
     g_result_in_hl = false;
     return CC_OK;
