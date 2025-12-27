@@ -307,6 +307,12 @@ static uint8_t codegen_param_offset_by_id(codegen_t* gen, uint16_t name_index, i
     return 1;
 }
 
+static uint8_t codegen_param_offset_any(codegen_t* gen, uint16_t name_index,
+                                        const char* name, int16_t* out_offset) {
+    return codegen_param_offset_by_id(gen, name_index, out_offset) ||
+           codegen_param_offset(gen, name, out_offset);
+}
+
 static uint8_t codegen_local_offset(codegen_t* gen, const char* name, int16_t* out_offset) {
     if (!gen || !name || !out_offset) return 0;
     int16_t idx = codegen_local_index(gen, name);
@@ -1274,8 +1280,7 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                         codegen_emit(gen, ")\n  ld l, a\n  ld h, (ix");
                         codegen_emit_ix_offset(gen, offset + 1);
                         codegen_emit(gen, ")\n");
-                    } else if (codegen_param_offset_by_id(gen, name_index, &offset) ||
-                               codegen_param_offset(gen, name, &offset)) {
+                    } else if (codegen_param_offset_any(gen, name_index, name, &offset)) {
                         codegen_emit(gen, "  ld a, (ix");
                         codegen_emit_ix_offset(gen, offset);
                         codegen_emit(gen, ")\n  ld l, a\n  ld h, (ix");
@@ -1294,11 +1299,7 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                     codegen_emit(gen, CG_STR_LD_A_IX_PREFIX);
                     codegen_emit_ix_offset(gen, offset);
                     codegen_emit(gen, ")  ; local: ");
-                } else if (codegen_param_offset_by_id(gen, name_index, &offset)) {
-                    codegen_emit(gen, CG_STR_LD_A_IX_PREFIX);
-                    codegen_emit_ix_offset(gen, offset);
-                    codegen_emit(gen, ")  ; param: ");
-                } else if (codegen_param_offset(gen, name, &offset)) {
+                } else if (codegen_param_offset_any(gen, name_index, name, &offset)) {
                     codegen_emit(gen, CG_STR_LD_A_IX_PREFIX);
                     codegen_emit_ix_offset(gen, offset);
                     codegen_emit(gen, ")  ; param: ");
