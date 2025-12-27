@@ -1261,25 +1261,9 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
             {
                 bool is_16bit = codegen_name_is_16(gen, name);
                 if (is_16bit) {
-                    if (codegen_local_offset(gen, name, &offset)) {
-                        codegen_emit(gen, "  ld a, (ix");
-                        codegen_emit_ix_offset(gen, offset);
-                        codegen_emit(gen, ")\n  ld l, a\n  ld h, (ix");
-                        codegen_emit_ix_offset(gen, offset + 1);
-                        codegen_emit(gen, ")\n");
-                    } else if (codegen_param_offset_by_id(gen, name_index, &offset) ||
-                               codegen_param_offset(gen, name, &offset)) {
-                        codegen_emit(gen, "  ld a, (ix");
-                        codegen_emit_ix_offset(gen, offset);
-                        codegen_emit(gen, ")\n  ld l, a\n  ld h, (ix");
-                        codegen_emit_ix_offset(gen, offset + 1);
-                        codegen_emit(gen, ")\n");
-                    } else {
-                        codegen_emit(gen, CG_STR_LD_HL_PAREN);
-                        codegen_emit_mangled_var(gen, name);
-                        codegen_emit(gen, CG_STR_RPAREN_NL);
-                        codegen_emit(gen, "  ld a, l\n");
-                    }
+                    cc_error_t err = codegen_load_pointer_to_hl(gen, name);
+                    if (err != CC_OK) return err;
+                    codegen_emit(gen, "  ld a, l\n");
                     g_result_in_hl = true;
                     return CC_OK;
                 }
