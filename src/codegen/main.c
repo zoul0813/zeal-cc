@@ -21,13 +21,8 @@ int main(int argc, char** argv) {
     mem_set(&ast, 0, sizeof(ast));
     cc_init_pool(g_memory_pool, sizeof(g_memory_pool));
 
-    g_ctx.verbose = false;
-    g_ctx.optimize = false;
 
     args = parse_args(argc, argv);
-    if (args.show_help) {
-        return 0;
-    }
     if (args.error) {
         log_error("Usage: cc_codegen <input.ast> <output.asm>\n");
         return 1;

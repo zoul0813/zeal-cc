@@ -3,9 +3,11 @@ import argparse
 import os
 import platform
 import re
+import select
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
@@ -394,6 +396,8 @@ def run_headless_emulator(
     show_log: bool = False,
     log_path: Path | None = None,
 ) -> tuple[int | None, str]:
+    proc = None
+    streaming = show_log or log_path
     if shutil.which("zeal-native") is None:
         print(f"{YELLOW}⚠{NC}  Skipping {test_name} (zeal-native not found)")
         return None, ""
@@ -407,34 +411,86 @@ def run_headless_emulator(
         if zealasm_src.exists() and zealasm_src.is_file():
             shutil.copyfile(zealasm_src, zealasm_dst)
 
-        proc = subprocess.run(
-            ["zeal-native", "--headless", "--no-reset", "-r", img, "-e", eeprom],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-            timeout=HEADLESS_TIMEOUT_SEC,
-        )
-        log = proc.stdout or ""
-        status = proc.returncode
-    except subprocess.TimeoutExpired as exc:
+        if streaming:
+            proc = subprocess.Popen(
+                ["zeal-native", "--headless", "--no-reset", "-r", img, "-e", eeprom],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                bufsize=1,
+            )
+            log_parts = []
+            start = time.monotonic()
+            output = proc.stdout
+            log_handle = log_path.open("w", encoding="utf-8") if log_path else None
+            try:
+                while True:
+                    elapsed = time.monotonic() - start
+                    if elapsed > HEADLESS_TIMEOUT_SEC:
+                        raise TimeoutError
+                    if output is None:
+                        break
+                    ready, _, _ = select.select([output], [], [], 0.1)
+                    if ready:
+                        line = output.readline()
+                        if line:
+                            log_parts.append(line)
+                            if show_log:
+                                print(line, end="")
+                            if log_handle:
+                                log_handle.write(line)
+                                log_handle.flush()
+                            continue
+                    if proc.poll() is not None:
+                        break
+                if output is not None:
+                    remainder = output.read()
+                    if remainder:
+                        log_parts.append(remainder)
+                        if show_log:
+                            print(remainder, end="")
+                        if log_handle:
+                            log_handle.write(remainder)
+            finally:
+                if log_handle:
+                    log_handle.close()
+            status = proc.wait()
+            log = "".join(log_parts)
+        else:
+            proc = subprocess.run(
+                ["zeal-native", "--headless", "--no-reset", "-r", img, "-e", eeprom],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+                timeout=HEADLESS_TIMEOUT_SEC,
+            )
+            log = proc.stdout or ""
+            status = proc.returncode
+    except TimeoutError:
         print(
             f"{RED}X{NC} {test_name} timed out after "
             f"{HEADLESS_TIMEOUT_SEC}s (possible hang/reset loop)"
         )
-        if exc.stdout:
-            print(exc.stdout)
+        try:
+            proc.kill()
+            proc.wait(timeout=1)
+        except Exception:
+            pass
         return 1, ""
     except Exception as exc:
         print(f"{RED}X{NC} {test_name} failed to run zeal-native: {exc}")
         return 1, ""
 
-    if log_path:
-        log_path.write_text(log)
-    if show_log and log:
-        print(log)
+    if not streaming:
+        if log_path:
+            log_path.write_text(log)
+        if show_log and log:
+            print(log)
 
     return status, log
 

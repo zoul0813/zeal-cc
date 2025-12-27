@@ -1,4 +1,4 @@
-; Runtime library functions
+; 8-bit mul/div/mod
 
 ; Multiply A by L
 __mul_a_l:
