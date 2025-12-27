@@ -686,7 +686,12 @@ static ast_node_t* parse_statement(parser_t* parser) {
 
         while (!parser_check(parser, TOK_RBRACE) && !parser_check(parser, TOK_EOF) &&
                node->data.compound.stmt_count < 32) {
+            token_t* before = parser_current(parser);
             ast_node_t* stmt = parse_statement(parser);
+            if (!stmt && parser_current(parser) == before) {
+                parser_advance(parser);
+                continue;
+            }
             if (stmt && node->data.compound.stmt_count < 32) {
                 stmts_tmp[node->data.compound.stmt_count++] = stmt;
             }
@@ -986,7 +991,12 @@ ast_node_t* parser_parse(parser_t* parser) {
 
 ast_node_t* parser_parse_next(parser_t* parser) {
     if (!parser || parser_check(parser, TOK_EOF)) return NULL;
-    return parse_declaration(parser);
+    token_t* before = parser_current(parser);
+    ast_node_t* node = parse_declaration(parser);
+    if (node && parser_current(parser) == before) {
+        parser_advance(parser);
+    }
+    return node;
 }
 
 void ast_node_destroy(ast_node_t* node) {
