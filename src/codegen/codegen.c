@@ -781,6 +781,18 @@ static cc_error_t codegen_emit_binary_op_a(codegen_t* gen, ast_reader_t* ast, ui
 
 typedef cc_error_t (*statement_handler_t)(codegen_t* gen, ast_reader_t* ast, uint8_t tag);
 
+static cc_error_t codegen_read_and_stream_statement(codegen_t* gen, ast_reader_t* ast) {
+    uint8_t tag = 0;
+    if (ast_read_u8(ast->reader, &tag) < 0) return CC_ERROR_CODEGEN;
+    return codegen_stream_statement_tag(gen, ast, tag);
+}
+
+static cc_error_t codegen_read_and_stream_expression(codegen_t* gen, ast_reader_t* ast) {
+    uint8_t tag = 0;
+    if (ast_read_u8(ast->reader, &tag) < 0) return CC_ERROR_CODEGEN;
+    return codegen_stream_expression_tag(gen, ast, tag);
+}
+
 static cc_error_t codegen_statement_return(codegen_t* gen, ast_reader_t* ast, uint8_t tag) {
     (void)tag;
     uint8_t has_expr = 0;
@@ -930,9 +942,7 @@ static cc_error_t codegen_statement_compound(codegen_t* gen, ast_reader_t* ast, 
     uint16_t stmt_count = 0;
     if (ast_read_u16(ast->reader, &stmt_count) < 0) return CC_ERROR_CODEGEN;
     for (uint16_t i = 0; i < stmt_count; i++) {
-        uint8_t stmt_tag = 0;
-        if (ast_read_u8(ast->reader, &stmt_tag) < 0) return CC_ERROR_CODEGEN;
-        cc_error_t err = codegen_stream_statement_tag(gen, ast, stmt_tag);
+        cc_error_t err = codegen_read_and_stream_statement(gen, ast);
         if (err != CC_OK) return err;
     }
     return CC_OK;
@@ -944,9 +954,7 @@ static cc_error_t codegen_statement_if(codegen_t* gen, ast_reader_t* ast, uint8_
     char* else_label = NULL;
     char* end_label = NULL;
     if (ast_read_u8(ast->reader, &has_else) < 0) return CC_ERROR_CODEGEN;
-    uint8_t cond_tag = 0;
-    if (ast_read_u8(ast->reader, &cond_tag) < 0) return CC_ERROR_CODEGEN;
-    cc_error_t err = codegen_stream_expression_tag(gen, ast, cond_tag);
+    cc_error_t err = codegen_read_and_stream_expression(gen, ast);
     if (err != CC_OK) return err;
     else_label = codegen_new_label_persist(gen);
     if (has_else) {
@@ -955,28 +963,16 @@ static cc_error_t codegen_statement_if(codegen_t* gen, ast_reader_t* ast, uint8_
         end_label = else_label;
     }
     codegen_emit_jump(gen, CG_STR_OR_A_JP_Z, else_label);
-    {
-        uint8_t then_tag = 0;
-        if (ast_read_u8(ast->reader, &then_tag) < 0) {
-            err = CC_ERROR_CODEGEN;
-            goto if_cleanup;
-        }
-        err = codegen_stream_statement_tag(gen, ast, then_tag);
-        if (err != CC_OK) {
-            goto if_cleanup;
-        }
+    err = codegen_read_and_stream_statement(gen, ast);
+    if (err != CC_OK) {
+        goto if_cleanup;
     }
     if (has_else) {
         codegen_emit_jump(gen, CG_STR_JP, end_label);
     }
     codegen_emit_label(gen, else_label);
     if (has_else) {
-        uint8_t else_tag = 0;
-        if (ast_read_u8(ast->reader, &else_tag) < 0) {
-            err = CC_ERROR_CODEGEN;
-            goto if_cleanup;
-        }
-        err = codegen_stream_statement_tag(gen, ast, else_tag);
+        err = codegen_read_and_stream_statement(gen, ast);
         if (err != CC_OK) {
             goto if_cleanup;
         }
@@ -995,28 +991,14 @@ static cc_error_t codegen_statement_while(codegen_t* gen, ast_reader_t* ast, uin
     char* end_label = codegen_new_label_persist(gen);
     cc_error_t err = CC_OK;
     codegen_emit_label(gen, loop_label);
-    {
-        uint8_t cond_tag = 0;
-        if (ast_read_u8(ast->reader, &cond_tag) < 0) {
-            err = CC_ERROR_CODEGEN;
-            goto while_cleanup;
-        }
-        err = codegen_stream_expression_tag(gen, ast, cond_tag);
-        if (err != CC_OK) {
-            goto while_cleanup;
-        }
+    err = codegen_read_and_stream_expression(gen, ast);
+    if (err != CC_OK) {
+        goto while_cleanup;
     }
     codegen_emit_jump(gen, CG_STR_OR_A_JP_Z, end_label);
-    {
-        uint8_t body_tag = 0;
-        if (ast_read_u8(ast->reader, &body_tag) < 0) {
-            err = CC_ERROR_CODEGEN;
-            goto while_cleanup;
-        }
-        err = codegen_stream_statement_tag(gen, ast, body_tag);
-        if (err != CC_OK) {
-            goto while_cleanup;
-        }
+    err = codegen_read_and_stream_statement(gen, ast);
+    if (err != CC_OK) {
+        goto while_cleanup;
     }
     codegen_emit_jump(gen, CG_STR_JP, loop_label);
     codegen_emit_label(gen, end_label);
@@ -1040,24 +1022,14 @@ static cc_error_t codegen_statement_for(codegen_t* gen, ast_reader_t* ast, uint8
     char* end_label = codegen_new_label_persist(gen);
     cc_error_t err;
     if (has_init) {
-        uint8_t init_tag = 0;
-        if (ast_read_u8(ast->reader, &init_tag) < 0) {
-            err = CC_ERROR_CODEGEN;
-            goto for_cleanup;
-        }
-        err = codegen_stream_statement_tag(gen, ast, init_tag);
+        err = codegen_read_and_stream_statement(gen, ast);
         if (err != CC_OK) {
             goto for_cleanup;
         }
     }
     codegen_emit_label(gen, loop_label);
     if (has_cond) {
-        uint8_t cond_tag = 0;
-        if (ast_read_u8(ast->reader, &cond_tag) < 0) {
-            err = CC_ERROR_CODEGEN;
-            goto for_cleanup;
-        }
-        err = codegen_stream_expression_tag(gen, ast, cond_tag);
+        err = codegen_read_and_stream_expression(gen, ast);
         if (err != CC_OK) {
             goto for_cleanup;
         }
@@ -1070,14 +1042,7 @@ static cc_error_t codegen_statement_for(codegen_t* gen, ast_reader_t* ast, uint8
             goto for_cleanup;
         }
     }
-    {
-        uint8_t body_tag = 0;
-        if (ast_read_u8(ast->reader, &body_tag) < 0) {
-            err = CC_ERROR_CODEGEN;
-            goto for_cleanup;
-        }
-        err = codegen_stream_statement_tag(gen, ast, body_tag);
-    }
+    err = codegen_read_and_stream_statement(gen, ast);
     if (err != CC_OK) {
         goto for_cleanup;
     }
@@ -1087,12 +1052,7 @@ static cc_error_t codegen_statement_for(codegen_t* gen, ast_reader_t* ast, uint8
             err = CC_ERROR_CODEGEN;
             goto for_cleanup;
         }
-        uint8_t inc_tag = 0;
-        if (ast_read_u8(ast->reader, &inc_tag) < 0) {
-            err = CC_ERROR_CODEGEN;
-            goto for_cleanup;
-        }
-        err = codegen_stream_expression_tag(gen, ast, inc_tag);
+        err = codegen_read_and_stream_expression(gen, ast);
         if (err != CC_OK) {
             goto for_cleanup;
         }
