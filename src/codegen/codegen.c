@@ -210,19 +210,11 @@ static void codegen_emit_jump(codegen_t* gen, const char* prefix, const char* la
     codegen_emit(gen, CG_STR_NL);
 }
 
-static const char* codegen_stream_string(ast_reader_t* ast, uint16_t index) {
-    return ast_reader_string(ast, index);
-}
-
-static bool codegen_stream_type_is_pointer(uint8_t depth) {
-    return depth > 0;
-}
-
 static int8_t codegen_stream_read_identifier(ast_reader_t* ast, const char** name) {
     uint16_t index = 0;
     if (!name) return -1;
     if (ast_read_u16(ast->reader, &index) < 0) return -1;
-    *name = codegen_stream_string(ast, index);
+    *name = ast_reader_string(ast, index);
     return *name ? 0 : -1;
 }
 
@@ -230,7 +222,7 @@ static int8_t codegen_stream_read_string(ast_reader_t* ast, const char** value) 
     uint16_t index = 0;
     if (!value) return -1;
     if (ast_read_u16(ast->reader, &index) < 0) return -1;
-    *value = codegen_stream_string(ast, index);
+    *value = ast_reader_string(ast, index);
     return *value ? 0 : -1;
 }
 
@@ -301,12 +293,6 @@ static uint8_t codegen_param_offset_by_id(codegen_t* gen, uint16_t name_index, i
     if (idx < 0) return 0;
     *out_offset = gen->param_offsets[idx];
     return 1;
-}
-
-static uint8_t codegen_param_offset_any(codegen_t* gen, uint16_t name_index,
-                                        const char* name, int16_t* out_offset) {
-    return codegen_param_offset_by_id(gen, name_index, out_offset) ||
-           codegen_param_offset(gen, name, out_offset);
 }
 
 static uint8_t codegen_local_offset(codegen_t* gen, const char* name, int16_t* out_offset) {
@@ -608,14 +594,13 @@ static bool codegen_op_is_compare(uint8_t op) {
 static void codegen_emit_compare(codegen_t* gen, const char* jump1, const char* jump2,
                                  bool output_in_hl, bool use_set_label) {
     char* end = codegen_new_label(gen);
-    char* set = NULL;
     if (output_in_hl) {
         codegen_emit(gen, CG_STR_LD_HL_ZERO);
     } else {
         codegen_emit(gen, CG_STR_LD_A_ZERO);
     }
     if (use_set_label) {
-        set = codegen_new_label(gen);
+        char* set = codegen_new_label(gen);
         if (jump1) {
             codegen_emit_jump(gen, jump1, set);
         }
@@ -860,7 +845,7 @@ static cc_error_t codegen_statement_var_decl(codegen_t* gen, ast_reader_t* ast, 
     if (ast_read_u16(ast->reader, &name_index) < 0) return CC_ERROR_CODEGEN;
     if (ast_reader_read_type_info(ast, &base, &depth) < 0) return CC_ERROR_CODEGEN;
     if (ast_read_u8(ast->reader, &has_init) < 0) return CC_ERROR_CODEGEN;
-    name = codegen_stream_string(ast, name_index);
+    name = ast_reader_string(ast, name_index);
     if (!name) return CC_ERROR_CODEGEN;
     codegen_emit(gen, "; var: ");
     codegen_emit(gen, name);
@@ -868,7 +853,7 @@ static cc_error_t codegen_statement_var_decl(codegen_t* gen, ast_reader_t* ast, 
     if (has_init) {
         uint8_t init_tag = 0;
         if (ast_read_u8(ast->reader, &init_tag) < 0) return CC_ERROR_CODEGEN;
-        bool is_pointer = codegen_stream_type_is_pointer(depth);
+        bool is_pointer = depth > 0;
         bool is_16bit = codegen_stream_type_is_16bit(base, depth);
         if (is_pointer) {
             if (init_tag == AST_TAG_STRING_LITERAL) {
@@ -1044,7 +1029,6 @@ static cc_error_t codegen_statement_for(codegen_t* gen, ast_reader_t* ast, uint8
     uint8_t has_cond = 0;
     uint8_t has_inc = 0;
     uint32_t inc_offset = 0;
-    uint32_t body_end = 0;
     if (ast_read_u8(ast->reader, &has_init) < 0) return CC_ERROR_CODEGEN;
     if (ast_read_u8(ast->reader, &has_cond) < 0) return CC_ERROR_CODEGEN;
     if (ast_read_u8(ast->reader, &has_inc) < 0) return CC_ERROR_CODEGEN;
@@ -1093,8 +1077,8 @@ static cc_error_t codegen_statement_for(codegen_t* gen, ast_reader_t* ast, uint8
     if (err != CC_OK) {
         goto for_cleanup;
     }
-    body_end = reader_tell(ast->reader);
     if (has_inc) {
+        uint32_t body_end = reader_tell(ast->reader);
         if (reader_seek(ast->reader, inc_offset) < 0) {
             err = CC_ERROR_CODEGEN;
             goto for_cleanup;
@@ -1267,7 +1251,7 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
         case AST_TAG_IDENTIFIER: {
             uint16_t name_index = 0;
             if (ast_read_u16(ast->reader, &name_index) < 0) return CC_ERROR_CODEGEN;
-            const char* name = codegen_stream_string(ast, name_index);
+            const char* name = ast_reader_string(ast, name_index);
             if (!name) return CC_ERROR_CODEGEN;
             int16_t offset = 0;
             {
@@ -1279,7 +1263,8 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                         codegen_emit(gen, ")\n  ld l, a\n  ld h, (ix");
                         codegen_emit_ix_offset(gen, offset + 1);
                         codegen_emit(gen, ")\n");
-                    } else if (codegen_param_offset_any(gen, name_index, name, &offset)) {
+                    } else if (codegen_param_offset_by_id(gen, name_index, &offset) ||
+                               codegen_param_offset(gen, name, &offset)) {
                         codegen_emit(gen, "  ld a, (ix");
                         codegen_emit_ix_offset(gen, offset);
                         codegen_emit(gen, ")\n  ld l, a\n  ld h, (ix");
@@ -1298,7 +1283,8 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                     codegen_emit(gen, CG_STR_LD_A_IX_PREFIX);
                     codegen_emit_ix_offset(gen, offset);
                     codegen_emit(gen, ")  ; local: ");
-                } else if (codegen_param_offset_any(gen, name_index, name, &offset)) {
+                } else if (codegen_param_offset_by_id(gen, name_index, &offset) ||
+                           codegen_param_offset(gen, name, &offset)) {
                     codegen_emit(gen, CG_STR_LD_A_IX_PREFIX);
                     codegen_emit_ix_offset(gen, offset);
                     codegen_emit(gen, ")  ; param: ");
@@ -1370,7 +1356,7 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
             uint8_t arg_count = 0;
             if (ast_read_u16(ast->reader, &name_index) < 0) return CC_ERROR_CODEGEN;
             if (ast_read_u8(ast->reader, &arg_count) < 0) return CC_ERROR_CODEGEN;
-            const char* name = codegen_stream_string(ast, name_index);
+            const char* name = ast_reader_string(ast, name_index);
             if (!name) return CC_ERROR_CODEGEN;
             codegen_emit(gen, "; call: ");
             codegen_emit(gen, name);
@@ -1609,7 +1595,7 @@ static int8_t codegen_stream_collect_locals(codegen_t* gen, ast_reader_t* ast) {
             if (ast_read_u16(ast->reader, &name_index) < 0) return -1;
             if (ast_reader_read_type_info(ast, &base, &depth) < 0) return -1;
             if (ast_read_u8(ast->reader, &has_init) < 0) return -1;
-            const char* name = codegen_stream_string(ast, name_index);
+            const char* name = ast_reader_string(ast, name_index);
             if (!name) return -1;
             bool is_16bit = codegen_stream_type_is_16bit(base, depth);
             codegen_record_local(gen, name,
@@ -1673,7 +1659,7 @@ static cc_error_t codegen_stream_function(codegen_t* gen, ast_reader_t* ast) {
     if (ast_read_u16(ast->reader, &name_index) < 0) return CC_ERROR_CODEGEN;
     if (ast_reader_read_type_info(ast, &base, &depth) < 0) return CC_ERROR_CODEGEN;
     if (ast_read_u8(ast->reader, &param_count) < 0) return CC_ERROR_CODEGEN;
-    name = codegen_stream_string(ast, name_index);
+    name = ast_reader_string(ast, name_index);
     if (!name) return CC_ERROR_CODEGEN;
 
     gen->function_return_is_16 = codegen_stream_type_is_16bit(base, depth);
@@ -1699,7 +1685,7 @@ static cc_error_t codegen_stream_function(codegen_t* gen, ast_reader_t* ast) {
         if (ast_read_u8(ast->reader, &has_init) < 0) return CC_ERROR_CODEGEN;
         if (has_init && ast_reader_skip_node(ast) < 0) return CC_ERROR_CODEGEN;
         if (param_used < (uint8_t)(sizeof(g_param_names) / sizeof(g_param_names[0]))) {
-            g_param_names[param_used] = codegen_stream_string(ast, param_name_index);
+            g_param_names[param_used] = ast_reader_string(ast, param_name_index);
             g_param_is_16[param_used] = codegen_stream_type_is_16bit(param_base, param_depth);
             g_param_name_indices[param_used] = param_name_index;
             param_used++;
@@ -1793,9 +1779,9 @@ static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast) {
     if (ast_read_u16(ast->reader, &name_index) < 0) return CC_ERROR_CODEGEN;
     if (ast_reader_read_type_info(ast, &base, &depth) < 0) return CC_ERROR_CODEGEN;
     if (ast_read_u8(ast->reader, &has_init) < 0) return CC_ERROR_CODEGEN;
-    const char* name = codegen_stream_string(ast, name_index);
+    const char* name = ast_reader_string(ast, name_index);
     if (!name) return CC_ERROR_CODEGEN;
-    bool is_pointer = codegen_stream_type_is_pointer(depth);
+    bool is_pointer = depth > 0;
     bool is_16bit = codegen_stream_type_is_16bit(base, depth);
     codegen_emit(gen, "; glob: ");
     codegen_emit(gen, name);
@@ -1942,7 +1928,7 @@ cc_error_t codegen_generate_stream(codegen_t* gen, ast_reader_t* ast) {
             if (ast_read_u16(ast->reader, &name_index) < 0) return CC_ERROR_CODEGEN;
             if (ast_reader_read_type_info(ast, &base, &depth) < 0) return CC_ERROR_CODEGEN;
             if (ast_read_u8(ast->reader, &has_init) < 0) return CC_ERROR_CODEGEN;
-            const char* name = codegen_stream_string(ast, name_index);
+            const char* name = ast_reader_string(ast, name_index);
             if (name && codegen_global_index(gen, name) < 0) {
                 if (gen->global_count < (sizeof(gen->global_names) / sizeof(gen->global_names[0]))) {
                     gen->global_names[gen->global_count] = name;
