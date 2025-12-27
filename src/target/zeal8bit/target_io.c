@@ -104,11 +104,6 @@ void log_error(const char* message) {
     put_s(message);
 }
 
-void log_verbose(const char* message) {
-    /* ZOS doesn't support verbose mode, always log */
-    put_s(message);
-}
-
 output_t output_open(const char* filename) {
     rm(filename); // sometimes O_TRUNC doesn't work as expected?! :shrug:
     zos_dev_t dev = open(filename, O_RDWR | O_CREAT | O_TRUNC);
@@ -130,17 +125,6 @@ int8_t output_write(output_t handle, const char* data, uint16_t len) {
     uint16_t write_size = len;
     zos_err_t err = write(dev, data, &write_size);
     if (err != ERR_SUCCESS || write_size != len) {
-        return -1;
-    }
-    return 0;
-}
-
-int8_t output_seek(output_t handle, uint32_t offset) {
-    if (handle < 0) return -1;
-    zos_dev_t dev = (zos_dev_t)handle;
-    int32_t pos = (int32_t)offset;
-    zos_err_t err = seek(dev, &pos, SEEK_SET);
-    if (err != ERR_SUCCESS) {
         return -1;
     }
     return 0;

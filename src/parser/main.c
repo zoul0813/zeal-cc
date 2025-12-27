@@ -446,11 +446,8 @@ int main(int argc, char** argv) {
 
     cc_init_pool(g_memory_pool, sizeof(g_memory_pool));
 
-    g_ctx.verbose = false;
-    g_ctx.optimize = false;
 
     args = parse_args(argc, argv);
-    if (args.show_help) return 0;
     if (args.error) {
         log_error("Usage: cc_parse <input.c> <output.ast>\n");
         return 1;

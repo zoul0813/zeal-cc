@@ -49,10 +49,6 @@ typedef struct type type_t;
 
 /* Compiler context */
 typedef struct {
-    const char* input_file;
-    const char* output_file;
-    bool verbose;
-    bool optimize;
     uint16_t error_count;
     uint16_t warning_count;
 } compiler_ctx_t;

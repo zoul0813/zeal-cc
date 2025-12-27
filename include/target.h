@@ -11,7 +11,6 @@
 typedef struct {
     char* input_file;
     char* output_file;
-    uint8_t show_help;      /* 1 if help was shown, 0 otherwise */
     uint8_t error;          /* 1 if error occurred, 0 otherwise */
 } args_t;
 
@@ -26,7 +25,7 @@ typedef struct reader reader_t;
 
 /* Parse command line arguments in a platform-specific way.
  * Returns an args_t structure with parsed arguments.
- * Caller should check show_help and error fields. */
+ * Caller should check error field. */
 args_t parse_args(int argc, char** argv);
 
 /* File I/O - streaming reader */
@@ -45,14 +44,11 @@ void log_msg(const char* message);
 /* Print a message to stderr/console */
 void log_error(const char* message);
 
-/* Print formatted message if verbose mode is enabled */
-void log_verbose(const char* message);
 
 /* Streaming output */
 output_t output_open(const char* filename);
 void output_close(output_t handle);
 int8_t output_write(output_t handle, const char* data, uint16_t len);
-int8_t output_seek(output_t handle, uint32_t offset); /* absolute seek from file start */
 uint32_t output_tell(output_t handle);
 
 #endif /* TARGET_H */

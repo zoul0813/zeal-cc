@@ -103,12 +103,6 @@ void log_error(const char* message) {
     fprintf(stderr, "%s", message);
 }
 
-void log_verbose(const char* message) {
-    if (g_ctx.verbose) {
-        printf("%s", message);
-    }
-}
-
 output_t output_open(const char* filename) {
     return fopen(filename, "wb");
 }
@@ -123,11 +117,6 @@ int8_t output_write(output_t handle, const char* data, uint16_t len) {
     if (!handle || !data || len == 0) return -1;
     size_t written = fwrite(data, 1, (size_t)len, (FILE*)handle);
     return (written == (size_t)len) ? 0 : -1;
-}
-
-int8_t output_seek(output_t handle, uint32_t offset) {
-    if (!handle) return -1;
-    return (fseek((FILE*)handle, (long)offset, SEEK_SET) == 0) ? 0 : -1;
 }
 
 uint32_t output_tell(output_t handle) {
