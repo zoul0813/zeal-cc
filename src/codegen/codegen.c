@@ -905,18 +905,7 @@ static cc_error_t codegen_statement_var_decl(codegen_t* gen, ast_reader_t* ast, 
             if (!g_result_in_hl) {
                 codegen_emit(gen, CG_STR_LD_L_A_H_ZERO);
             }
-            if (codegen_local_offset(gen, name, &offset)) {
-                codegen_emit(gen, CG_STR_LD_IX_PREFIX);
-                codegen_emit_ix_offset(gen, offset);
-                codegen_emit(gen, CG_STR_RPAREN_L);
-                codegen_emit(gen, CG_STR_LD_IX_PREFIX);
-                codegen_emit_ix_offset(gen, offset + 1);
-                codegen_emit(gen, CG_STR_RPAREN_H);
-            } else {
-                codegen_emit(gen, CG_STR_LD_LPAREN);
-                codegen_emit_mangled_var(gen, name);
-                codegen_emit(gen, CG_STR_RPAREN_HL);
-            }
+            return codegen_store_pointer_from_hl(gen, name);
         } else {
             if (codegen_local_offset(gen, name, &offset)) {
                 codegen_emit(gen, CG_STR_LD_LPAREN);
@@ -1608,25 +1597,7 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                     if (!g_result_in_hl) {
                         codegen_emit(gen, CG_STR_LD_L_A_H_ZERO);
                     }
-                    if (codegen_local_offset(gen, lvalue_name, &offset)) {
-                        codegen_emit(gen, CG_STR_LD_IX_PREFIX);
-                        codegen_emit_ix_offset(gen, offset);
-                        codegen_emit(gen, CG_STR_RPAREN_L);
-                        codegen_emit(gen, CG_STR_LD_IX_PREFIX);
-                        codegen_emit_ix_offset(gen, offset + 1);
-                        codegen_emit(gen, CG_STR_RPAREN_H);
-                    } else if (codegen_param_offset(gen, lvalue_name, &offset)) {
-                        codegen_emit(gen, CG_STR_LD_IX_PREFIX);
-                        codegen_emit_ix_offset(gen, offset);
-                        codegen_emit(gen, CG_STR_RPAREN_L);
-                        codegen_emit(gen, CG_STR_LD_IX_PREFIX);
-                        codegen_emit_ix_offset(gen, offset + 1);
-                        codegen_emit(gen, CG_STR_RPAREN_H);
-                    } else {
-                        codegen_emit(gen, CG_STR_LD_LPAREN);
-                        codegen_emit_mangled_var(gen, lvalue_name);
-                        codegen_emit(gen, CG_STR_RPAREN_HL);
-                    }
+                    return codegen_store_pointer_from_hl(gen, lvalue_name);
                 } else if (codegen_local_offset(gen, lvalue_name, &offset)) {
                     codegen_emit(gen, CG_STR_LD_IX_PREFIX);
                     codegen_emit_ix_offset(gen, offset);
