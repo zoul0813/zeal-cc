@@ -571,11 +571,56 @@ static void codegen_emit_compare_result(codegen_t* gen, const char* jump1, const
     codegen_emit_jump(gen, CG_STR_JR, end);
     codegen_emit_label(gen, set);
     if (output_in_hl) {
+    codegen_emit(gen, "  ld hl, 1\n");
+    } else {
+        codegen_emit(gen, CG_STR_LD_A_ONE);
+    }
+    codegen_emit_label(gen, end);
+}
+
+static void codegen_emit_compare_fallthrough(codegen_t* gen, const char* jump1, const char* jump2,
+                                             bool output_in_hl) {
+    char* end = codegen_new_label(gen);
+    if (output_in_hl) {
+        codegen_emit(gen, "  ld hl, 0\n");
+    } else {
+        codegen_emit(gen, CG_STR_LD_A_ZERO);
+    }
+    if (jump1) {
+        codegen_emit_jump(gen, jump1, end);
+    }
+    if (jump2) {
+        codegen_emit_jump(gen, jump2, end);
+    }
+    if (output_in_hl) {
         codegen_emit(gen, "  ld hl, 1\n");
     } else {
         codegen_emit(gen, CG_STR_LD_A_ONE);
     }
     codegen_emit_label(gen, end);
+}
+
+typedef struct {
+    uint8_t op;
+    const char* prelude;
+    const char* jump1;
+    const char* jump2;
+} compare_entry_t;
+
+static bool codegen_emit_compare_table(codegen_t* gen, uint8_t op,
+                                       const compare_entry_t* table, size_t count,
+                                       bool output_in_hl) {
+    for (size_t i = 0; i < count; i++) {
+        if (table[i].op != op) {
+            continue;
+        }
+        if (table[i].prelude) {
+            codegen_emit(gen, table[i].prelude);
+        }
+        codegen_emit_compare_result(gen, table[i].jump1, table[i].jump2, output_in_hl);
+        return true;
+    }
+    return false;
 }
 
 static bool codegen_expression_is_16bit_at(codegen_t* gen, ast_reader_t* ast, uint8_t tag) {
@@ -845,6 +890,28 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                     codegen_emit(gen, "  ld l, a\n  ld h, 0\n");
                 }
                 codegen_emit(gen, "  pop de\n");
+                if (codegen_op_is_compare(op)) {
+                    static const compare_entry_t compare16_table[] = {
+                        { OP_EQ, NULL, CG_STR_JR_Z,  NULL },
+                        { OP_NE, NULL, CG_STR_JR_NZ, NULL },
+                        { OP_LT, NULL, CG_STR_JR_C,  NULL },
+                        { OP_LE, NULL, CG_STR_JR_Z,  CG_STR_JR_C },
+                        { OP_GE, NULL, CG_STR_JR_NC, NULL },
+                    };
+                    codegen_emit(gen, "  ex de, hl\n  or a\n  sbc hl, de\n");
+                    if (codegen_emit_compare_table(gen, op, compare16_table,
+                                                   sizeof(compare16_table) / sizeof(compare16_table[0]),
+                                                   output_in_hl)) {
+                        g_result_in_hl = output_in_hl;
+                        return CC_OK;
+                    }
+                    if (op == OP_GT) {
+                        codegen_emit_compare_fallthrough(gen, CG_STR_JR_Z, CG_STR_JR_C, output_in_hl);
+                        g_result_in_hl = output_in_hl;
+                        return CC_OK;
+                    }
+                    return CC_ERROR_CODEGEN;
+                }
                 switch (op) {
                     case OP_ADD:
                         codegen_emit(gen, "  add hl, de\n");
@@ -870,69 +937,10 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                             "  ex de, hl\n"
                             "  call __mod_hl_de\n");
                         break;
-                    case OP_EQ: {
-                        codegen_emit(gen, "  ex de, hl\n  or a\n  sbc hl, de\n");
-                        codegen_emit_compare_result(gen, CG_STR_JR_Z, NULL, output_in_hl);
-                        break;
-                    }
-                    case OP_NE: {
-                        codegen_emit(gen, "  ex de, hl\n  or a\n  sbc hl, de\n");
-                        codegen_emit_compare_result(gen, CG_STR_JR_NZ, NULL, output_in_hl);
-                        break;
-                    }
-                    case OP_LT: {
-                        codegen_emit(gen, "  ex de, hl\n  or a\n  sbc hl, de\n");
-                        codegen_emit_compare_result(gen, CG_STR_JR_C, NULL, output_in_hl);
-                        break;
-                    }
-                    case OP_GT: {
-                        char* end = codegen_new_label(gen);
-                        codegen_emit(gen, "  ex de, hl\n  or a\n  sbc hl, de\n");
-                        if (output_in_hl) {
-                            codegen_emit(gen, "  ld hl, 0\n");
-                        } else {
-                            codegen_emit(gen, CG_STR_LD_A_ZERO);
-                        }
-                        codegen_emit_jump(gen, CG_STR_JR_Z, end);
-                        codegen_emit_jump(gen, CG_STR_JR_C, end);
-                        if (output_in_hl) {
-                            codegen_emit(gen, "  ld hl, 1\n");
-                        } else {
-                            codegen_emit(gen, CG_STR_LD_A_ONE);
-                        }
-                        codegen_emit_label(gen, end);
-                        break;
-                    }
-                    case OP_LE: {
-                        codegen_emit(gen, "  ex de, hl\n  or a\n  sbc hl, de\n");
-                        codegen_emit_compare_result(gen, CG_STR_JR_Z, CG_STR_JR_C, output_in_hl);
-                        break;
-                    }
-                    case OP_GE: {
-                        char* end = codegen_new_label(gen);
-                        codegen_emit(gen, "  ex de, hl\n  or a\n  sbc hl, de\n");
-                        if (output_in_hl) {
-                            codegen_emit(gen, "  ld hl, 0\n");
-                        } else {
-                            codegen_emit(gen, CG_STR_LD_A_ZERO);
-                        }
-                        codegen_emit_jump(gen, CG_STR_JR_C, end);
-                        if (output_in_hl) {
-                            codegen_emit(gen, "  ld hl, 1\n");
-                        } else {
-                            codegen_emit(gen, CG_STR_LD_A_ONE);
-                        }
-                        codegen_emit_label(gen, end);
-                        break;
-                    }
                     default:
                         return CC_ERROR_CODEGEN;
                 }
-                if (is_compare) {
-                    g_result_in_hl = output_in_hl;
-                } else {
-                    g_result_in_hl = true;
-                }
+                g_result_in_hl = true;
                 return CC_OK;
             } else {
                 cc_error_t err = codegen_stream_expression_tag(gen, ast, left_tag);
@@ -943,6 +951,30 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                 err = codegen_stream_expression_tag(gen, ast, right_tag);
                 if (err != CC_OK) return err;
                 codegen_emit(gen, CG_STR_LD_L_A_POP_AF);
+                if (codegen_op_is_compare(op)) {
+                    static const compare_entry_t compare8_table[] = {
+                        { OP_EQ, "; (A == L)\n  cp l\n", CG_STR_JR_Z,  NULL },
+                        { OP_NE, "; (A != L)\n  cp l\n", CG_STR_JR_NZ, NULL },
+                        { OP_LT, "; (A < L)\n  cp l\n", CG_STR_JR_C,  NULL },
+                        { OP_LE, "; (A <= L)\n  sub l\n", CG_STR_JR_Z, CG_STR_JR_C },
+                        { OP_GE, "; (A >= L)\n  cp l\n", CG_STR_JR_NC, NULL },
+                    };
+                    if (codegen_emit_compare_table(gen, op, compare8_table,
+                                                   sizeof(compare8_table) / sizeof(compare8_table[0]),
+                                                   false)) {
+                        g_result_in_hl = false;
+                        return CC_OK;
+                    }
+                    if (op == OP_GT) {
+                        codegen_emit(gen,
+                            "; (A > L)\n"
+                            "  sub l\n");
+                        codegen_emit_compare_fallthrough(gen, CG_STR_JR_Z, CG_STR_JR_C, false);
+                        g_result_in_hl = false;
+                        return CC_OK;
+                    }
+                    return CC_ERROR_CODEGEN;
+                }
                 switch (op) {
                     case OP_ADD:
                         codegen_emit(gen, CG_STR_ADD_A_L);
@@ -966,54 +998,17 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                             "  call __mod_a_l\n");
                         break;
                     case OP_EQ:
-                        codegen_emit(gen,
-                            "; (A == L)\n"
-                            "  cp l\n");
-                        codegen_emit_compare_result(gen, CG_STR_JR_Z, NULL, false);
-                        break;
+                        return CC_ERROR_CODEGEN;
                     case OP_NE:
-                        codegen_emit(gen,
-                            "; (A != L)\n"
-                            "  cp l\n");
-                        codegen_emit_compare_result(gen, CG_STR_JR_NZ, NULL, false);
-                        break;
+                        return CC_ERROR_CODEGEN;
                     case OP_LT:
-                        codegen_emit(gen,
-                            "; (A < L)\n"
-                            "  cp l\n");
-                        codegen_emit_compare_result(gen, CG_STR_JR_C, NULL, false);
-                        break;
+                        return CC_ERROR_CODEGEN;
                     case OP_GT:
-                        codegen_emit(gen,
-                            "; (A > L)\n"
-                            "  sub l\n");
-                        codegen_emit(gen, CG_STR_LD_A_ZERO);
-                        {
-                            char* end = codegen_new_label(gen);
-                            codegen_emit_jump(gen, CG_STR_JR_Z, end);
-                            codegen_emit_jump(gen, CG_STR_JR_C, end);
-                            codegen_emit(gen, CG_STR_LD_A_ONE);
-                            codegen_emit_label(gen, end);
-                        }
-                        break;
+                        return CC_ERROR_CODEGEN;
                     case OP_LE:
-                        codegen_emit(gen,
-                            "; (A <= L)\n"
-                            "  sub l\n");
-                        codegen_emit_compare_result(gen, CG_STR_JR_Z, CG_STR_JR_C, false);
-                        break;
+                        return CC_ERROR_CODEGEN;
                     case OP_GE:
-                        codegen_emit(gen,
-                            "; (A >= L)\n"
-                            "  cp l\n");
-                        codegen_emit(gen, CG_STR_LD_A_ZERO);
-                        {
-                            char* end = codegen_new_label(gen);
-                            codegen_emit_jump(gen, CG_STR_JR_C, end);
-                            codegen_emit(gen, CG_STR_LD_A_ONE);
-                            codegen_emit_label(gen, end);
-                        }
-                        break;
+                        return CC_ERROR_CODEGEN;
                     default:
                         return CC_ERROR_CODEGEN;
                 }
