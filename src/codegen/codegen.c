@@ -738,6 +738,365 @@ static cc_error_t codegen_emit_binary_op_a(codegen_t* gen, ast_reader_t* ast, ui
     return CC_OK;
 }
 
+typedef cc_error_t (*statement_handler_t)(codegen_t* gen, ast_reader_t* ast, uint8_t tag);
+
+static cc_error_t codegen_statement_return(codegen_t* gen, ast_reader_t* ast, uint8_t tag) {
+    (void)tag;
+    uint8_t has_expr = 0;
+    if (ast_read_u8(ast->reader, &has_expr) < 0) return CC_ERROR_CODEGEN;
+    if (has_expr) {
+        uint8_t expr_tag = 0;
+        if (ast_read_u8(ast->reader, &expr_tag) < 0) return CC_ERROR_CODEGEN;
+        bool prev_expect = g_expect_result_in_hl;
+        bool expect_hl = gen->function_return_is_16 &&
+                         (expr_tag == AST_TAG_CONSTANT ||
+                          expr_tag == AST_TAG_IDENTIFIER ||
+                          expr_tag == AST_TAG_CALL ||
+                          expr_tag == AST_TAG_BINARY_OP);
+        g_expect_result_in_hl = expect_hl;
+        cc_error_t err = codegen_stream_expression_tag(gen, ast, expr_tag);
+        g_expect_result_in_hl = prev_expect;
+        if (err != CC_OK) return err;
+        if (gen->function_return_is_16) {
+            if (!g_result_in_hl) {
+                codegen_emit(gen, CG_STR_LD_L_A_H_ZERO);
+                g_result_in_hl = true;
+            }
+        } else if (g_result_in_hl) {
+            codegen_emit(gen, "  ld a, l\n");
+            g_result_in_hl = false;
+        }
+    } else {
+        if (gen->function_return_is_16) {
+            codegen_emit(gen, CG_STR_LD_HL_ZERO);
+            g_result_in_hl = true;
+        } else {
+            codegen_emit(gen, CG_STR_LD_A_ZERO);
+            g_result_in_hl = false;
+        }
+    }
+    bool preserve_hl = gen->function_return_is_16;
+    if (gen->return_direct || !gen->function_end_label) {
+        if (preserve_hl) {
+            codegen_emit(gen, "  ld b, h\n  ld c, l\n");
+        }
+        if (gen->stack_offset > 0) {
+            codegen_emit_stack_adjust(gen, gen->stack_offset, false);
+        }
+        if (preserve_hl) {
+            codegen_emit(gen, "  ld h, b\n  ld l, c\n");
+        }
+        codegen_emit(gen, CG_STR_POP_IX_RET);
+    } else {
+        gen->use_function_end_label = true;
+        codegen_emit_jump(gen, CG_STR_JP, gen->function_end_label);
+    }
+    return CC_OK;
+}
+
+static cc_error_t codegen_statement_var_decl(codegen_t* gen, ast_reader_t* ast, uint8_t tag) {
+    (void)tag;
+    uint16_t name_index = 0;
+    uint8_t has_init = 0;
+    uint8_t base = 0;
+    uint8_t depth = 0;
+    const char* name = NULL;
+    if (ast_read_u16(ast->reader, &name_index) < 0) return CC_ERROR_CODEGEN;
+    if (ast_reader_read_type_info(ast, &base, &depth) < 0) return CC_ERROR_CODEGEN;
+    if (ast_read_u8(ast->reader, &has_init) < 0) return CC_ERROR_CODEGEN;
+    name = codegen_stream_string(ast, name_index);
+    if (!name) return CC_ERROR_CODEGEN;
+    codegen_emit(gen, "; var: ");
+    codegen_emit(gen, name);
+    codegen_emit(gen, CG_STR_NL);
+    if (has_init) {
+        uint8_t init_tag = 0;
+        if (ast_read_u8(ast->reader, &init_tag) < 0) return CC_ERROR_CODEGEN;
+        bool is_pointer = codegen_stream_type_is_pointer(depth);
+        bool is_16bit = codegen_stream_type_is_16bit(base, depth);
+        if (is_pointer) {
+            if (init_tag == AST_TAG_STRING_LITERAL) {
+                const char* init_str = NULL;
+                if (codegen_stream_read_string(ast, &init_str) < 0) return CC_ERROR_CODEGEN;
+                const char* label = codegen_get_string_label(gen, init_str);
+                if (!label) return CC_ERROR_CODEGEN;
+                codegen_emit(gen, CG_STR_LD_HL);
+                codegen_emit(gen, label);
+                codegen_emit(gen, CG_STR_NL);
+                return codegen_store_pointer_from_hl(gen, name);
+            }
+            if (init_tag == AST_TAG_UNARY_OP) {
+                uint8_t op = 0;
+                uint8_t operand_tag = 0;
+                if (ast_read_u8(ast->reader, &op) < 0) return CC_ERROR_CODEGEN;
+                if (ast_read_u8(ast->reader, &operand_tag) < 0) return CC_ERROR_CODEGEN;
+                if (op == OP_ADDR && operand_tag == AST_TAG_IDENTIFIER) {
+                    const char* ident = NULL;
+                    if (codegen_stream_read_identifier(ast, &ident) < 0) return CC_ERROR_CODEGEN;
+                    cc_error_t err = codegen_emit_address_of_identifier(gen, ident);
+                    if (err != CC_OK) return err;
+                    return codegen_store_pointer_from_hl(gen, name);
+                }
+                ast_reader_skip_tag(ast, operand_tag);
+                return CC_ERROR_CODEGEN;
+            }
+            if (init_tag == AST_TAG_IDENTIFIER) {
+                const char* ident = NULL;
+                if (codegen_stream_read_identifier(ast, &ident) < 0) return CC_ERROR_CODEGEN;
+                if (codegen_local_is_16(gen, ident) ||
+                    codegen_param_is_16(gen, ident) ||
+                    codegen_global_is_16(gen, ident)) {
+                    cc_error_t err = codegen_load_pointer_to_hl(gen, ident);
+                    if (err != CC_OK) return err;
+                    return codegen_store_pointer_from_hl(gen, name);
+                }
+                return CC_ERROR_CODEGEN;
+            }
+            if (init_tag == AST_TAG_CONSTANT) {
+                int16_t val = 0;
+                if (ast_read_i16(ast->reader, &val) < 0) return CC_ERROR_CODEGEN;
+                if (val == 0) {
+                    codegen_emit(gen, CG_STR_LD_HL_ZERO);
+                    return codegen_store_pointer_from_hl(gen, name);
+                }
+                return CC_ERROR_CODEGEN;
+            }
+            ast_reader_skip_tag(ast, init_tag);
+            return CC_ERROR_CODEGEN;
+        }
+        bool prev_expect = g_expect_result_in_hl;
+        bool expect_hl = is_16bit &&
+                         (init_tag == AST_TAG_CONSTANT ||
+                          init_tag == AST_TAG_IDENTIFIER ||
+                          init_tag == AST_TAG_CALL ||
+                          init_tag == AST_TAG_BINARY_OP);
+        g_expect_result_in_hl = expect_hl;
+        cc_error_t err = codegen_stream_expression_tag(gen, ast, init_tag);
+        g_expect_result_in_hl = prev_expect;
+        if (err != CC_OK) return err;
+        int16_t offset = 0;
+        if (is_16bit) {
+            if (!g_result_in_hl) {
+                codegen_emit(gen, CG_STR_LD_L_A_H_ZERO);
+            }
+            if (codegen_local_offset(gen, name, &offset)) {
+                codegen_emit(gen, CG_STR_LD_IX_PREFIX);
+                codegen_emit_ix_offset(gen, offset);
+                codegen_emit(gen, CG_STR_RPAREN_L);
+                codegen_emit(gen, CG_STR_LD_IX_PREFIX);
+                codegen_emit_ix_offset(gen, offset + 1);
+                codegen_emit(gen, CG_STR_RPAREN_H);
+            } else {
+                codegen_emit(gen, CG_STR_LD_LPAREN);
+                codegen_emit_mangled_var(gen, name);
+                codegen_emit(gen, CG_STR_RPAREN_HL);
+            }
+        } else {
+            if (codegen_local_offset(gen, name, &offset)) {
+                codegen_emit(gen, CG_STR_LD_LPAREN);
+                codegen_emit_ix_offset(gen, offset);
+                codegen_emit(gen, CG_STR_RPAREN_A);
+            } else {
+                codegen_emit(gen, CG_STR_LD_LPAREN);
+                codegen_emit_mangled_var(gen, name);
+                codegen_emit(gen, CG_STR_RPAREN_A);
+            }
+        }
+    }
+    return CC_OK;
+}
+
+static cc_error_t codegen_statement_compound(codegen_t* gen, ast_reader_t* ast, uint8_t tag) {
+    (void)tag;
+    uint16_t stmt_count = 0;
+    if (ast_read_u16(ast->reader, &stmt_count) < 0) return CC_ERROR_CODEGEN;
+    for (uint16_t i = 0; i < stmt_count; i++) {
+        uint8_t stmt_tag = 0;
+        if (ast_read_u8(ast->reader, &stmt_tag) < 0) return CC_ERROR_CODEGEN;
+        cc_error_t err = codegen_stream_statement_tag(gen, ast, stmt_tag);
+        if (err != CC_OK) return err;
+    }
+    return CC_OK;
+}
+
+static cc_error_t codegen_statement_if(codegen_t* gen, ast_reader_t* ast, uint8_t tag) {
+    (void)tag;
+    uint8_t has_else = 0;
+    char* else_label = NULL;
+    char* end_label = NULL;
+    if (ast_read_u8(ast->reader, &has_else) < 0) return CC_ERROR_CODEGEN;
+    uint8_t cond_tag = 0;
+    if (ast_read_u8(ast->reader, &cond_tag) < 0) return CC_ERROR_CODEGEN;
+    cc_error_t err = codegen_stream_expression_tag(gen, ast, cond_tag);
+    if (err != CC_OK) return err;
+    if (has_else) {
+        else_label = codegen_new_label_persist(gen);
+        end_label = codegen_new_label_persist(gen);
+        codegen_emit_jump(gen, CG_STR_OR_A_JP_Z, else_label);
+        uint8_t then_tag = 0;
+        if (ast_read_u8(ast->reader, &then_tag) < 0) {
+            err = CC_ERROR_CODEGEN;
+            goto if_cleanup;
+        }
+        err = codegen_stream_statement_tag(gen, ast, then_tag);
+        if (err != CC_OK) {
+            goto if_cleanup;
+        }
+        codegen_emit_jump(gen, CG_STR_JP, end_label);
+        codegen_emit_label(gen, else_label);
+        uint8_t else_tag = 0;
+        if (ast_read_u8(ast->reader, &else_tag) < 0) {
+            err = CC_ERROR_CODEGEN;
+            goto if_cleanup;
+        }
+        err = codegen_stream_statement_tag(gen, ast, else_tag);
+        if (err != CC_OK) {
+            goto if_cleanup;
+        }
+        codegen_emit_label(gen, end_label);
+    } else {
+        end_label = codegen_new_label_persist(gen);
+        codegen_emit_jump(gen, CG_STR_OR_A_JP_Z, end_label);
+        uint8_t then_tag = 0;
+        if (ast_read_u8(ast->reader, &then_tag) < 0) {
+            err = CC_ERROR_CODEGEN;
+            goto if_cleanup;
+        }
+        err = codegen_stream_statement_tag(gen, ast, then_tag);
+        if (err != CC_OK) {
+            goto if_cleanup;
+        }
+        codegen_emit_label(gen, end_label);
+    }
+    err = CC_OK;
+if_cleanup:
+    if (else_label) cc_free(else_label);
+    if (end_label) cc_free(end_label);
+    return err;
+}
+
+static cc_error_t codegen_statement_while(codegen_t* gen, ast_reader_t* ast, uint8_t tag) {
+    (void)tag;
+    char* loop_label = codegen_new_label_persist(gen);
+    char* end_label = codegen_new_label_persist(gen);
+    cc_error_t err = CC_OK;
+    codegen_emit_label(gen, loop_label);
+    uint8_t cond_tag = 0;
+    if (ast_read_u8(ast->reader, &cond_tag) < 0) {
+        err = CC_ERROR_CODEGEN;
+        goto while_cleanup;
+    }
+    err = codegen_stream_expression_tag(gen, ast, cond_tag);
+    if (err != CC_OK) {
+        goto while_cleanup;
+    }
+    codegen_emit_jump(gen, CG_STR_OR_A_JP_Z, end_label);
+    uint8_t body_tag = 0;
+    if (ast_read_u8(ast->reader, &body_tag) < 0) {
+        err = CC_ERROR_CODEGEN;
+        goto while_cleanup;
+    }
+    err = codegen_stream_statement_tag(gen, ast, body_tag);
+    if (err != CC_OK) {
+        goto while_cleanup;
+    }
+    codegen_emit_jump(gen, CG_STR_JP, loop_label);
+    codegen_emit_label(gen, end_label);
+    err = CC_OK;
+while_cleanup:
+    if (loop_label) cc_free(loop_label);
+    if (end_label) cc_free(end_label);
+    return err;
+}
+
+static cc_error_t codegen_statement_for(codegen_t* gen, ast_reader_t* ast, uint8_t tag) {
+    (void)tag;
+    uint8_t has_init = 0;
+    uint8_t has_cond = 0;
+    uint8_t has_inc = 0;
+    uint32_t inc_offset = 0;
+    uint32_t body_end = 0;
+    if (ast_read_u8(ast->reader, &has_init) < 0) return CC_ERROR_CODEGEN;
+    if (ast_read_u8(ast->reader, &has_cond) < 0) return CC_ERROR_CODEGEN;
+    if (ast_read_u8(ast->reader, &has_inc) < 0) return CC_ERROR_CODEGEN;
+    char* loop_label = codegen_new_label_persist(gen);
+    char* end_label = codegen_new_label_persist(gen);
+    cc_error_t err;
+    if (has_init) {
+        uint8_t init_tag = 0;
+        if (ast_read_u8(ast->reader, &init_tag) < 0) {
+            err = CC_ERROR_CODEGEN;
+            goto for_cleanup;
+        }
+        err = codegen_stream_statement_tag(gen, ast, init_tag);
+        if (err != CC_OK) {
+            goto for_cleanup;
+        }
+    }
+    codegen_emit_label(gen, loop_label);
+    if (has_cond) {
+        uint8_t cond_tag = 0;
+        if (ast_read_u8(ast->reader, &cond_tag) < 0) {
+            err = CC_ERROR_CODEGEN;
+            goto for_cleanup;
+        }
+        err = codegen_stream_expression_tag(gen, ast, cond_tag);
+        if (err != CC_OK) {
+            goto for_cleanup;
+        }
+        codegen_emit_jump(gen, CG_STR_OR_A_JP_Z, end_label);
+    }
+    if (has_inc) {
+        inc_offset = reader_tell(ast->reader);
+        if (ast_reader_skip_node(ast) < 0) {
+            err = CC_ERROR_CODEGEN;
+            goto for_cleanup;
+        }
+    }
+    {
+        uint8_t body_tag = 0;
+        if (ast_read_u8(ast->reader, &body_tag) < 0) {
+            err = CC_ERROR_CODEGEN;
+            goto for_cleanup;
+        }
+        err = codegen_stream_statement_tag(gen, ast, body_tag);
+    }
+    if (err != CC_OK) {
+        goto for_cleanup;
+    }
+    body_end = reader_tell(ast->reader);
+    if (has_inc) {
+        if (reader_seek(ast->reader, inc_offset) < 0) {
+            err = CC_ERROR_CODEGEN;
+            goto for_cleanup;
+        }
+        uint8_t inc_tag = 0;
+        if (ast_read_u8(ast->reader, &inc_tag) < 0) {
+            err = CC_ERROR_CODEGEN;
+            goto for_cleanup;
+        }
+        err = codegen_stream_expression_tag(gen, ast, inc_tag);
+        if (err != CC_OK) {
+            goto for_cleanup;
+        }
+        if (reader_seek(ast->reader, body_end) < 0) {
+            err = CC_ERROR_CODEGEN;
+            goto for_cleanup;
+        }
+    }
+    codegen_emit_jump(gen, CG_STR_JP, loop_label);
+    codegen_emit_label(gen, end_label);
+    err = CC_OK;
+for_cleanup:
+    if (loop_label) cc_free(loop_label);
+    if (end_label) cc_free(end_label);
+    return err;
+}
+
+static cc_error_t codegen_statement_expr(codegen_t* gen, ast_reader_t* ast, uint8_t tag) {
+    return codegen_stream_expression_tag(gen, ast, tag);
+}
+
 static bool codegen_emit_compare_table(codegen_t* gen, uint8_t op,
                                        const compare_entry_t* table, size_t count,
                                        bool output_in_hl) {
@@ -1300,354 +1659,25 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
 }
 
 static cc_error_t codegen_stream_statement_tag(codegen_t* gen, ast_reader_t* ast, uint8_t tag) {
-    switch (tag) {
-        case AST_TAG_RETURN_STMT: {
-            uint8_t has_expr = 0;
-            if (ast_read_u8(ast->reader, &has_expr) < 0) return CC_ERROR_CODEGEN;
-            if (has_expr) {
-                uint8_t expr_tag = 0;
-                if (ast_read_u8(ast->reader, &expr_tag) < 0) return CC_ERROR_CODEGEN;
-                bool prev_expect = g_expect_result_in_hl;
-                bool expect_hl = gen->function_return_is_16 &&
-                                 (expr_tag == AST_TAG_CONSTANT ||
-                                  expr_tag == AST_TAG_IDENTIFIER ||
-                                  expr_tag == AST_TAG_CALL ||
-                                  expr_tag == AST_TAG_BINARY_OP);
-                g_expect_result_in_hl = expect_hl;
-                cc_error_t err = codegen_stream_expression_tag(gen, ast, expr_tag);
-                g_expect_result_in_hl = prev_expect;
-                if (err != CC_OK) return err;
-                if (gen->function_return_is_16) {
-                    if (!g_result_in_hl) {
-                        codegen_emit(gen, CG_STR_LD_L_A_H_ZERO);
-                        g_result_in_hl = true;
-                    }
-                } else if (g_result_in_hl) {
-                    codegen_emit(gen, "  ld a, l\n");
-                    g_result_in_hl = false;
-                }
-            } else {
-                if (gen->function_return_is_16) {
-                    codegen_emit(gen, CG_STR_LD_HL_ZERO);
-                    g_result_in_hl = true;
-                } else {
-                    codegen_emit(gen, CG_STR_LD_A_ZERO);
-                    g_result_in_hl = false;
-                }
-            }
-            bool preserve_hl = gen->function_return_is_16;
-            if (gen->return_direct || !gen->function_end_label) {
-                if (preserve_hl) {
-                    codegen_emit(gen, "  ld b, h\n  ld c, l\n");
-                }
-                if (gen->stack_offset > 0) {
-                    codegen_emit_stack_adjust(gen, gen->stack_offset, false);
-                }
-                if (preserve_hl) {
-                    codegen_emit(gen, "  ld h, b\n  ld l, c\n");
-                }
-                codegen_emit(gen, CG_STR_POP_IX_RET);
-            } else {
-                gen->use_function_end_label = true;
-                codegen_emit_jump(gen, CG_STR_JP, gen->function_end_label);
-            }
-            return CC_OK;
+    static const struct {
+        uint8_t tag;
+        statement_handler_t handler;
+    } handlers[] = {
+        { AST_TAG_RETURN_STMT, codegen_statement_return },
+        { AST_TAG_VAR_DECL, codegen_statement_var_decl },
+        { AST_TAG_COMPOUND_STMT, codegen_statement_compound },
+        { AST_TAG_IF_STMT, codegen_statement_if },
+        { AST_TAG_WHILE_STMT, codegen_statement_while },
+        { AST_TAG_FOR_STMT, codegen_statement_for },
+        { AST_TAG_ASSIGN, codegen_statement_expr },
+        { AST_TAG_CALL, codegen_statement_expr },
+    };
+    for (size_t i = 0; i < (sizeof(handlers) / sizeof(handlers[0])); i++) {
+        if (handlers[i].tag == tag) {
+            return handlers[i].handler(gen, ast, tag);
         }
-        case AST_TAG_VAR_DECL: {
-            uint16_t name_index = 0;
-            uint8_t has_init = 0;
-            uint8_t base = 0;
-            uint8_t depth = 0;
-            const char* name = NULL;
-            if (ast_read_u16(ast->reader, &name_index) < 0) return CC_ERROR_CODEGEN;
-            if (ast_reader_read_type_info(ast, &base, &depth) < 0) return CC_ERROR_CODEGEN;
-            if (ast_read_u8(ast->reader, &has_init) < 0) return CC_ERROR_CODEGEN;
-            name = codegen_stream_string(ast, name_index);
-            if (!name) return CC_ERROR_CODEGEN;
-            codegen_emit(gen, "; var: ");
-            codegen_emit(gen, name);
-            codegen_emit(gen, CG_STR_NL);
-            if (has_init) {
-                uint8_t init_tag = 0;
-                if (ast_read_u8(ast->reader, &init_tag) < 0) return CC_ERROR_CODEGEN;
-                bool is_pointer = codegen_stream_type_is_pointer(depth);
-                bool is_16bit = codegen_stream_type_is_16bit(base, depth);
-                if (is_pointer) {
-                    if (init_tag == AST_TAG_STRING_LITERAL) {
-                        const char* init_str = NULL;
-                        if (codegen_stream_read_string(ast, &init_str) < 0) return CC_ERROR_CODEGEN;
-                        const char* label = codegen_get_string_label(gen, init_str);
-                        if (!label) return CC_ERROR_CODEGEN;
-                        codegen_emit(gen, CG_STR_LD_HL);
-                        codegen_emit(gen, label);
-                        codegen_emit(gen, CG_STR_NL);
-                        return codegen_store_pointer_from_hl(gen, name);
-                    }
-                    if (init_tag == AST_TAG_UNARY_OP) {
-                        uint8_t op = 0;
-                        uint8_t operand_tag = 0;
-                        if (ast_read_u8(ast->reader, &op) < 0) return CC_ERROR_CODEGEN;
-                        if (ast_read_u8(ast->reader, &operand_tag) < 0) return CC_ERROR_CODEGEN;
-                        if (op == OP_ADDR && operand_tag == AST_TAG_IDENTIFIER) {
-                            const char* ident = NULL;
-                            if (codegen_stream_read_identifier(ast, &ident) < 0) return CC_ERROR_CODEGEN;
-                            cc_error_t err = codegen_emit_address_of_identifier(gen, ident);
-                            if (err != CC_OK) return err;
-                            return codegen_store_pointer_from_hl(gen, name);
-                        }
-                        ast_reader_skip_tag(ast, operand_tag);
-                        return CC_ERROR_CODEGEN;
-                    }
-                    if (init_tag == AST_TAG_IDENTIFIER) {
-                        const char* ident = NULL;
-                        if (codegen_stream_read_identifier(ast, &ident) < 0) return CC_ERROR_CODEGEN;
-                        if (codegen_local_is_16(gen, ident) ||
-                            codegen_param_is_16(gen, ident) ||
-                            codegen_global_is_16(gen, ident)) {
-                            cc_error_t err = codegen_load_pointer_to_hl(gen, ident);
-                            if (err != CC_OK) return err;
-                            return codegen_store_pointer_from_hl(gen, name);
-                        }
-                        return CC_ERROR_CODEGEN;
-                    }
-                    if (init_tag == AST_TAG_CONSTANT) {
-                        int16_t val = 0;
-                        if (ast_read_i16(ast->reader, &val) < 0) return CC_ERROR_CODEGEN;
-                        if (val == 0) {
-                            codegen_emit(gen, CG_STR_LD_HL_ZERO);
-                            return codegen_store_pointer_from_hl(gen, name);
-                        }
-                        return CC_ERROR_CODEGEN;
-                    }
-                    ast_reader_skip_tag(ast, init_tag);
-                    return CC_ERROR_CODEGEN;
-                }
-                bool prev_expect = g_expect_result_in_hl;
-                bool expect_hl = is_16bit &&
-                                 (init_tag == AST_TAG_CONSTANT ||
-                                  init_tag == AST_TAG_IDENTIFIER ||
-                                  init_tag == AST_TAG_CALL ||
-                                  init_tag == AST_TAG_BINARY_OP);
-                g_expect_result_in_hl = expect_hl;
-                cc_error_t err = codegen_stream_expression_tag(gen, ast, init_tag);
-                g_expect_result_in_hl = prev_expect;
-                if (err != CC_OK) return err;
-                int16_t offset = 0;
-                if (is_16bit) {
-                    if (!g_result_in_hl) {
-                        codegen_emit(gen, CG_STR_LD_L_A_H_ZERO);
-                    }
-                    if (codegen_local_offset(gen, name, &offset)) {
-                        codegen_emit(gen, CG_STR_LD_IX_PREFIX);
-                        codegen_emit_ix_offset(gen, offset);
-                        codegen_emit(gen, CG_STR_RPAREN_L);
-                        codegen_emit(gen, CG_STR_LD_IX_PREFIX);
-                        codegen_emit_ix_offset(gen, offset + 1);
-                        codegen_emit(gen, CG_STR_RPAREN_H);
-                    } else {
-                        codegen_emit(gen, CG_STR_LD_LPAREN);
-                        codegen_emit_mangled_var(gen, name);
-                        codegen_emit(gen, CG_STR_RPAREN_HL);
-                    }
-                } else {
-                    if (codegen_local_offset(gen, name, &offset)) {
-                        codegen_emit(gen, CG_STR_LD_LPAREN);
-                        codegen_emit_ix_offset(gen, offset);
-                        codegen_emit(gen, CG_STR_RPAREN_A);
-                    } else {
-                        codegen_emit(gen, CG_STR_LD_LPAREN);
-                        codegen_emit_mangled_var(gen, name);
-                        codegen_emit(gen, CG_STR_RPAREN_A);
-                    }
-                }
-            }
-            return CC_OK;
-        }
-        case AST_TAG_COMPOUND_STMT: {
-            uint16_t stmt_count = 0;
-            if (ast_read_u16(ast->reader, &stmt_count) < 0) return CC_ERROR_CODEGEN;
-            for (uint16_t i = 0; i < stmt_count; i++) {
-                uint8_t stmt_tag = 0;
-                if (ast_read_u8(ast->reader, &stmt_tag) < 0) return CC_ERROR_CODEGEN;
-                cc_error_t err = codegen_stream_statement_tag(gen, ast, stmt_tag);
-                if (err != CC_OK) return err;
-            }
-            return CC_OK;
-        }
-        case AST_TAG_IF_STMT: {
-            uint8_t has_else = 0;
-            char* else_label = NULL;
-            char* end_label = NULL;
-            if (ast_read_u8(ast->reader, &has_else) < 0) return CC_ERROR_CODEGEN;
-            uint8_t cond_tag = 0;
-            if (ast_read_u8(ast->reader, &cond_tag) < 0) return CC_ERROR_CODEGEN;
-            cc_error_t err = codegen_stream_expression_tag(gen, ast, cond_tag);
-            if (err != CC_OK) return err;
-            if (has_else) {
-                else_label = codegen_new_label_persist(gen);
-                end_label = codegen_new_label_persist(gen);
-                codegen_emit_jump(gen, CG_STR_OR_A_JP_Z, else_label);
-                uint8_t then_tag = 0;
-                if (ast_read_u8(ast->reader, &then_tag) < 0) {
-                    err = CC_ERROR_CODEGEN;
-                    goto if_cleanup;
-                }
-                err = codegen_stream_statement_tag(gen, ast, then_tag);
-                if (err != CC_OK) {
-                    goto if_cleanup;
-                }
-                codegen_emit_jump(gen, CG_STR_JP, end_label);
-                codegen_emit_label(gen, else_label);
-                uint8_t else_tag = 0;
-                if (ast_read_u8(ast->reader, &else_tag) < 0) {
-                    err = CC_ERROR_CODEGEN;
-                    goto if_cleanup;
-                }
-                err = codegen_stream_statement_tag(gen, ast, else_tag);
-                if (err != CC_OK) {
-                    goto if_cleanup;
-                }
-                codegen_emit_label(gen, end_label);
-            } else {
-                end_label = codegen_new_label_persist(gen);
-                codegen_emit_jump(gen, CG_STR_OR_A_JP_Z, end_label);
-                uint8_t then_tag = 0;
-                if (ast_read_u8(ast->reader, &then_tag) < 0) {
-                    err = CC_ERROR_CODEGEN;
-                    goto if_cleanup;
-                }
-                err = codegen_stream_statement_tag(gen, ast, then_tag);
-                if (err != CC_OK) {
-                    goto if_cleanup;
-                }
-                codegen_emit_label(gen, end_label);
-            }
-            err = CC_OK;
-if_cleanup:
-            if (else_label) cc_free(else_label);
-            if (end_label) cc_free(end_label);
-            return err;
-        }
-        case AST_TAG_WHILE_STMT: {
-            char* loop_label = codegen_new_label_persist(gen);
-            char* end_label = codegen_new_label_persist(gen);
-            cc_error_t err = CC_OK;
-            codegen_emit_label(gen, loop_label);
-            uint8_t cond_tag = 0;
-            if (ast_read_u8(ast->reader, &cond_tag) < 0) {
-                err = CC_ERROR_CODEGEN;
-                goto while_cleanup;
-            }
-            err = codegen_stream_expression_tag(gen, ast, cond_tag);
-            if (err != CC_OK) {
-                goto while_cleanup;
-            }
-            codegen_emit_jump(gen, CG_STR_OR_A_JP_Z, end_label);
-            uint8_t body_tag = 0;
-            if (ast_read_u8(ast->reader, &body_tag) < 0) {
-                err = CC_ERROR_CODEGEN;
-                goto while_cleanup;
-            }
-            err = codegen_stream_statement_tag(gen, ast, body_tag);
-            if (err != CC_OK) {
-                goto while_cleanup;
-            }
-            codegen_emit_jump(gen, CG_STR_JP, loop_label);
-            codegen_emit_label(gen, end_label);
-            err = CC_OK;
-while_cleanup:
-            if (loop_label) cc_free(loop_label);
-            if (end_label) cc_free(end_label);
-            return err;
-        }
-        case AST_TAG_FOR_STMT: {
-            uint8_t has_init = 0;
-            uint8_t has_cond = 0;
-            uint8_t has_inc = 0;
-            uint32_t inc_offset = 0;
-            uint32_t body_end = 0;
-            if (ast_read_u8(ast->reader, &has_init) < 0) return CC_ERROR_CODEGEN;
-            if (ast_read_u8(ast->reader, &has_cond) < 0) return CC_ERROR_CODEGEN;
-            if (ast_read_u8(ast->reader, &has_inc) < 0) return CC_ERROR_CODEGEN;
-            char* loop_label = codegen_new_label_persist(gen);
-            char* end_label = codegen_new_label_persist(gen);
-            cc_error_t err;
-            if (has_init) {
-                uint8_t init_tag = 0;
-                if (ast_read_u8(ast->reader, &init_tag) < 0) {
-                    err = CC_ERROR_CODEGEN;
-                    goto for_cleanup;
-                }
-                err = codegen_stream_statement_tag(gen, ast, init_tag);
-                if (err != CC_OK) {
-                    goto for_cleanup;
-                }
-            }
-            codegen_emit_label(gen, loop_label);
-            if (has_cond) {
-                uint8_t cond_tag = 0;
-                if (ast_read_u8(ast->reader, &cond_tag) < 0) {
-                    err = CC_ERROR_CODEGEN;
-                    goto for_cleanup;
-                }
-                err = codegen_stream_expression_tag(gen, ast, cond_tag);
-                if (err != CC_OK) {
-                    goto for_cleanup;
-                }
-                codegen_emit_jump(gen, CG_STR_OR_A_JP_Z, end_label);
-            }
-            if (has_inc) {
-                inc_offset = reader_tell(ast->reader);
-                if (ast_reader_skip_node(ast) < 0) {
-                    err = CC_ERROR_CODEGEN;
-                    goto for_cleanup;
-                }
-            }
-            {
-                uint8_t body_tag = 0;
-                if (ast_read_u8(ast->reader, &body_tag) < 0) {
-                    err = CC_ERROR_CODEGEN;
-                    goto for_cleanup;
-                }
-                err = codegen_stream_statement_tag(gen, ast, body_tag);
-            }
-            if (err != CC_OK) {
-                goto for_cleanup;
-            }
-            body_end = reader_tell(ast->reader);
-            if (has_inc) {
-                if (reader_seek(ast->reader, inc_offset) < 0) {
-                    err = CC_ERROR_CODEGEN;
-                    goto for_cleanup;
-                }
-                uint8_t inc_tag = 0;
-                if (ast_read_u8(ast->reader, &inc_tag) < 0) {
-                    err = CC_ERROR_CODEGEN;
-                    goto for_cleanup;
-                }
-                err = codegen_stream_expression_tag(gen, ast, inc_tag);
-                if (err != CC_OK) {
-                    goto for_cleanup;
-                }
-                if (reader_seek(ast->reader, body_end) < 0) {
-                    err = CC_ERROR_CODEGEN;
-                    goto for_cleanup;
-                }
-            }
-            codegen_emit_jump(gen, CG_STR_JP, loop_label);
-            codegen_emit_label(gen, end_label);
-            err = CC_OK;
-for_cleanup:
-            if (loop_label) cc_free(loop_label);
-            if (end_label) cc_free(end_label);
-            return err;
-        }
-        case AST_TAG_ASSIGN:
-        case AST_TAG_CALL:
-            return codegen_stream_expression_tag(gen, ast, tag);
-        default:
-            return CC_OK;
     }
+    return CC_OK;
 }
 
 static int8_t codegen_stream_collect_locals(codegen_t* gen, ast_reader_t* ast) {
