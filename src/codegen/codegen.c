@@ -218,10 +218,6 @@ static bool codegen_stream_type_is_pointer(uint8_t depth) {
     return depth > 0;
 }
 
-static uint16_t codegen_stream_type_storage_size(uint8_t base, uint8_t depth) {
-    return codegen_stream_type_is_16bit(base, depth) ? 2u : 1u;
-}
-
 static int8_t codegen_stream_read_identifier(ast_reader_t* ast, const char** name) {
     uint16_t index = 0;
     if (!name) return -1;
@@ -321,6 +317,12 @@ static uint8_t codegen_local_offset(codegen_t* gen, const char* name, int16_t* o
     return 1;
 }
 
+static uint8_t codegen_local_or_param_offset(codegen_t* gen, const char* name,
+                                             int16_t* out_offset) {
+    return codegen_local_offset(gen, name, out_offset) ||
+           codegen_param_offset(gen, name, out_offset);
+}
+
 static bool codegen_local_is_16(codegen_t* gen, const char* name) {
     int16_t idx = codegen_local_index(gen, name);
     return idx >= 0 && gen->local_is_16[idx];
@@ -342,9 +344,11 @@ static bool codegen_name_is_16(codegen_t* gen, const char* name) {
            codegen_global_is_16(gen, name);
 }
 
+static const char* codegen_get_string_label(codegen_t* gen, const char* value);
+
 static cc_error_t codegen_emit_address_of_identifier(codegen_t* gen, const char* name) {
     int16_t offset = 0;
-    if (codegen_local_offset(gen, name, &offset) || codegen_param_offset(gen, name, &offset)) {
+    if (codegen_local_or_param_offset(gen, name, &offset)) {
         codegen_emit(gen, CG_STR_PUSH_IX_POP_HL);
         if (offset != 0) {
             codegen_emit(gen, CG_STR_LD_DE);
@@ -362,7 +366,7 @@ static cc_error_t codegen_emit_address_of_identifier(codegen_t* gen, const char*
 
 static cc_error_t codegen_load_pointer_to_hl(codegen_t* gen, const char* name) {
     int16_t offset = 0;
-    if (codegen_local_offset(gen, name, &offset) || codegen_param_offset(gen, name, &offset)) {
+    if (codegen_local_or_param_offset(gen, name, &offset)) {
         codegen_emit(gen, "  ld l, (ix");
         codegen_emit_ix_offset(gen, offset);
         codegen_emit(gen, ")\n  ld h, (ix");
@@ -379,7 +383,7 @@ static cc_error_t codegen_load_pointer_to_hl(codegen_t* gen, const char* name) {
 
 static cc_error_t codegen_store_pointer_from_hl(codegen_t* gen, const char* name) {
     int16_t offset = 0;
-    if (codegen_local_offset(gen, name, &offset) || codegen_param_offset(gen, name, &offset)) {
+    if (codegen_local_or_param_offset(gen, name, &offset)) {
         codegen_emit(gen, CG_STR_LD_IX_PREFIX);
         codegen_emit_ix_offset(gen, offset);
         codegen_emit(gen, CG_STR_RPAREN_L);
@@ -397,7 +401,7 @@ static cc_error_t codegen_store_pointer_from_hl(codegen_t* gen, const char* name
 
 static cc_error_t codegen_store_a_to_identifier(codegen_t* gen, const char* name) {
     int16_t offset = 0;
-    if (codegen_local_offset(gen, name, &offset) || codegen_param_offset(gen, name, &offset)) {
+    if (codegen_local_or_param_offset(gen, name, &offset)) {
         codegen_emit(gen, CG_STR_LD_IX_PREFIX);
         codegen_emit_ix_offset(gen, offset);
         codegen_emit(gen, CG_STR_RPAREN_A);
@@ -407,6 +411,28 @@ static cc_error_t codegen_store_a_to_identifier(codegen_t* gen, const char* name
     codegen_emit_mangled_var(gen, name);
     codegen_emit(gen, CG_STR_RPAREN_A);
     return CC_OK;
+}
+
+static cc_error_t codegen_load_array_base_to_hl(codegen_t* gen,
+                                                const char* base_string,
+                                                const char* base_name) {
+    if (base_string) {
+        const char* label = codegen_get_string_label(gen, base_string);
+        if (!label) return CC_ERROR_CODEGEN;
+        codegen_emit(gen, CG_STR_LD_HL);
+        codegen_emit(gen, label);
+        codegen_emit(gen, CG_STR_NL);
+        return CC_OK;
+    }
+    if (base_name) {
+        if (!codegen_name_is_16(gen, base_name)) {
+            cc_error("Unsupported array access");
+            return CC_ERROR_CODEGEN;
+        }
+        return codegen_load_pointer_to_hl(gen, base_name);
+    }
+    cc_error("Unsupported array access");
+    return CC_ERROR_CODEGEN;
 }
 
 static void codegen_emit_ix_offset(codegen_t* gen, int16_t offset) {
@@ -579,49 +605,37 @@ static bool codegen_op_is_compare(uint8_t op) {
            op == OP_GT || op == OP_LE || op == OP_GE;
 }
 
-static void codegen_emit_compare_result(codegen_t* gen, const char* jump1, const char* jump2,
-                                        bool output_in_hl) {
+static void codegen_emit_compare(codegen_t* gen, const char* jump1, const char* jump2,
+                                 bool output_in_hl, bool use_set_label) {
     char* end = codegen_new_label(gen);
-    char* set = codegen_new_label(gen);
+    char* set = NULL;
     if (output_in_hl) {
-        codegen_emit(gen, "  ld hl, 0\n");
+        codegen_emit(gen, CG_STR_LD_HL_ZERO);
     } else {
         codegen_emit(gen, CG_STR_LD_A_ZERO);
     }
-    if (jump1) {
-        codegen_emit_jump(gen, jump1, set);
-    }
-    if (jump2) {
-        codegen_emit_jump(gen, jump2, set);
-    }
-    codegen_emit_jump(gen, CG_STR_JR, end);
-    codegen_emit_label(gen, set);
-    if (output_in_hl) {
-    codegen_emit(gen, "  ld hl, 1\n");
+    if (use_set_label) {
+        set = codegen_new_label(gen);
+        if (jump1) {
+            codegen_emit_jump(gen, jump1, set);
+        }
+        if (jump2) {
+            codegen_emit_jump(gen, jump2, set);
+        }
+        codegen_emit_jump(gen, CG_STR_JR, end);
+        codegen_emit_label(gen, set);
     } else {
-        codegen_emit(gen, CG_STR_LD_A_ONE);
-    }
-    codegen_emit_label(gen, end);
-}
-
-static void codegen_emit_compare_fallthrough(codegen_t* gen, const char* jump1, const char* jump2,
-                                             bool output_in_hl) {
-    char* end = codegen_new_label(gen);
-    if (output_in_hl) {
-        codegen_emit(gen, "  ld hl, 0\n");
-    } else {
-        codegen_emit(gen, CG_STR_LD_A_ZERO);
-    }
-    if (jump1) {
-        codegen_emit_jump(gen, jump1, end);
-    }
-    if (jump2) {
-        codegen_emit_jump(gen, jump2, end);
+        if (jump1) {
+            codegen_emit_jump(gen, jump1, end);
+        }
+        if (jump2) {
+            codegen_emit_jump(gen, jump2, end);
+        }
     }
     if (output_in_hl) {
         codegen_emit(gen, "  ld hl, 1\n");
     } else {
-    codegen_emit(gen, CG_STR_LD_A_ONE);
+        codegen_emit(gen, CG_STR_LD_A_ONE);
     }
     codegen_emit_label(gen, end);
 }
@@ -664,7 +678,7 @@ static bool codegen_emit_compare_table(codegen_t* gen, uint8_t op,
         if (table[i].prelude) {
             codegen_emit(gen, table[i].prelude);
         }
-        codegen_emit_compare_result(gen, table[i].jump1, table[i].jump2, output_in_hl);
+        codegen_emit_compare(gen, table[i].jump1, table[i].jump2, output_in_hl, true);
         return true;
     }
     return false;
@@ -706,7 +720,7 @@ static cc_error_t codegen_emit_binary_op_hl(codegen_t* gen, ast_reader_t* ast, u
             return CC_OK;
         }
         if (op == OP_GT) {
-            codegen_emit_compare_fallthrough(gen, CG_STR_JR_Z, CG_STR_JR_C, output_in_hl);
+            codegen_emit_compare(gen, CG_STR_JR_Z, CG_STR_JR_C, output_in_hl, false);
             g_result_in_hl = output_in_hl;
             return CC_OK;
         }
@@ -757,7 +771,7 @@ static cc_error_t codegen_emit_binary_op_a(codegen_t* gen, ast_reader_t* ast, ui
             codegen_emit(gen,
                 "; (A > L)\n"
                 "  sub l\n");
-            codegen_emit_compare_fallthrough(gen, CG_STR_JR_Z, CG_STR_JR_C, false);
+            codegen_emit_compare(gen, CG_STR_JR_Z, CG_STR_JR_C, false, false);
             g_result_in_hl = false;
             return CC_OK;
         }
@@ -949,10 +963,14 @@ static cc_error_t codegen_statement_if(codegen_t* gen, ast_reader_t* ast, uint8_
     if (ast_read_u8(ast->reader, &cond_tag) < 0) return CC_ERROR_CODEGEN;
     cc_error_t err = codegen_stream_expression_tag(gen, ast, cond_tag);
     if (err != CC_OK) return err;
+    else_label = codegen_new_label_persist(gen);
     if (has_else) {
-        else_label = codegen_new_label_persist(gen);
         end_label = codegen_new_label_persist(gen);
-        codegen_emit_jump(gen, CG_STR_OR_A_JP_Z, else_label);
+    } else {
+        end_label = else_label;
+    }
+    codegen_emit_jump(gen, CG_STR_OR_A_JP_Z, else_label);
+    {
         uint8_t then_tag = 0;
         if (ast_read_u8(ast->reader, &then_tag) < 0) {
             err = CC_ERROR_CODEGEN;
@@ -962,8 +980,12 @@ static cc_error_t codegen_statement_if(codegen_t* gen, ast_reader_t* ast, uint8_
         if (err != CC_OK) {
             goto if_cleanup;
         }
+    }
+    if (has_else) {
         codegen_emit_jump(gen, CG_STR_JP, end_label);
-        codegen_emit_label(gen, else_label);
+    }
+    codegen_emit_label(gen, else_label);
+    if (has_else) {
         uint8_t else_tag = 0;
         if (ast_read_u8(ast->reader, &else_tag) < 0) {
             err = CC_ERROR_CODEGEN;
@@ -974,24 +996,11 @@ static cc_error_t codegen_statement_if(codegen_t* gen, ast_reader_t* ast, uint8_
             goto if_cleanup;
         }
         codegen_emit_label(gen, end_label);
-    } else {
-        end_label = codegen_new_label_persist(gen);
-        codegen_emit_jump(gen, CG_STR_OR_A_JP_Z, end_label);
-        uint8_t then_tag = 0;
-        if (ast_read_u8(ast->reader, &then_tag) < 0) {
-            err = CC_ERROR_CODEGEN;
-            goto if_cleanup;
-        }
-        err = codegen_stream_statement_tag(gen, ast, then_tag);
-        if (err != CC_OK) {
-            goto if_cleanup;
-        }
-        codegen_emit_label(gen, end_label);
     }
     err = CC_OK;
 if_cleanup:
     if (else_label) cc_free(else_label);
-    if (end_label) cc_free(end_label);
+    if (has_else && end_label) cc_free(end_label);
     return err;
 }
 
@@ -1111,10 +1120,6 @@ for_cleanup:
     if (loop_label) cc_free(loop_label);
     if (end_label) cc_free(end_label);
     return err;
-}
-
-static cc_error_t codegen_statement_expr(codegen_t* gen, ast_reader_t* ast, uint8_t tag) {
-    return codegen_stream_expression_tag(gen, ast, tag);
 }
 
 static bool codegen_expression_is_16bit_at(codegen_t* gen, ast_reader_t* ast, uint8_t tag) {
@@ -1439,41 +1444,6 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
             // Support both constant and variable index
             if (index_tag == AST_TAG_CONSTANT) {
                 if (ast_read_i16(ast->reader, &offset) < 0) return CC_ERROR_CODEGEN;
-                if (base_string) {
-                    const char* label = codegen_get_string_label(gen, base_string);
-                    if (!label) return CC_ERROR_CODEGEN;
-                    codegen_emit(gen, CG_STR_LD_HL);
-                    codegen_emit(gen, label);
-                    codegen_emit(gen, CG_STR_NL);
-                    if (offset != 0) {
-                        codegen_emit(gen, CG_STR_LD_DE);
-                        codegen_emit_int(gen, offset);
-                        codegen_emit(gen, CG_STR_NL);
-                        codegen_emit(gen, CG_STR_ADD_HL_DE);
-                    }
-                    codegen_emit(gen, CG_STR_LD_A_HL);
-                    g_result_in_hl = false;
-                    return CC_OK;
-                }
-                if (base_name) {
-                    if (!codegen_name_is_16(gen, base_name)) {
-                        cc_error("Unsupported array access");
-                        return CC_ERROR_CODEGEN;
-                    }
-                    cc_error_t err = codegen_load_pointer_to_hl(gen, base_name);
-                    if (err != CC_OK) return err;
-                    if (offset != 0) {
-                        codegen_emit(gen, CG_STR_LD_DE);
-                        codegen_emit_int(gen, offset);
-                        codegen_emit(gen, CG_STR_NL);
-                        codegen_emit(gen, CG_STR_ADD_HL_DE);
-                    }
-                    codegen_emit(gen, CG_STR_LD_A_HL);
-                    g_result_in_hl = false;
-                    return CC_OK;
-                }
-                cc_error("Unsupported array access");
-                return CC_ERROR_CODEGEN;
             } else {
                 // Variable index: emit code for index expression, add to base pointer
                 // Evaluate index expression, result in A
@@ -1481,31 +1451,24 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                 if (err != CC_OK) return err;
                 // Move index (A) to E, clear D
                 codegen_emit(gen, "  ld e, a\n  ld d, 0\n");
-                // Load base pointer to HL
-                if (base_string) {
-                    const char* label = codegen_get_string_label(gen, base_string);
-                    if (!label) return CC_ERROR_CODEGEN;
-                    codegen_emit(gen, CG_STR_LD_HL);
-                    codegen_emit(gen, label);
+            }
+            cc_error_t err = codegen_load_array_base_to_hl(gen, base_string, base_name);
+            if (err != CC_OK) return err;
+            if (index_tag == AST_TAG_CONSTANT) {
+                if (offset != 0) {
+                    codegen_emit(gen, CG_STR_LD_DE);
+                    codegen_emit_int(gen, offset);
                     codegen_emit(gen, CG_STR_NL);
-                } else if (base_name) {
-                    if (!codegen_name_is_16(gen, base_name)) {
-                        cc_error("Unsupported array access");
-                        return CC_ERROR_CODEGEN;
-                    }
-                    err = codegen_load_pointer_to_hl(gen, base_name);
-                    if (err != CC_OK) return err;
-                } else {
-                    cc_error("Unsupported array access");
-                    return CC_ERROR_CODEGEN;
+                    codegen_emit(gen, CG_STR_ADD_HL_DE);
                 }
+            } else {
                 // Add index (DE) to base pointer (HL)
                 codegen_emit(gen, CG_STR_ADD_HL_DE);
-                // Load value at HL into A
-                codegen_emit(gen, CG_STR_LD_A_HL);
-                g_result_in_hl = false;
-                return CC_OK;
             }
+            // Load value at HL into A
+            codegen_emit(gen, CG_STR_LD_A_HL);
+            g_result_in_hl = false;
+            return CC_OK;
         }
         case AST_TAG_ASSIGN: {
             uint8_t ltag = 0;
@@ -1623,8 +1586,8 @@ static cc_error_t codegen_stream_statement_tag(codegen_t* gen, ast_reader_t* ast
         { AST_TAG_IF_STMT, codegen_statement_if },
         { AST_TAG_WHILE_STMT, codegen_statement_while },
         { AST_TAG_FOR_STMT, codegen_statement_for },
-        { AST_TAG_ASSIGN, codegen_statement_expr },
-        { AST_TAG_CALL, codegen_statement_expr },
+        { AST_TAG_ASSIGN, codegen_stream_expression_tag },
+        { AST_TAG_CALL, codegen_stream_expression_tag },
     };
     for (size_t i = 0; i < (sizeof(handlers) / sizeof(handlers[0])); i++) {
         if (handlers[i].tag == tag) {
@@ -1650,7 +1613,7 @@ static int8_t codegen_stream_collect_locals(codegen_t* gen, ast_reader_t* ast) {
             if (!name) return -1;
             bool is_16bit = codegen_stream_type_is_16bit(base, depth);
             codegen_record_local(gen, name,
-                                 codegen_stream_type_storage_size(base, depth),
+                                 is_16bit ? 2u : 1u,
                                  is_16bit);
             if (has_init) return ast_reader_skip_node(ast);
             return 0;
@@ -1703,12 +1666,8 @@ static cc_error_t codegen_stream_function(codegen_t* gen, ast_reader_t* ast) {
     uint8_t base = 0;
     uint8_t depth = 0;
     const char* name = NULL;
-    const char** param_names = g_param_names;
-    bool* param_is_16 = g_param_is_16;
-    uint16_t* param_name_indices = g_param_name_indices;
     uint8_t param_used = 0;
     uint32_t body_start = 0;
-    uint32_t body_end = 0;
     bool last_was_return = false;
 
     if (ast_read_u16(ast->reader, &name_index) < 0) return CC_ERROR_CODEGEN;
@@ -1740,10 +1699,10 @@ static cc_error_t codegen_stream_function(codegen_t* gen, ast_reader_t* ast) {
         if (ast_read_u8(ast->reader, &has_init) < 0) return CC_ERROR_CODEGEN;
         if (has_init && ast_reader_skip_node(ast) < 0) return CC_ERROR_CODEGEN;
         if (param_used < (uint8_t)(sizeof(g_param_names) / sizeof(g_param_names[0]))) {
-            param_names[param_used] = codegen_stream_string(ast, param_name_index);
-        param_is_16[param_used] = codegen_stream_type_is_16bit(param_base, param_depth);
-        param_name_indices[param_used] = param_name_index;
-        param_used++;
+            g_param_names[param_used] = codegen_stream_string(ast, param_name_index);
+            g_param_is_16[param_used] = codegen_stream_type_is_16bit(param_base, param_depth);
+            g_param_name_indices[param_used] = param_name_index;
+            param_used++;
         }
     }
 
@@ -1751,14 +1710,13 @@ static cc_error_t codegen_stream_function(codegen_t* gen, ast_reader_t* ast) {
 
     body_start = reader_tell(ast->reader);
     if (codegen_stream_collect_locals(gen, ast) < 0) return CC_ERROR_CODEGEN;
-    body_end = reader_tell(ast->reader);
 
     for (uint8_t i = 0; i < param_used; i++) {
-        gen->param_names[gen->param_count] = param_names[i];
+        gen->param_names[gen->param_count] = g_param_names[i];
         gen->param_offsets[gen->param_count] =
             (int16_t)(gen->stack_offset + 4 + (int16_t)(2 * gen->param_count));
-        gen->param_is_16[gen->param_count] = param_is_16[i];
-        gen->param_name_indices[gen->param_count] = param_name_indices[i];
+        gen->param_is_16[gen->param_count] = g_param_is_16[i];
+        gen->param_name_indices[gen->param_count] = g_param_name_indices[i];
         gen->param_count++;
     }
 
@@ -1824,7 +1782,6 @@ static cc_error_t codegen_stream_function(codegen_t* gen, ast_reader_t* ast) {
     }
     codegen_emit(gen, CG_STR_NL);
 
-    if (reader_seek(ast->reader, body_end) < 0) return CC_ERROR_CODEGEN;
     return CC_OK;
 }
 
