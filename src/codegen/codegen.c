@@ -628,6 +628,22 @@ static bool codegen_emit_op_table(codegen_t* gen, uint8_t op,
     return false;
 }
 
+static bool codegen_emit_compare_table(codegen_t* gen, uint8_t op,
+                                       const compare_entry_t* table, size_t count,
+                                       bool output_in_hl) {
+    for (size_t i = 0; i < count; i++) {
+        if (table[i].op != op) {
+            continue;
+        }
+        if (table[i].prelude) {
+            codegen_emit(gen, table[i].prelude);
+        }
+        codegen_emit_compare_result(gen, table[i].jump1, table[i].jump2, output_in_hl);
+        return true;
+    }
+    return false;
+}
+
 static cc_error_t codegen_emit_binary_op_hl(codegen_t* gen, ast_reader_t* ast, uint8_t op,
                                             uint8_t left_tag, bool output_in_hl) {
     bool prev_expect = g_expect_result_in_hl;
@@ -1095,22 +1111,6 @@ for_cleanup:
 
 static cc_error_t codegen_statement_expr(codegen_t* gen, ast_reader_t* ast, uint8_t tag) {
     return codegen_stream_expression_tag(gen, ast, tag);
-}
-
-static bool codegen_emit_compare_table(codegen_t* gen, uint8_t op,
-                                       const compare_entry_t* table, size_t count,
-                                       bool output_in_hl) {
-    for (size_t i = 0; i < count; i++) {
-        if (table[i].op != op) {
-            continue;
-        }
-        if (table[i].prelude) {
-            codegen_emit(gen, table[i].prelude);
-        }
-        codegen_emit_compare_result(gen, table[i].jump1, table[i].jump2, output_in_hl);
-        return true;
-    }
-    return false;
 }
 
 static bool codegen_expression_is_16bit_at(codegen_t* gen, ast_reader_t* ast, uint8_t tag) {
@@ -1921,24 +1921,19 @@ static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast) {
                     return CC_OK;
                 }
                 ast_reader_skip_tag(ast, operand_tag);
-                codegen_emit(gen, CG_STR_COLON);
-                codegen_emit(gen, CG_STR_DW);
-                codegen_emit_int(gen, 0);
-                return CC_OK;
+                goto pointer_zero;
             }
             if (tag == AST_TAG_CONSTANT) {
                 int16_t value = 0;
                 if (ast_read_i16(ast->reader, &value) < 0) return CC_ERROR_CODEGEN;
                 if (value == 0) {
-                    codegen_emit(gen, CG_STR_COLON);
-                    codegen_emit(gen, CG_STR_DW);
-                    codegen_emit_int(gen, 0);
-                    return CC_OK;
+                    goto pointer_zero;
                 }
             } else {
                 ast_reader_skip_tag(ast, tag);
             }
         }
+pointer_zero:
         codegen_emit(gen, CG_STR_COLON);
         codegen_emit(gen, CG_STR_DW);
         codegen_emit_int(gen, 0);
