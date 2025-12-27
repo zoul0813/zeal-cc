@@ -595,7 +595,7 @@ static void codegen_emit_compare_fallthrough(codegen_t* gen, const char* jump1, 
     if (output_in_hl) {
         codegen_emit(gen, "  ld hl, 1\n");
     } else {
-        codegen_emit(gen, CG_STR_LD_A_ONE);
+    codegen_emit(gen, CG_STR_LD_A_ONE);
     }
     codegen_emit_label(gen, end);
 }
@@ -822,7 +822,7 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                 codegen_emit(gen, name);
                 codegen_emit(gen, CG_STR_NL);
                 if (g_expect_result_in_hl) {
-                    codegen_emit(gen, "  ld l, a\n  ld h, 0\n");
+                    codegen_emit(gen, CG_STR_LD_L_A_H_ZERO);
                     g_result_in_hl = true;
                 } else {
                     /* result stays in A */
@@ -877,7 +877,7 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                 cc_error_t err = codegen_stream_expression_tag(gen, ast, left_tag);
                 if (err != CC_OK) return err;
                 if (!g_result_in_hl) {
-                    codegen_emit(gen, "  ld l, a\n  ld h, 0\n");
+                    codegen_emit(gen, CG_STR_LD_L_A_H_ZERO);
                 }
                 codegen_emit(gen, CG_STR_PUSH_HL);
                 uint8_t right_tag = 0;
@@ -887,7 +887,7 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                 g_expect_result_in_hl = prev_expect;
                 if (err != CC_OK) return err;
                 if (!g_result_in_hl) {
-                    codegen_emit(gen, "  ld l, a\n  ld h, 0\n");
+                    codegen_emit(gen, CG_STR_LD_L_A_H_ZERO);
                 }
                 codegen_emit(gen, "  pop de\n");
                 if (codegen_op_is_compare(op)) {
@@ -898,7 +898,7 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                         { OP_LE, NULL, CG_STR_JR_Z,  CG_STR_JR_C },
                         { OP_GE, NULL, CG_STR_JR_NC, NULL },
                     };
-                    codegen_emit(gen, "  ex de, hl\n  or a\n  sbc hl, de\n");
+                    codegen_emit(gen, CG_STR_EX_DE_HL_OR_A_SBC_HL_DE);
                     if (codegen_emit_compare_table(gen, op, compare16_table,
                                                    sizeof(compare16_table) / sizeof(compare16_table[0]),
                                                    output_in_hl)) {
@@ -917,7 +917,7 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                         codegen_emit(gen, "  add hl, de\n");
                         break;
                     case OP_SUB:
-                        codegen_emit(gen, "  ex de, hl\n  or a\n  sbc hl, de\n");
+                        codegen_emit(gen, CG_STR_EX_DE_HL_OR_A_SBC_HL_DE);
                         break;
                     case OP_MUL:
                         codegen_emit(gen,
@@ -1265,7 +1265,7 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                 int16_t offset = 0;
                 if (lvalue_is_16) {
                     if (!g_result_in_hl) {
-                        codegen_emit(gen, "  ld l, a\n  ld h, 0\n");
+                        codegen_emit(gen, CG_STR_LD_L_A_H_ZERO);
                     }
                     if (codegen_local_offset(gen, lvalue_name, &offset)) {
                         codegen_emit(gen, CG_STR_LD_IX_PREFIX);
@@ -1327,7 +1327,7 @@ static cc_error_t codegen_stream_statement_tag(codegen_t* gen, ast_reader_t* ast
                 if (err != CC_OK) return err;
                 if (gen->function_return_is_16) {
                     if (!g_result_in_hl) {
-                        codegen_emit(gen, "  ld l, a\n  ld h, 0\n");
+                        codegen_emit(gen, CG_STR_LD_L_A_H_ZERO);
                         g_result_in_hl = true;
                     }
                 } else if (g_result_in_hl) {
@@ -1443,7 +1443,7 @@ static cc_error_t codegen_stream_statement_tag(codegen_t* gen, ast_reader_t* ast
                 int16_t offset = 0;
                 if (is_16bit) {
                     if (!g_result_in_hl) {
-                        codegen_emit(gen, "  ld l, a\n  ld h, 0\n");
+                        codegen_emit(gen, CG_STR_LD_L_A_H_ZERO);
                     }
                     if (codegen_local_offset(gen, name, &offset)) {
                         codegen_emit(gen, CG_STR_LD_IX_PREFIX);
