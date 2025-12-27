@@ -28,6 +28,8 @@ rm -f tests/*.asm tests/*.bin tests/*.ast
 TESTS=(
   assign
   array
+  array_char
+  array_ptr
   char
   comp
   compares

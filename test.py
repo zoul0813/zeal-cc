@@ -24,7 +24,9 @@ TESTS_FAILED = 0
 
 EXPECTED_RESULTS = {
     "assign": "15",
-    "array": None,
+    "array": "07",
+    "array_char": "03",
+    "array_ptr": "07",
     "char": "41",
     "comp": "4E",
     "compares": "3F",

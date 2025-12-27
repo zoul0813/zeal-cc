@@ -111,5 +111,6 @@ void symbol_table_destroy(symbol_table_t* table);
 type_t* type_create(type_kind_t kind);
 void type_destroy(type_t* type);
 type_t* type_create_pointer(type_t* base);
+type_t* type_create_array(type_t* element, size_t length);
 
 #endif /* SYMBOL_H */

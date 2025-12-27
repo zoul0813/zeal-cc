@@ -22,9 +22,13 @@ static char* ast_strdup_index(ast_reader_t* ast, uint16_t index) {
 static int8_t ast_read_type(ast_reader_t* ast, type_t** out) {
     uint8_t base = 0;
     uint8_t depth = 0;
+    uint16_t array_len = 0;
     if (!out) return -1;
     if (ast_read_u8(ast->reader, &base) < 0) return -1;
     if (ast_read_u8(ast->reader, &depth) < 0) return -1;
+    if (ast->format_version >= 2) {
+        if (ast_read_u16(ast->reader, &array_len) < 0) return -1;
+    }
 
     type_t* type = NULL;
     switch (base) {
@@ -48,6 +52,14 @@ static int8_t ast_read_type(ast_reader_t* ast, type_t** out) {
             return -1;
         }
         type = next;
+    }
+    if (array_len > 0) {
+        type_t* array_type = type_create_array(type, array_len);
+        if (!array_type) {
+            type_destroy(type);
+            return -1;
+        }
+        type = array_type;
     }
     *out = type;
     return 0;

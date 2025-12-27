@@ -6,7 +6,7 @@
 #include "target.h"
 
 #define AST_MAGIC "ZAST"
-#define AST_FORMAT_VERSION 1
+#define AST_FORMAT_VERSION 2
 
 int8_t ast_write_u8(output_t out, uint8_t value);
 int8_t ast_write_u16(output_t out, uint16_t value);

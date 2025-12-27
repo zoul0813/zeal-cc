@@ -67,3 +67,17 @@ type_t* type_create_pointer(type_t* base) {
     }
     return type;
 }
+
+type_t* type_create_array(type_t* element, size_t length) {
+    type_t* type = type_create(TYPE_ARRAY);
+    if (type) {
+        type->data.array.element_type = element;
+        type->data.array.length = length;
+        if (element && element->size > 0 && length > 0) {
+            type->size = element->size * length;
+        } else {
+            type->size = 0;
+        }
+    }
+    return type;
+}

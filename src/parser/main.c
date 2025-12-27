@@ -60,12 +60,21 @@ static void ast_free_strings(ast_writer_t* writer) {
 
 static int8_t ast_write_type(ast_writer_t* writer, const type_t* type) {
     const type_t* cur = type;
+    uint16_t array_len = 0;
+    if (cur && cur->kind == TYPE_ARRAY) {
+        array_len = (uint16_t)cur->data.array.length;
+        cur = cur->data.array.element_type;
+    }
     uint8_t depth = 0;
     while (cur && cur->kind == TYPE_POINTER) {
         depth++;
         cur = cur->data.pointer.base_type;
     }
     if (!cur) return -1;
+    if (cur->kind == TYPE_ARRAY) {
+        cc_error("Unsupported array type in AST writer");
+        return -1;
+    }
 
     uint8_t base = 0;
     switch (cur->kind) {
@@ -85,6 +94,7 @@ static int8_t ast_write_type(ast_writer_t* writer, const type_t* type) {
 
     if (ast_write_u8(writer->out, base) < 0) return -1;
     if (ast_write_u8(writer->out, depth) < 0) return -1;
+    if (ast_write_u16(writer->out, array_len) < 0) return -1;
     return 0;
 }
 
@@ -256,7 +266,7 @@ static int8_t ast_measure_node(ast_writer_t* writer, const ast_node_t* node, uin
         case AST_FUNCTION: {
             int16_t name_index = ast_string_index(writer, node->data.function.name);
             if (name_index < 0) return -1;
-            uint32_t size = 1 + 2 + 2 + 1;
+            uint32_t size = 1 + 2 + 4 + 1;
             for (size_t i = 0; i < node->data.function.param_count; i++) {
                 uint32_t child_size = 0;
                 if (ast_measure_node(writer, node->data.function.params[i], &child_size) < 0) return -1;
@@ -273,7 +283,7 @@ static int8_t ast_measure_node(ast_writer_t* writer, const ast_node_t* node, uin
         case AST_VAR_DECL: {
             int16_t name_index = ast_string_index(writer, node->data.var_decl.name);
             if (name_index < 0) return -1;
-            uint32_t size = 1 + 2 + 2 + 1;
+            uint32_t size = 1 + 2 + 4 + 1;
             if (node->data.var_decl.initializer) {
                 uint32_t child_size = 0;
                 if (ast_measure_node(writer, node->data.var_decl.initializer, &child_size) < 0) return -1;

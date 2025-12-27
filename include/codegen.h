@@ -16,10 +16,16 @@ typedef struct {
     const char* local_vars[64];
     int16_t local_offsets[64];
     bool local_is_16[64];
+    bool local_is_pointer[64];
+    bool local_is_array[64];
+    uint16_t local_array_len[64];
+    uint8_t local_elem_size[64];
     size_t local_var_count;
     const char* param_names[8];
     int16_t param_offsets[8];
     bool param_is_16[8];
+    bool param_is_pointer[8];
+    uint8_t param_elem_size[8];
     uint16_t param_name_indices[8];
     size_t param_count;
     char* function_end_label;
@@ -31,6 +37,10 @@ typedef struct {
 
     const char* global_names[64];
     bool global_is_16[64];
+    bool global_is_pointer[64];
+    bool global_is_array[64];
+    uint16_t global_array_len[64];
+    uint8_t global_elem_size[64];
     size_t global_count;
 
     const char* string_labels[64];

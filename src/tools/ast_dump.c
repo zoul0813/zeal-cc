@@ -50,7 +50,8 @@ static const char* unary_op_name(unary_op_t op) {
     }
 }
 
-static void format_type_info(uint8_t base, uint8_t depth, char* out, size_t out_size) {
+static void format_type_info(uint8_t base, uint8_t depth, uint16_t array_len,
+                             char* out, size_t out_size) {
     size_t len = 0;
     const char* base_name = "unknown";
     switch (base) {
@@ -67,6 +68,30 @@ static void format_type_info(uint8_t base, uint8_t depth, char* out, size_t out_
     while (depth > 0 && len + 1 < out_size) {
         out[len++] = '*';
         depth--;
+    }
+    if (array_len > 0) {
+        char buf[8];
+        size_t i = 0;
+        size_t j = 0;
+        uint16_t n = array_len;
+        if (len + 1 < out_size) {
+            out[len++] = '[';
+        }
+        if (n == 0) {
+            buf[i++] = '0';
+        } else {
+            while (n > 0 && i < sizeof(buf)) {
+                buf[i++] = (char)('0' + (n % 10));
+                n /= 10;
+            }
+        }
+        while (j < i && len + 1 < out_size) {
+            out[len++] = buf[i - 1 - j];
+            j++;
+        }
+        if (len + 1 < out_size) {
+            out[len++] = ']';
+        }
     }
     out[len] = '\0';
 }
@@ -129,10 +154,11 @@ static int8_t dump_node_stream(ast_reader_t* ast, uint16_t depth) {
             }
             return 0;
         case AST_TAG_FUNCTION: {
+            uint16_t array_len = 0;
             if (ast_read_u16(ast->reader, &u16) < 0) return -1;
-            if (ast_reader_read_type_info(ast, &base, &ptr_depth) < 0) return -1;
+            if (ast_reader_read_type_info(ast, &base, &ptr_depth, &array_len) < 0) return -1;
             if (ast_read_u8(ast->reader, &u8) < 0) return -1;
-            format_type_info(base, ptr_depth, type_buf, sizeof(type_buf));
+            format_type_info(base, ptr_depth, array_len, type_buf, sizeof(type_buf));
             log_msg("AST_FUNCTION (name=");
             log_msg(ast_reader_string(ast, u16) ? ast_reader_string(ast, u16) : "null");
             log_msg(", return_type=");
@@ -145,10 +171,11 @@ static int8_t dump_node_stream(ast_reader_t* ast, uint16_t depth) {
         }
         case AST_TAG_VAR_DECL: {
             uint8_t has_init = 0;
+            uint16_t array_len = 0;
             if (ast_read_u16(ast->reader, &u16) < 0) return -1;
-            if (ast_reader_read_type_info(ast, &base, &ptr_depth) < 0) return -1;
+            if (ast_reader_read_type_info(ast, &base, &ptr_depth, &array_len) < 0) return -1;
             if (ast_read_u8(ast->reader, &has_init) < 0) return -1;
-            format_type_info(base, ptr_depth, type_buf, sizeof(type_buf));
+            format_type_info(base, ptr_depth, array_len, type_buf, sizeof(type_buf));
             log_msg("AST_VAR_DECL (name=");
             log_msg(ast_reader_string(ast, u16) ? ast_reader_string(ast, u16) : "null");
             log_msg(", var_type=");
