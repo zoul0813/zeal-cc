@@ -19,10 +19,42 @@
 #define CODEGEN_LABEL_MAX 15 /* Zealasm docs say 16, but 15 avoids edge-case failures. */
 #define CODEGEN_LABEL_HASH_LEN 4
 
-/* Helpers */
+typedef struct {
+    uint8_t op;
+    const char* prelude;
+    const char* jump1;
+    const char* jump2;
+} compare_entry_t;
+
+typedef struct {
+    uint8_t op;
+    const char* seq;
+} op_emit_entry_t;
+
+typedef cc_error_t (*statement_handler_t)(codegen_t* gen, ast_reader_t* ast, uint8_t tag);
+
+/* Forward declarations */
+static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* ast, uint8_t tag);
+static cc_error_t codegen_stream_statement_tag(codegen_t* gen, ast_reader_t* ast, uint8_t tag);
+static int8_t codegen_stream_collect_locals(codegen_t* gen, ast_reader_t* ast);
+static cc_error_t codegen_stream_function(codegen_t* gen, ast_reader_t* ast);
+static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast);
 static void codegen_emit_ix_offset(codegen_t* gen, int16_t offset);
 static void codegen_emit_u16_hex(codegen_t* gen, uint16_t value);
 static bool codegen_stream_type_is_16bit(uint8_t base, uint8_t depth);
+
+
+static uint32_t g_arg_offsets[8];
+static const char* g_param_names[8];
+static bool g_param_is_16[8];
+static uint16_t g_param_name_indices[8];
+/* Indicates whether the last expression emitted left its result in HL (true)
+   or in A (false). Used by call-site code to decide how to push arguments. */
+static bool g_result_in_hl = false;
+/* Forces expression emission to produce a 16-bit result in HL when true. */
+static bool g_expect_result_in_hl = false;
+
+/* Helpers */
 
 static char codegen_to_lower(char c) {
     if (c >= 'A' && c <= 'Z') return (char)(c + ('a' - 'A'));
@@ -567,23 +599,6 @@ char* codegen_new_string_label(codegen_t* gen) {
     return label;
 }
 
-/* Forward declarations */
-static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* ast, uint8_t tag);
-static cc_error_t codegen_stream_statement_tag(codegen_t* gen, ast_reader_t* ast, uint8_t tag);
-static int8_t codegen_stream_collect_locals(codegen_t* gen, ast_reader_t* ast);
-static cc_error_t codegen_stream_function(codegen_t* gen, ast_reader_t* ast);
-static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast);
-
-static uint32_t g_arg_offsets[8];
-static const char* g_param_names[8];
-static bool g_param_is_16[8];
-static uint16_t g_param_name_indices[8];
-/* Indicates whether the last expression emitted left its result in HL (true)
-   or in A (false). Used by call-site code to decide how to push arguments. */
-static bool g_result_in_hl = false;
-/* Forces expression emission to produce a 16-bit result in HL when true. */
-static bool g_expect_result_in_hl = false;
-
 static bool codegen_function_return_is_16bit(codegen_t* gen, uint16_t name_index);
 
 static bool codegen_op_is_compare(uint8_t op) {
@@ -624,18 +639,6 @@ static void codegen_emit_compare(codegen_t* gen, const char* jump1, const char* 
     }
     codegen_emit_label(gen, end);
 }
-
-typedef struct {
-    uint8_t op;
-    const char* prelude;
-    const char* jump1;
-    const char* jump2;
-} compare_entry_t;
-
-typedef struct {
-    uint8_t op;
-    const char* seq;
-} op_emit_entry_t;
 
 static bool codegen_emit_compare_table(codegen_t* gen, uint8_t op,
                                        const compare_entry_t* table, size_t count,
@@ -778,8 +781,6 @@ static cc_error_t codegen_emit_binary_op_a(codegen_t* gen, ast_reader_t* ast, ui
     g_result_in_hl = false;
     return CC_OK;
 }
-
-typedef cc_error_t (*statement_handler_t)(codegen_t* gen, ast_reader_t* ast, uint8_t tag);
 
 static cc_error_t codegen_read_and_stream_statement(codegen_t* gen, ast_reader_t* ast) {
     uint8_t tag = 0;
