@@ -395,6 +395,20 @@ static cc_error_t codegen_store_pointer_from_hl(codegen_t* gen, const char* name
     return CC_OK;
 }
 
+static cc_error_t codegen_store_a_to_identifier(codegen_t* gen, const char* name) {
+    int16_t offset = 0;
+    if (codegen_local_offset(gen, name, &offset) || codegen_param_offset(gen, name, &offset)) {
+        codegen_emit(gen, CG_STR_LD_IX_PREFIX);
+        codegen_emit_ix_offset(gen, offset);
+        codegen_emit(gen, CG_STR_RPAREN_A);
+        return CC_OK;
+    }
+    codegen_emit(gen, CG_STR_LD_LPAREN);
+    codegen_emit_mangled_var(gen, name);
+    codegen_emit(gen, CG_STR_RPAREN_A);
+    return CC_OK;
+}
+
 static void codegen_emit_ix_offset(codegen_t* gen, int16_t offset) {
     if (offset < 0) {
         codegen_emit(gen, "-");
@@ -900,22 +914,13 @@ static cc_error_t codegen_statement_var_decl(codegen_t* gen, ast_reader_t* ast, 
         cc_error_t err = codegen_stream_expression_tag(gen, ast, init_tag);
         g_expect_result_in_hl = prev_expect;
         if (err != CC_OK) return err;
-        int16_t offset = 0;
         if (is_16bit) {
             if (!g_result_in_hl) {
                 codegen_emit(gen, CG_STR_LD_L_A_H_ZERO);
             }
             return codegen_store_pointer_from_hl(gen, name);
         } else {
-            if (codegen_local_offset(gen, name, &offset)) {
-                codegen_emit(gen, CG_STR_LD_LPAREN);
-                codegen_emit_ix_offset(gen, offset);
-                codegen_emit(gen, CG_STR_RPAREN_A);
-            } else {
-                codegen_emit(gen, CG_STR_LD_LPAREN);
-                codegen_emit_mangled_var(gen, name);
-                codegen_emit(gen, CG_STR_RPAREN_A);
-            }
+            return codegen_store_a_to_identifier(gen, name);
         }
     }
     return CC_OK;
@@ -1592,25 +1597,13 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
             g_expect_result_in_hl = prev_expect;
             if (err != CC_OK) return err;
             if (lvalue_name) {
-                int16_t offset = 0;
                 if (lvalue_is_16) {
                     if (!g_result_in_hl) {
                         codegen_emit(gen, CG_STR_LD_L_A_H_ZERO);
                     }
                     return codegen_store_pointer_from_hl(gen, lvalue_name);
-                } else if (codegen_local_offset(gen, lvalue_name, &offset)) {
-                    codegen_emit(gen, CG_STR_LD_IX_PREFIX);
-                    codegen_emit_ix_offset(gen, offset);
-                    codegen_emit(gen, CG_STR_RPAREN_A);
-                } else if (codegen_param_offset(gen, lvalue_name, &offset)) {
-                    codegen_emit(gen, CG_STR_LD_IX_PREFIX);
-                    codegen_emit_ix_offset(gen, offset);
-                    codegen_emit(gen, CG_STR_RPAREN_A);
-                } else {
-                    codegen_emit(gen, CG_STR_LD_LPAREN);
-                    codegen_emit_mangled_var(gen, lvalue_name);
-                    codegen_emit(gen, CG_STR_RPAREN_A);
                 }
+                return codegen_store_a_to_identifier(gen, lvalue_name);
             }
             return CC_OK;
         }
