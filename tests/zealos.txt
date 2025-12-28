@@ -1,0 +1,3 @@
+Message in text file, not bottle
+
+To verify that zealos support works

@@ -15,16 +15,29 @@
 ;   A       - dev
 ;   DE      - buf
 ;   [Stack] - size*
-_read:
-    ; We have to get the size from the pointer which is on the stack.
-    ; Pop the return address and exchange with the pointer on the top.
-    pop hl
-    ex (sp), hl
-    ; HL contains size*, top of the stack contains the return address.
-    ; Dereference the size in BC
+read:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld a, (ix+4)
+    ld e, (ix+6)
+    ld d, (ix+7)
+    ld l, (ix+8)
+    ld h, (ix+9)
     ld c, (hl)
     inc hl
     ld b, (hl)
+    pop ix
+_read:
+    ; We have to get the size from the pointer which is on the stack.
+    ; Pop the return address and exchange with the pointer on the top.
+    ; pop hl
+    ; ex (sp), hl
+    ; HL contains size*, top of the stack contains the return address.
+    ; Dereference the size in BC
+    ; ld c, (hl)
+    ; inc hl
+    ; ld b, (hl)
     ; Save back the address of size on the stack, we will use it to save
     ; the returned value (in BC)
     push hl
@@ -42,22 +55,36 @@ _read:
     pop hl
     ; If error returned is not ERR_SUCCESS, do not alter the given size*
     or a
-    ret nz
+    jp nz, _read_r
     ; No error so far, we can fill the pointer. Note, HL points to the MSB!
     ld (hl), b
     dec hl
     ld (hl), c
+_read_r:
     ret
 
 
 ; zos_err_t write(zos_dev_t dev, const void* buf, uint16_t* size);
-_write:
-    ; This routine is exactly the same as the one above
-    pop hl
-    ex (sp), hl
+write:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld a, (ix+4)
+    ld e, (ix+6)
+    ld d, (ix+7)
+    ld l, (ix+8)
+    ld h, (ix+9)
     ld c, (hl)
     inc hl
     ld b, (hl)
+    pop ix
+_write:
+    ; This routine is exactly the same as the one above
+    ; pop hl
+    ; ex (sp), hl
+    ; ld c, (hl)
+    ; inc hl
+    ; ld b, (hl)
     push hl
     ; Syscall parameters:
     ;   H - Opened dev
@@ -71,10 +98,11 @@ _write:
     rst 0x8
     pop hl
     or a
-    ret nz
+    jp nz, _write_r
     ld (hl), b
     dec hl
     ld (hl), c
+_write_r:
     ret
 
 
@@ -82,26 +110,44 @@ _write:
 ; Parameters:
 ;   HL      - name
 ;   [Stack] - flags
-_open:
-    ; Copy name/path in BC, as required by the syscall.
+open:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld l, (ix+4)
+    ld h, (ix+5)
+    ld a, (ix+6)
     ld b, h
     ld c, l
+    ld h, a
+    pop ix
+_open:
+    ; Copy name/path in BC, as required by the syscall.
+    ; ld b, h
+    ; ld c, l
     ; Get the flags, which are on the stack, behind the return address.
     ; We have to clean the stack.
-    pop hl
-    dec sp
-    ex (sp), hl
+    ; pop hl
+    ; dec sp
+    ; ex (sp), hl
     ; Syscall parameters:
     ;   BC - Name
     ;   H - Flags
     ld l, 2
     rst 0x8
+_open_r:
     ret
 
 
 ; zos_err_t close(zos_dev_t dev);
 ; Parameters:
 ;   A - dev
+close:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld a, (ix+4)
+    pop ix
 _close:
     ld h, a
     ; Syscall parameters:
@@ -115,6 +161,14 @@ _close:
 ; Parameters:
 ;   A  - dev
 ;   DE - *stat
+dstat:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld a, (ix+4)
+    ld e, (ix+6)
+    ld d, (ix+7)
+    pop ix
 _dstat:
     ; Syscall parameters:
     ;   H  - Opened dev
@@ -129,6 +183,15 @@ _dstat:
 ; Parameters:
 ;   HL - path
 ;   DE - stat
+stat:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld l, (ix+4)
+    ld h, (ix+5)
+    ld e, (ix+6)
+    ld d, (ix+7)
+    pop ix
 _stat:
     ; Syscall parameters:
     ;   BC - Path to file
@@ -145,40 +208,65 @@ _stat:
 ;   A  - dev
 ;   DE - *offset
 ;   [Stack] - whence
+seek:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld a, (ix+4)
+    ld l, (ix+8)
+    ld h, a
+    ld e, (ix+6)
+    ld d, (ix+7)
+    ; Load 32-bit offset from *offset into BCDE
+    push ix
+    push de
+    pop ix
+    ld e, (ix+0)
+    ld d, (ix+1)
+    ld c, (ix+2)
+    ld b, (ix+3)
+    pop ix
+    ; Point HL to offset MSB for write-back
+    ld l, (ix+6)
+    ld h, (ix+7)
+    inc hl
+    inc hl
+    inc hl
+    ld a, l
 _seek:
     ; Pop return address in HL, and exchange with whence
-    pop hl
-    dec sp
-    ex (sp), hl
+    ; pop hl
+    ; dec sp
+    ; ex (sp), hl
     ; Put the whence in A and the dev in H
-    ld l, a
-    ld a, h
-    ld h, l
-    push hl
+    ; ld l, a
+    ; ld a, h
+    ; ld h, l
+    ; push hl
     ; Start by dereferencing offset from DE
-    ex de, hl
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    inc hl
-    ld c, (hl)
-    inc hl
-    ld b, (hl)
+    ; ex de, hl
+    ; ld e, (hl)
+    ; inc hl
+    ; ld d, (hl)
+    ; inc hl
+    ; ld c, (hl)
+    ; inc hl
+    ; ld b, (hl)
     ; Pop the parameter H back from the stack and save the offset
-    ex (sp), hl
+    ; ex (sp), hl
     ; Syscall parameters:
     ;   H - Dev number, must refer to an opened driver (not a file)
     ;   BCDE - 32-bit offset, signed if whence is SEEK_CUR/SEEK_END.
     ;          Unsigned if SEEK_SET.
     ;   A - Whence. Can be SEEK_CUR, SEEK_END, SEEK_SET.
+    push hl
     ld l, 6
     rst 0x8
-    ; Offset address in HL
     pop hl
     ; If an error occurred, return directly, without modifying offset* value.
     or a
-    ret nz
-    ; Update the value else
+    jr nz, _seek_r
+    ; Update the value else (HL points to MSB)
     ld (hl), b
     dec hl
     ld (hl), c
@@ -186,6 +274,8 @@ _seek:
     ld (hl), d
     dec hl
     ld (hl), e
+_seek_r:
+    pop ix
     ret
 
 
@@ -194,13 +284,24 @@ _seek:
 ;   A - dev
 ;   L - cmd
 ;   [Stack] - arg
+ioctl:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld a, (ix+4)
+    ld l, (ix+6)
+    ld e, (ix+8)
+    ld d, (ix+9)
+    ld c, l
+    ld h, a
+    pop ix
 _ioctl:
     ; Put the command in C before we alter HL
-    ld c, l
+    ; ld c, l
     ; Get "arg" parameter out of the stack
-    pop hl
-    ex (sp), hl
-    ex de, hl
+    ; pop hl
+    ; ex (sp), hl
+    ; ex de, hl
     ; Syscall parameters:
     ;   H - Dev number
     ;   C - Command number
@@ -208,12 +309,20 @@ _ioctl:
     ld h, a
     ld l, 7
     rst 0x8
+_ioctl_r:
     ret
 
 
 ; zos_err_t mkdir(const char* path);
 ; Parameter:
 ;   HL - path
+mkdir:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld l, (ix+4)
+    ld h, (ix+5)
+    pop ix
 _mkdir:
     ; Syscall parameter:
     ;   DE - Path
@@ -226,6 +335,13 @@ _mkdir:
 ; zos_err_t chdir(const char* path);
 ; Parameter:
 ;   HL - path
+chdir:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld l, (ix+4)
+    ld h, (ix+5)
+    pop ix
 _chdir:
     ; Syscall parameter:
     ;   DE - Path
@@ -238,6 +354,13 @@ _chdir:
 ; zos_err_t curdir(char* path);
 ; Parameter:
 ;   HL - path
+curdir:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld l, (ix+4)
+    ld h, (ix+5)
+    pop ix
 _curdir:
     ; Syscall parameter:
     ;   DE - Path
@@ -250,6 +373,13 @@ _curdir:
 ; zos_err_t opendir(const char* path);
 ; Parameter:
 ;   HL - path
+opendir:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld l, (ix+4)
+    ld h, (ix+5)
+    pop ix
 _opendir:
     ; Syscall parameter:
     ;   DE - Path
@@ -263,6 +393,14 @@ _opendir:
 ; Parameters:
 ;   A - dev
 ;   DE - dst
+readdir:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld a, (ix+4)
+    ld e, (ix+6)
+    ld d, (ix+7)
+    pop ix
 _readdir:
     ; Syscall parameter:
     ;   H - Opened dev number
@@ -276,6 +414,13 @@ _readdir:
 ; zos_err_t rm(const char* path);
 ; Parameter:
 ;   HL - path
+rm:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld l, (ix+4)
+    ld h, (ix+5)
+    pop ix
 _rm:
     ; Syscall parameter:
     ;   DE - Path
@@ -290,29 +435,46 @@ _rm:
 ;   A - dev
 ;   L - letter
 ;   [Stack] - fs
+mount:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld a, (ix+4)
+    ld l, (ix+6)
+    ld e, (ix+8)
+    ld h, a
+    ld d, l
+    pop ix
 _mount:
     ; Save letter in B, we will need HL
-    ld b, l
+    ; ld b, l
     ; Pop fs number from the stack
-    pop hl
-    dec sp
-    ex (sp), hl
+    ; pop hl
+    ; dec sp
+    ; ex (sp), hl
     ; fs number in H
     ; Syscall parameters:
     ;   H - Dev number
     ;   D - Letter for the drive
     ;   E - File system
-    ld e, h
-    ld d, b
-    ld h, a
+    ; ld e, h
+    ; ld d, b
+    ; ld h, a
     ld l, 14
     rst 0x8
+_mount_r:
     ret
 
 
 ; void exit(uint8_t retval);
 ; Parameters:
 ;   A - retval
+exit:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld a, (ix+4)
+    pop ix
 _exit:
     ; Return value must be put in H
     ld h, a
@@ -326,49 +488,54 @@ _exit:
 ;   DE - name
 ;   [SP + 2] - argv
 ;   [SP + 4] - retval
-_exec:
-    ; Syscall parameters:
-    ;   BC - File to load and execute
-    ;   DE - Parameter to give to the new program, only one parameter is supported
-    ;        at the moment, so we need to dereference DE if it is not NULL.
+exec:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ; BC = name
+    ld e, (ix+6)
+    ld d, (ix+7)
     ld b, d
     ld c, e
-    ; Get the argv parameter from the stack
-    pop hl
-    ex (sp), hl
-    ex de, hl   ; Store the argv in DE
-    ; If empty, invoke the syscall directly, keep the mode on the stack
-    push af
+    ; DE = argv (dereferenced if non-null)
+    ld e, (ix+8)
+    ld d, (ix+9)
     ld a, d
     or e
-    jr z, _exec_syscall
-    ; DE is not NULL, we have to dereference it
-    ex de, hl
+    jr z, exec_arg_ready
+    push de
+    pop hl
     ld e, (hl)
     inc hl
     ld d, (hl)
-_exec_syscall:
-    pop hl  ; put the mode in H
-    ; The sub-program may alter IX and IY! They must not be altered
+exec_arg_ready:
+    ; Store retval pointer in HL
+    ld l, (ix+10)
+    ld h, (ix+11)
+    ; syscall
+    ld a, (ix+4)
+    ld h, a
+    push hl
     push ix
     push iy
     ld l, 16
     rst 0x8
     pop iy
     pop ix
-    ; Put the retval pointer in HL
     pop hl
-    ex (sp), hl
-    ; Stack is cleaned, if A shows an error, return directly
     or a
-    ret nz
-    ; A is ERR_SUCCESS, if retval pointer is NULL, return
+    jr nz, exec_r
+    ; Store retval if provided
     or h
     or l
-    ret z
-    ; Else, store the return value and return success
+    jr z, exec_r
     ld (hl), d
     xor a
+exec_r:
+    pop ix
+    ret
+_exec:
+    ; (sdcccall stack handling removed)
     ret
 
 
@@ -376,6 +543,13 @@ _exec_syscall:
 ; Parameters:
 ;   A - dev
 ;   L - ndev
+dup:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld a, (ix+4)
+    ld l, (ix+6)
+    pop ix
 _dup:
     ; Syscall parameters:
     ;   H - Old dev number
@@ -390,6 +564,13 @@ _dup:
 ; zos_err_t msleep(uint16_t duration);
 ; Parameters:
 ;   HL - duration
+msleep:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld l, (ix+4)
+    ld h, (ix+5)
+    pop ix
 _msleep:
     ; Syscall parameters:
     ;    DE - duration
@@ -403,6 +584,14 @@ _msleep:
 ; Parameters:
 ;   A - id
 ;   DE - time
+settime:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld a, (ix+4)
+    ld e, (ix+6)
+    ld d, (ix+7)
+    pop ix
 _settime:
     ; Syscall parameters:
     ;   H - id
@@ -422,6 +611,14 @@ _settime:
 ; Parameters:
 ;   A - id
 ;   DE - time
+gettime:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld a, (ix+4)
+    ld e, (ix+6)
+    ld d, (ix+7)
+    pop ix
 _gettime:
     ; BC will be saved during the syscall
     ld b, d
@@ -448,6 +645,13 @@ _gettime:
 ; zos_err_t setdate(const zos_date_t* date);
 ; Parameter:
 ;   HL - date
+setdate:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld l, (ix+4)
+    ld h, (ix+5)
+    pop ix
 _setdate:
     ; Syscall parameter:
     ;   DE - Date stucture
@@ -460,6 +664,13 @@ _setdate:
 ; zos_err_t getdate(const zos_date_t* date);
 ; Parameter:
 ;   HL - date
+getdate:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld l, (ix+4)
+    ld h, (ix+5)
+    pop ix
 _getdate:
     ; Syscall parameter:
     ;   DE - Date stucture
@@ -473,15 +684,25 @@ _getdate:
 ; Parameters:
 ;   HL - vaddr
 ;   [Stack] - paddr
+map:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld e, (ix+4)
+    ld d, (ix+5)
+    ld c, (ix+7)
+    ld b, (ix+8)
+    ld h, (ix+9)
+    pop ix
 _map:
     ; Syscall parameters:
     ;   DE - Virtual adress
     ;   HBC - Upper 24-bit of physical address
-    ex de, hl   ; virtual address in DE
-    pop hl
-    pop bc
-    ex (sp), hl
-    ld h, l
+    ; ex de, hl   ; virtual address in DE
+    ; pop hl
+    ; pop bc
+    ; ex (sp), hl
+    ; ld h, l
     ld l, 23
     rst 0x8
     ret
@@ -491,6 +712,13 @@ _map:
 ; Parameters:
 ;   A - fdev
 ;   L - sdev
+swap:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld a, (ix+4)
+    ld l, (ix+6)
+    pop ix
 _swap:
     ; Syscall parameters:
     ;   H - First dev number
@@ -505,6 +733,13 @@ _swap:
 ; zos_err_t palloc(uint8_t* page_index);
 ; Parameters:
 ;   HL - page_index
+palloc:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld l, (ix+4)
+    ld h, (ix+5)
+    pop ix
 _palloc:
     ; DE won't be altered by the syscall
     ex de, hl
@@ -519,6 +754,12 @@ _palloc:
 ; zos_err_t pfree(uint8_t page_index);
 ; Parameters:
 ;   A - page_index
+pfree:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld a, (ix+4)
+    pop ix
 _pfree:
     ; Syscall parameters:
     ;   B - Page to free
@@ -532,6 +773,14 @@ _pfree:
 ; Parameters:
 ;   A - page_index
 ;   DE - vaddr
+pmap:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld a, (ix+4)
+    ld e, (ix+6)
+    ld d, (ix+7)
+    pop ix
 _pmap:
     ; Syscall parameters:
     ;   DE - Virtual address
@@ -555,6 +804,7 @@ _pmap:
 ; Get next character from standard input. Input is buffered.
 ; Returns:
 ;   DE - Character received
+getchar:
 _getchar:
     ; Get the size of the buffer, if it's 0, we have to call the READ syscall
     ld a, (_getchar_size)
@@ -611,6 +861,13 @@ _getchar_reset:
 ;   HL - Character to print
 ; Returns:
 ;   DE - Character printed, EOF on error
+putchar:
+    push ix
+    ld ix, 0
+    add ix, sp
+    ld l, (ix+4)
+    ld h, (ix+5)
+    pop ix
 _putchar:
     ; Store the character to print in E, ignore high byte
     ld d, 0
@@ -672,6 +929,7 @@ _putchar_error:
 ;   None
 ; Returns:
 ;   DE - 0 upon completion, EOF in case of error
+fflush_stdout:
 _fflush_stdout:
     ; If we have nothing in the buffer, there is nothing to flush
     ld a, (_putchar_idx)

@@ -456,9 +456,9 @@ static cc_error_t codegen_emit_address_of_identifier(codegen_t* gen, const char*
     if (codegen_local_or_param_offset(gen, name, &offset)) {
         codegen_emit(gen, CG_STR_PUSH_IX_POP_HL);
         if (offset != 0) {
-            codegen_emit(gen, CG_STR_LD_DE);
+            codegen_emit(gen, "  ld bc, ");
             codegen_emit_int(gen, offset);
-            codegen_emit(gen, "\n  add hl, de\n");
+            codegen_emit(gen, "\n  add hl, bc\n");
         }
         return CC_OK;
     }
@@ -1445,6 +1445,14 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                 cc_error("Unsupported dereference operand");
                 return CC_ERROR_CODEGEN;
             }
+            if (op == OP_ADDR && child_tag == AST_TAG_IDENTIFIER) {
+                const char* name = NULL;
+                if (codegen_stream_read_identifier(ast, &name) < 0) return CC_ERROR_CODEGEN;
+                cc_error_t err = codegen_emit_address_of_identifier(gen, name);
+                if (err != CC_OK) return err;
+                g_result_in_hl = true;
+                return CC_OK;
+            }
             ast_reader_skip_tag(ast, child_tag);
             cc_error("Address-of used without pointer assignment");
             return CC_ERROR_CODEGEN;
@@ -2078,7 +2086,7 @@ void codegen_emit_strings(codegen_t* gen) {
         codegen_emit(gen, ":\n");
         codegen_emit_string_literal(gen, value);
         // Emit .db 0
-        codegen_emit(gen, ".db 0\n");
+        codegen_emit(gen, "  .db 0\n");
     }
 }
 
