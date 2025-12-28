@@ -42,6 +42,7 @@ static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast);
 static void codegen_emit_ix_offset(codegen_t* gen, int16_t offset);
 static void codegen_emit_u16_hex(codegen_t* gen, uint16_t value);
 static bool codegen_stream_type_is_16bit(uint8_t base, uint8_t depth);
+static void codegen_emit_string_literal(codegen_t* gen, const char* value);
 
 
 static uint32_t g_arg_offsets[8];
@@ -243,6 +244,26 @@ static void codegen_emit_jump(codegen_t* gen, const char* prefix, const char* la
     codegen_emit(gen, prefix);
     codegen_emit_label_name(gen, label);
     codegen_emit(gen, CG_STR_NL);
+}
+
+static void codegen_emit_string_literal(codegen_t* gen, const char* value) {
+    if (!gen || !value) return;
+    codegen_emit(gen, CG_STR_DM);
+    codegen_emit(gen, "\"");
+    for (const char* p = value; *p; ++p) {
+        if (*p == '"' || *p == '\\' || *p == '\n') {
+            codegen_emit(gen, "\\");
+        }
+        char c;
+        switch (*p) {
+            case '\n': c = 'n'; break;
+            default: c = *p;
+        }
+        g_emit_buf[0] = c;
+        g_emit_buf[1] = '\0';
+        codegen_emit(gen, g_emit_buf);
+    }
+    codegen_emit(gen, "\"\n");
 }
 
 static int8_t codegen_stream_read_identifier(ast_reader_t* ast, const char** name) {
@@ -1948,17 +1969,7 @@ static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast) {
                     cc_error("String literal too long for array");
                     return CC_ERROR_CODEGEN;
                 }
-                codegen_emit(gen, CG_STR_DM);
-                codegen_emit(gen, "\"");
-                for (uint16_t i = 0; i < len; i++) {
-                    if (init_str[i] == '"' || init_str[i] == '\\') {
-                        codegen_emit(gen, "\\");
-                    }
-                    g_emit_buf[0] = init_str[i];
-                    g_emit_buf[1] = '\0';
-                    codegen_emit(gen, g_emit_buf);
-                }
-                codegen_emit(gen, "\"\n");
+                codegen_emit_string_literal(gen, init_str);
                 codegen_emit(gen, ".db 0\n");
                 if ((uint16_t)(len + 1u) < array_len) {
                     codegen_emit(gen, CG_STR_DS);
@@ -2065,23 +2076,7 @@ void codegen_emit_strings(codegen_t* gen) {
         if (!label || !value) continue;
         codegen_emit(gen, label);
         codegen_emit(gen, ":\n");
-        // Emit .dm "String"
-        codegen_emit(gen, ".dm \"");
-        // Output string contents, escaping as needed
-        for (const char* p = value; *p; ++p) {
-            if (*p == '"' || *p == '\\' || *p == '\n') {
-                codegen_emit(gen, "\\");
-            }
-            char c;
-            switch(*p) {
-                case '\n': c = 'n'; break;
-                default: c = *p;
-            }
-            g_emit_buf[0] = c;
-            g_emit_buf[1] = '\0';
-            codegen_emit(gen, g_emit_buf);
-        }
-        codegen_emit(gen, "\"\n");
+        codegen_emit_string_literal(gen, value);
         // Emit .db 0
         codegen_emit(gen, ".db 0\n");
     }
