@@ -7,13 +7,4 @@ _start:
     ld a, l
     call _exit
 
-    ; void exit(uint8_t retval);
-    ; Parameters:
-    ;   A - retval
-_exit:
-    ld h, a       ; Move return value from A to H (compiler ABI)
-    ld l, 15      ; EXIT syscall
-    rst 0x8       ; ZOS exit syscall (returns to shell)
-    halt
-
 ; End of crt0.asm

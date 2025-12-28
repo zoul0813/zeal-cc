@@ -2051,7 +2051,7 @@ static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast) {
 }
 
 void codegen_emit_runtime(codegen_t* gen) {
-    codegen_emit_file(gen, "runtime/putchar.asm");
+    codegen_emit_file(gen, "runtime/zeal8bit.asm");
     codegen_emit_file(gen, "runtime/math_8.asm");
     codegen_emit_file(gen, "runtime/math_16.asm");
 }
