@@ -19,9 +19,11 @@ int8_t ast_reader_skip_tag(ast_reader_t* ast, uint8_t tag) {
             uint8_t param_count = 0;
             uint8_t base = 0;
             uint8_t depth = 0;
+            uint16_t array_len = 0;
             if (ast_read_u16(ast->reader, &name_index) < 0) return -1;
-            if (ast_reader_read_type_info(ast, &base, &depth) < 0) return -1;
+            if (ast_reader_read_type_info(ast, &base, &depth, &array_len) < 0) return -1;
             if (ast_read_u8(ast->reader, &param_count) < 0) return -1;
+            (void)array_len;
             for (uint8_t i = 0; i < param_count; i++) {
                 if (ast_reader_skip_node(ast) < 0) return -1;
             }
@@ -32,9 +34,11 @@ int8_t ast_reader_skip_tag(ast_reader_t* ast, uint8_t tag) {
             uint8_t has_init = 0;
             uint8_t base = 0;
             uint8_t depth = 0;
+            uint16_t array_len = 0;
             if (ast_read_u16(ast->reader, &name_index) < 0) return -1;
-            if (ast_reader_read_type_info(ast, &base, &depth) < 0) return -1;
+            if (ast_reader_read_type_info(ast, &base, &depth, &array_len) < 0) return -1;
             if (ast_read_u8(ast->reader, &has_init) < 0) return -1;
+            (void)array_len;
             if (has_init) return ast_reader_skip_node(ast);
             return 0;
         }

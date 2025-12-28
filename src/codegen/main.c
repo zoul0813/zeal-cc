@@ -5,7 +5,7 @@
 #include "cc_compat.h"
 
 #ifndef CC_POOL_SIZE
-#define CC_POOL_SIZE 2048 /* 4 KB pool */
+#define CC_POOL_SIZE 1024 /* 1 KB pool to avoid file_buffer overlap */
 #endif
 
 char g_memory_pool[CC_POOL_SIZE];

@@ -18,7 +18,7 @@ _putchar:
     ld c, a ; Backup A
     ld hl, _putchar_buffer
     ; ADD HL, A
-    add l
+    add a, l
     ld l, a
     adc h
     sub l

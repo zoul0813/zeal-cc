@@ -112,6 +112,41 @@ static type_t* parse_type(parser_t* parser) {
     return NULL;
 }
 
+static int8_t parse_array_suffix(parser_t* parser, uint16_t* out_len, bool allow_unsized) {
+    if (!out_len) return -1;
+    if (!parser_match(parser, TOK_LBRACKET)) return 0;
+    if (parser_check(parser, TOK_RBRACKET)) {
+        if (!allow_unsized) {
+            token_t* tok = parser_current(parser);
+            parser_report_error("Expected array length", tok);
+            parser->error_count++;
+            return -1;
+        }
+        parser_advance(parser);
+        *out_len = 0;
+        return 1;
+    }
+    if (!parser_check(parser, TOK_NUMBER)) {
+        token_t* tok = parser_current(parser);
+        parser_report_error("Expected array length", tok);
+        parser->error_count++;
+        return -1;
+    }
+    token_t* len_tok = parser_current(parser);
+    int16_t len = len_tok->int_val;
+    parser_advance(parser);
+    if (len <= 0) {
+        parser_report_error("Array length must be positive", len_tok);
+        parser->error_count++;
+        return -1;
+    }
+    if (!parser_consume(parser, TOK_RBRACKET, "Expected ']' after array length")) {
+        return -1;
+    }
+    *out_len = (uint16_t)len;
+    return 1;
+}
+
 static ast_node_t* parse_primary(parser_t* parser) {
     token_t* tok = parser_current(parser);
     ast_node_t* base = NULL;
@@ -464,6 +499,41 @@ static ast_node_t* parse_statement(parser_t* parser) {
             return NULL;
         }
 
+        uint16_t array_len = 0;
+        int8_t array_suffix = parse_array_suffix(parser, &array_len, false);
+        if (array_suffix < 0) {
+            type_destroy(var_type);
+            cc_free(name);
+            ast_node_destroy(node);
+            return NULL;
+        }
+        if (array_suffix > 0) {
+            if (parser_check(parser, TOK_LBRACKET)) {
+                token_t* tok = parser_current(parser);
+                parser_report_error("Only single-dimension arrays supported", tok);
+                parser->error_count++;
+                type_destroy(var_type);
+                cc_free(name);
+                ast_node_destroy(node);
+                return NULL;
+            }
+            if (var_type->kind == TYPE_VOID) {
+                token_t* tok = parser_current(parser);
+                parser_report_error("Array element type cannot be void", tok);
+                parser->error_count++;
+                type_destroy(var_type);
+                cc_free(name);
+                ast_node_destroy(node);
+                return NULL;
+            }
+            var_type = type_create_array(var_type, array_len);
+            if (!var_type) {
+                cc_free(name);
+                ast_node_destroy(node);
+                return NULL;
+            }
+        }
+
         node->data.var_decl.name = name;
         node->data.var_decl.var_type = var_type;
         node->data.var_decl.initializer = NULL;
@@ -676,6 +746,41 @@ static ast_node_t* parse_parameter(parser_t* parser) {
         return NULL;
     }
 
+    uint16_t array_len = 0;
+    int8_t array_suffix = parse_array_suffix(parser, &array_len, true);
+    if (array_suffix < 0) {
+        type_destroy(var_type);
+        cc_free(name);
+        ast_node_destroy(param);
+        return NULL;
+    }
+    if (array_suffix > 0) {
+        if (parser_check(parser, TOK_LBRACKET)) {
+            token_t* tok = parser_current(parser);
+            parser_report_error("Only single-dimension arrays supported", tok);
+            parser->error_count++;
+            type_destroy(var_type);
+            cc_free(name);
+            ast_node_destroy(param);
+            return NULL;
+        }
+        if (var_type->kind == TYPE_VOID) {
+            token_t* tok = parser_current(parser);
+            parser_report_error("Array element type cannot be void", tok);
+            parser->error_count++;
+            type_destroy(var_type);
+            cc_free(name);
+            ast_node_destroy(param);
+            return NULL;
+        }
+        var_type = type_create_pointer(var_type);
+        if (!var_type) {
+            cc_free(name);
+            ast_node_destroy(param);
+            return NULL;
+        }
+    }
+
     param->data.var_decl.name = name;
     param->data.var_decl.var_type = var_type;
     param->data.var_decl.initializer = NULL;
@@ -700,6 +805,37 @@ static ast_node_t* parse_declaration(parser_t* parser) {
 
         if (parser_check(parser, TOK_LPAREN)) {
             return parse_function_after_name(parser, name, decl_type);
+        }
+
+        uint16_t array_len = 0;
+        int8_t array_suffix = parse_array_suffix(parser, &array_len, false);
+        if (array_suffix < 0) {
+            type_destroy(decl_type);
+            cc_free(name);
+            return NULL;
+        }
+        if (array_suffix > 0) {
+            if (parser_check(parser, TOK_LBRACKET)) {
+                token_t* tok = parser_current(parser);
+                parser_report_error("Only single-dimension arrays supported", tok);
+                parser->error_count++;
+                type_destroy(decl_type);
+                cc_free(name);
+                return NULL;
+            }
+            if (decl_type->kind == TYPE_VOID) {
+                token_t* tok = parser_current(parser);
+                parser_report_error("Array element type cannot be void", tok);
+                parser->error_count++;
+                type_destroy(decl_type);
+                cc_free(name);
+                return NULL;
+            }
+            decl_type = type_create_array(decl_type, array_len);
+            if (!decl_type) {
+                cc_free(name);
+                return NULL;
+            }
         }
 
         ast_node_t* node = ast_node_create(AST_VAR_DECL);

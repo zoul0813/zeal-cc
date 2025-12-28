@@ -9,7 +9,7 @@
 /* Global buffer for file reading - ZOS doesn't have malloc */
 /* Place buffer higher to free space for DATA; stack still has headroom */
 #define FILE_BUFFER_SIZE 512
-static __at(0xC000) char file_buffer[FILE_BUFFER_SIZE];
+static __at(0xC300) char file_buffer[FILE_BUFFER_SIZE];
 
 struct reader {
     zos_dev_t dev;
