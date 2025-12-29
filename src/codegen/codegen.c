@@ -640,14 +640,8 @@ static void codegen_emit_ix_offset(codegen_t* gen, int16_t offset) {
 
 static char* codegen_new_label_persist(codegen_t* gen) {
     char* tmp = codegen_new_label(gen);
-    uint8_t len = 0;
-    while (tmp[len]) len++;
-    char* out = (char*)cc_malloc(len + 1);
-    if (!out) return tmp;
-    for (uint8_t i = 0; i <= len; i++) {
-        out[i] = tmp[i];
-    }
-    return out;
+    char* out = cc_strdup(tmp);
+    return out ? out : tmp;
 }
 
 static const char* codegen_get_string_label(codegen_t* gen, const char* value) {
