@@ -149,15 +149,14 @@ static void codegen_emit_label_name(codegen_t* gen, const char* name) {
     codegen_emit(gen, g_emit_buf);
 }
 
-static void codegen_emit_prefixed_label(codegen_t* gen, const char* prefix, const char* name) {
-    if (!gen || !prefix || !name) return;
-    uint16_t prefix_len = (uint16_t)str_len(prefix);
+static void codegen_emit_mangled_var(codegen_t* gen, const char* name) {
+    if (!gen || !name) return;
     uint16_t name_len = (uint16_t)str_len(name);
-    if (prefix_len + name_len <= CODEGEN_LABEL_MAX) {
+    if (name_len + 3 <= CODEGEN_LABEL_MAX) {
         uint16_t i = 0;
-        for (uint16_t p = 0; p < prefix_len && i < CODEGEN_LABEL_MAX; p++) {
-            g_emit_buf[i++] = codegen_to_lower(prefix[p]);
-        }
+        g_emit_buf[i++] = '_';
+        g_emit_buf[i++] = 'v';
+        g_emit_buf[i++] = '_';
         for (uint16_t n = 0; n < name_len && i < CODEGEN_LABEL_MAX; n++) {
             g_emit_buf[i++] = codegen_to_lower(name[n]);
         }
@@ -167,12 +166,12 @@ static void codegen_emit_prefixed_label(codegen_t* gen, const char* prefix, cons
     }
     uint16_t hash = codegen_label_hash(name);
     uint16_t i = 0;
-    for (uint16_t p = 0; p < prefix_len && i < CODEGEN_LABEL_MAX; p++) {
-        g_emit_buf[i++] = codegen_to_lower(prefix[p]);
-    }
+    g_emit_buf[i++] = '_';
+    g_emit_buf[i++] = 'v';
+    g_emit_buf[i++] = '_';
     uint16_t keep = 1;
-    if (prefix_len + 1 + CODEGEN_LABEL_HASH_LEN < CODEGEN_LABEL_MAX) {
-        keep = (uint16_t)(CODEGEN_LABEL_MAX - prefix_len - 1 - CODEGEN_LABEL_HASH_LEN);
+    if (3 + 1 + CODEGEN_LABEL_HASH_LEN < CODEGEN_LABEL_MAX) {
+        keep = (uint16_t)(CODEGEN_LABEL_MAX - 3 - 1 - CODEGEN_LABEL_HASH_LEN);
     }
     for (uint16_t n = 0; n < keep && name[n] && i < CODEGEN_LABEL_MAX; n++) {
         g_emit_buf[i++] = codegen_to_lower(name[n]);
@@ -183,10 +182,6 @@ static void codegen_emit_prefixed_label(codegen_t* gen, const char* prefix, cons
     codegen_append_hex4(g_emit_buf, &i, hash);
     g_emit_buf[i] = '\0';
     codegen_emit(gen, g_emit_buf);
-}
-
-static void codegen_emit_mangled_var(codegen_t* gen, const char* name) {
-    codegen_emit_prefixed_label(gen, "_v_", name);
 }
 
 static bool codegen_names_equal(const char* a, const char* b) {

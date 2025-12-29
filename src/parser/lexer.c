@@ -165,7 +165,7 @@ static token_t* lexer_read_number(lexer_t* lexer) {
     uint16_t start_line = lexer->line;
     uint16_t start_column = lexer->column;
     char buffer[MAX_TOKEN_LENGTH];
-    size_t len = 0;
+    uint8_t len = 0;
     bool is_hex = false;
 
     /* Check for hex prefix */
@@ -222,7 +222,7 @@ static token_t* lexer_read_number(lexer_t* lexer) {
     if (token) {
         /* Parse integer */
         int32_t val = 0;
-        size_t i = 0;
+        uint8_t i = 0;
 
         if (is_hex) {
             i = 2; /* Skip 0x */
@@ -255,7 +255,7 @@ static token_t* lexer_read_identifier(lexer_t* lexer) {
     uint16_t start_line = lexer->line;
     uint16_t start_column = lexer->column;
     char buffer[MAX_IDENTIFIER_LENGTH];
-    size_t len = 0;
+    uint8_t len = 0;
 
     while (len < MAX_IDENTIFIER_LENGTH - 1 && is_identifier_char(lexer->current_char)) {
         buffer[len++] = lexer->current_char;
@@ -266,7 +266,7 @@ static token_t* lexer_read_identifier(lexer_t* lexer) {
     /* Check if it's a keyword */
     for (uint16_t i = 0; keywords[i].name != NULL; i++) {
         bool match = true;
-        for (size_t j = 0; keywords[i].name[j] != '\0' || buffer[j] != '\0'; j++) {
+        for (uint8_t j = 0; keywords[i].name[j] != '\0' || buffer[j] != '\0'; j++) {
             if (keywords[i].name[j] != buffer[j]) {
                 match = false;
                 break;
@@ -284,7 +284,7 @@ static token_t* lexer_read_string(lexer_t* lexer) {
     uint16_t start_line = lexer->line;
     uint16_t start_column = lexer->column;
     char buffer[MAX_STRING_LENGTH];
-    size_t len = 0;
+    uint8_t len = 0;
 
     /* Skip opening quote */
     lexer_advance(lexer);
