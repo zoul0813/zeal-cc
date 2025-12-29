@@ -281,13 +281,18 @@ static void codegen_emit_string_literal(codegen_t* gen, const char* value) {
     codegen_emit(gen, CG_STR_DM);
     codegen_emit(gen, "\"");
     for (const char* p = value; *p; ++p) {
-        if (*p == '"' || *p == '\\' || *p == '\n') {
-            codegen_emit(gen, "\\");
+        char c = *p;
+        if (c == '"') {
+            codegen_emit(gen, "\\\"");
+            continue;
         }
-        char c;
-        switch (*p) {
-            case '\n': c = 'n'; break;
-            default: c = *p;
+        if (c == '\\') {
+            codegen_emit(gen, "\\\\");
+            continue;
+        }
+        if (c == '\n') {
+            codegen_emit(gen, "\\n");
+            continue;
         }
         g_emit_buf[0] = c;
         g_emit_buf[1] = '\0';
