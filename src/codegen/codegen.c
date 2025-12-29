@@ -69,6 +69,8 @@ static bool codegen_tag_is_simple_expr(uint8_t tag) {
            tag == AST_TAG_BINARY_OP;
 }
 
+static const char g_hex_digits[] = "0123456789abcdef";
+
 static void codegen_result_to_hl(codegen_t* gen) {
     if (g_result_in_hl) {
         return;
@@ -125,7 +127,6 @@ static void codegen_emit_label_name(codegen_t* gen, const char* name) {
         return;
     }
     {
-        static const char hex[] = "0123456789abcdef";
         uint16_t keep = CODEGEN_LABEL_MAX - 1 - CODEGEN_LABEL_HASH_LEN;
         uint16_t out = 0;
         for (uint16_t n = 0; n < keep && name[n]; n++) {
@@ -137,7 +138,7 @@ static void codegen_emit_label_name(codegen_t* gen, const char* name) {
         }
         g_emit_buf[out++] = '_';
         for (int shift = 12; shift >= 0; shift -= 4) {
-            g_emit_buf[out++] = hex[(hash >> shift) & 0xF];
+            g_emit_buf[out++] = g_hex_digits[(hash >> shift) & 0xF];
         }
         g_emit_buf[out] = '\0';
         codegen_emit(gen, g_emit_buf);
@@ -189,11 +190,8 @@ static void codegen_emit_mangled_var(codegen_t* gen, const char* name) {
     if (i < CODEGEN_LABEL_MAX) {
         g_emit_buf[i++] = '_';
     }
-    {
-        static const char hex[] = "0123456789abcdef";
-        for (int shift = 12; shift >= 0; shift -= 4) {
-            g_emit_buf[i++] = hex[(hash >> shift) & 0xF];
-        }
+    for (int shift = 12; shift >= 0; shift -= 4) {
+        g_emit_buf[i++] = g_hex_digits[(hash >> shift) & 0xF];
     }
     g_emit_buf[i] = '\0';
     codegen_emit(gen, g_emit_buf);
@@ -230,24 +228,22 @@ static void codegen_emit_u8_dec(codegen_t* gen, uint8_t value) {
 
 static void codegen_emit_u8_hex(codegen_t* gen, uint8_t value) {
     char* buf = g_emit_buf;
-    static const char hex[] = "0123456789ABCDEF";
     buf[0] = '0';
     buf[1] = 'x';
-    buf[2] = hex[(value >> 4) & 0xF];
-    buf[3] = hex[value & 0xF];
+    buf[2] = g_hex_digits[(value >> 4) & 0xF];
+    buf[3] = g_hex_digits[value & 0xF];
     buf[4] = '\0';
     codegen_emit(gen, buf);
 }
 
 static void codegen_emit_u16_hex(codegen_t* gen, uint16_t value) {
     char* buf = g_emit_buf;
-    static const char hex[] = "0123456789ABCDEF";
     buf[0] = '0';
     buf[1] = 'x';
-    buf[2] = hex[(value >> 12) & 0xF];
-    buf[3] = hex[(value >> 8) & 0xF];
-    buf[4] = hex[(value >> 4) & 0xF];
-    buf[5] = hex[value & 0xF];
+    buf[2] = g_hex_digits[(value >> 12) & 0xF];
+    buf[3] = g_hex_digits[(value >> 8) & 0xF];
+    buf[4] = g_hex_digits[(value >> 4) & 0xF];
+    buf[5] = g_hex_digits[value & 0xF];
     buf[6] = '\0';
     codegen_emit(gen, buf);
 }
