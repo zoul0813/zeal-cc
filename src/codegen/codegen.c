@@ -297,7 +297,7 @@ static int16_t codegen_global_index(codegen_t* gen, const char* name) {
 
 static void codegen_record_local(codegen_t* gen, const char* name, uint16_t size,
                                  bool is_16bit, bool is_pointer, bool is_array,
-                                 uint16_t array_len, uint8_t elem_size) {
+                                 uint8_t elem_size) {
     if (!gen || !name) return;
     if (codegen_local_index(gen, name) >= 0) return;
     if (gen->local_var_count < (sizeof(gen->local_vars) / sizeof(gen->local_vars[0]))) {
@@ -306,7 +306,6 @@ static void codegen_record_local(codegen_t* gen, const char* name, uint16_t size
         gen->local_is_16[gen->local_var_count] = is_16bit;
         gen->local_is_pointer[gen->local_var_count] = is_pointer;
         gen->local_is_array[gen->local_var_count] = is_array;
-        gen->local_array_len[gen->local_var_count] = array_len;
         gen->local_elem_size[gen->local_var_count] = elem_size;
         gen->stack_offset += size;
         gen->local_var_count++;
@@ -1667,7 +1666,7 @@ static int8_t codegen_stream_collect_locals(codegen_t* gen, ast_reader_t* ast) {
                 }
             }
             codegen_record_local(gen, name, size, is_16bit, is_pointer, is_array,
-                                 array_len, elem_size);
+                                 elem_size);
             if (has_init) return ast_reader_skip_node(ast);
             return 0;
         }
@@ -2038,7 +2037,6 @@ cc_error_t codegen_generate_stream(codegen_t* gen, ast_reader_t* ast) {
                     gen->global_is_16[gen->global_count] = is_16bit;
                     gen->global_is_pointer[gen->global_count] = is_pointer;
                     gen->global_is_array[gen->global_count] = is_array;
-                    gen->global_array_len[gen->global_count] = array_len;
                     gen->global_elem_size[gen->global_count] = elem_size;
                     gen->global_count++;
                 }

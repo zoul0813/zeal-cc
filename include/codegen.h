@@ -25,7 +25,6 @@ typedef struct {
     bool local_is_16[64];
     bool local_is_pointer[64];
     bool local_is_array[64];
-    uint16_t local_array_len[64];
     uint8_t local_elem_size[64];
     codegen_local_count_t local_var_count;
     const char* param_names[8];
@@ -45,7 +44,6 @@ typedef struct {
     bool global_is_16[64];
     bool global_is_pointer[64];
     bool global_is_array[64];
-    uint16_t global_array_len[64];
     uint8_t global_elem_size[64];
     codegen_global_count_t global_count;
 
