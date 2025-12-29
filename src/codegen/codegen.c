@@ -62,6 +62,13 @@ static bool g_expect_result_in_hl = false;
 
 /* Helpers */
 
+static bool codegen_tag_is_simple_expr(uint8_t tag) {
+    return tag == AST_TAG_CONSTANT ||
+           tag == AST_TAG_IDENTIFIER ||
+           tag == AST_TAG_CALL ||
+           tag == AST_TAG_BINARY_OP;
+}
+
 static char* codegen_format_label(char labels[8][16], uint8_t* slot,
                                   char prefix, uint16_t n) {
     char* label = labels[(*slot)++ & 7];
@@ -927,10 +934,7 @@ static cc_error_t codegen_statement_return(codegen_t* gen, ast_reader_t* ast, ui
         uint8_t expr_tag = 0;
         if (ast_read_u8(ast->reader, &expr_tag) < 0) return CC_ERROR_CODEGEN;
         bool expect_hl = gen->function_return_is_16 &&
-                         (expr_tag == AST_TAG_CONSTANT ||
-                          expr_tag == AST_TAG_IDENTIFIER ||
-                          expr_tag == AST_TAG_CALL ||
-                          expr_tag == AST_TAG_BINARY_OP);
+                         codegen_tag_is_simple_expr(expr_tag);
         cc_error_t err = codegen_stream_expression_expect(gen, ast, expr_tag, expect_hl);
         if (err != CC_OK) return err;
         if (gen->function_return_is_16) {
@@ -1047,10 +1051,7 @@ static cc_error_t codegen_statement_var_decl(codegen_t* gen, ast_reader_t* ast, 
         }
         bool is_16bit = codegen_stream_type_is_16bit(base, depth);
         bool expect_hl = is_16bit &&
-                         (init_tag == AST_TAG_CONSTANT ||
-                          init_tag == AST_TAG_IDENTIFIER ||
-                          init_tag == AST_TAG_CALL ||
-                          init_tag == AST_TAG_BINARY_OP);
+                         codegen_tag_is_simple_expr(init_tag);
         cc_error_t err = codegen_stream_expression_expect(gen, ast, init_tag, expect_hl);
         if (err != CC_OK) return err;
         if (is_16bit) {
@@ -1562,10 +1563,7 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                 if (ast_read_u8(ast->reader, &rtag) < 0) return CC_ERROR_CODEGEN;
                 codegen_emit(gen, CG_STR_PUSH_HL);
                 bool expect_hl = (elem_size == 2) &&
-                                 (rtag == AST_TAG_CONSTANT ||
-                                  rtag == AST_TAG_IDENTIFIER ||
-                                  rtag == AST_TAG_CALL ||
-                                  rtag == AST_TAG_BINARY_OP);
+                                 codegen_tag_is_simple_expr(rtag);
                 err = codegen_stream_expression_expect(gen, ast, rtag, expect_hl);
                 if (err != CC_OK) return err;
                 codegen_emit(gen, "  pop de\n");
@@ -1669,10 +1667,7 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
 
             bool lvalue_is_16 = lvalue_name && codegen_name_is_16(gen, lvalue_name);
             bool expect_hl = lvalue_is_16 &&
-                             (rtag == AST_TAG_CONSTANT ||
-                              rtag == AST_TAG_IDENTIFIER ||
-                              rtag == AST_TAG_CALL ||
-                              rtag == AST_TAG_BINARY_OP);
+                             codegen_tag_is_simple_expr(rtag);
             cc_error_t err = codegen_stream_expression_expect(gen, ast, rtag, expect_hl);
             if (err != CC_OK) return err;
             if (lvalue_name) {
