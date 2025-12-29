@@ -707,11 +707,7 @@ static bool codegen_op_is_compare(uint8_t op) {
 static void codegen_emit_compare(codegen_t* gen, const char* jump1, const char* jump2,
                                  bool output_in_hl, bool use_set_label) {
     char* end = codegen_new_label(gen);
-    if (output_in_hl) {
-        codegen_emit(gen, CG_STR_LD_HL_ZERO);
-    } else {
-        codegen_emit(gen, CG_STR_LD_A_ZERO);
-    }
+    codegen_emit(gen, output_in_hl ? CG_STR_LD_HL_ZERO : CG_STR_LD_A_ZERO);
     if (use_set_label) {
         char* set = codegen_new_label(gen);
         if (jump1) {
@@ -730,11 +726,7 @@ static void codegen_emit_compare(codegen_t* gen, const char* jump1, const char* 
             codegen_emit_jump(gen, jump2, end);
         }
     }
-    if (output_in_hl) {
-        codegen_emit(gen, "  ld hl, 1\n");
-    } else {
-        codegen_emit(gen, CG_STR_LD_A_ONE);
-    }
+    codegen_emit(gen, output_in_hl ? "  ld hl, 1\n" : CG_STR_LD_A_ONE);
     codegen_emit_label(gen, end);
 }
 
@@ -908,13 +900,9 @@ static cc_error_t codegen_statement_return(codegen_t* gen, ast_reader_t* ast, ui
             codegen_result_to_a(gen);
         }
     } else {
-        if (gen->function_return_is_16) {
-            codegen_emit(gen, CG_STR_LD_HL_ZERO);
-            g_result_in_hl = true;
-        } else {
-            codegen_emit(gen, CG_STR_LD_A_ZERO);
-            g_result_in_hl = false;
-        }
+        bool is_16bit = gen->function_return_is_16;
+        codegen_emit(gen, is_16bit ? CG_STR_LD_HL_ZERO : CG_STR_LD_A_ZERO);
+        g_result_in_hl = is_16bit;
     }
     codegen_emit_jump(gen, CG_STR_JP, gen->function_end_label);
     return CC_OK;
