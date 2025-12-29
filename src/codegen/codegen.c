@@ -128,14 +128,7 @@ static void codegen_emit_label_name(codegen_t* gen, const char* name) {
     }
     {
         uint16_t keep = CODEGEN_LABEL_MAX - 1 - CODEGEN_LABEL_HASH_LEN;
-        uint16_t out = 0;
-        for (uint16_t n = 0; n < keep && name[n]; n++) {
-            char c = name[n];
-            if (c >= 'A' && c <= 'Z') {
-                c = (char)(c + ('a' - 'A'));
-            }
-            g_emit_buf[out++] = c;
-        }
+        uint16_t out = keep;
         g_emit_buf[out++] = '_';
         for (int shift = 12; shift >= 0; shift -= 4) {
             g_emit_buf[out++] = g_hex_digits[(hash >> shift) & 0xF];
