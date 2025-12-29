@@ -8,7 +8,7 @@ void ast_tree_destroy(ast_node_t* node) {
     switch (node->type) {
         case AST_PROGRAM:
             if (node->data.program.declarations) {
-                for (size_t i = 0; i < node->data.program.decl_count; i++) {
+                for (ast_count_t i = 0; i < node->data.program.decl_count; i++) {
                     ast_tree_destroy(node->data.program.declarations[i]);
                 }
                 cc_free(node->data.program.declarations);
@@ -16,7 +16,7 @@ void ast_tree_destroy(ast_node_t* node) {
             break;
         case AST_COMPOUND_STMT:
             if (node->data.compound.statements) {
-                for (size_t i = 0; i < node->data.compound.stmt_count; i++) {
+                for (ast_count_t i = 0; i < node->data.compound.stmt_count; i++) {
                     ast_tree_destroy(node->data.compound.statements[i]);
                 }
                 cc_free(node->data.compound.statements);
@@ -58,7 +58,7 @@ void ast_tree_destroy(ast_node_t* node) {
                 type_destroy(node->data.function.return_type);
             }
             if (node->data.function.params) {
-                for (size_t i = 0; i < node->data.function.param_count; i++) {
+                for (ast_count_t i = 0; i < node->data.function.param_count; i++) {
                     ast_tree_destroy(node->data.function.params[i]);
                 }
                 cc_free(node->data.function.params);
@@ -104,7 +104,7 @@ void ast_tree_destroy(ast_node_t* node) {
                 cc_free(node->data.call.name);
             }
             if (node->data.call.args) {
-                for (size_t i = 0; i < node->data.call.arg_count; i++) {
+                for (ast_count_t i = 0; i < node->data.call.arg_count; i++) {
                     ast_tree_destroy(node->data.call.args[i]);
                 }
                 cc_free(node->data.call.args);

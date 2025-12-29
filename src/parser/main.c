@@ -110,7 +110,7 @@ static int8_t ast_write_node(ast_writer_t* writer, const ast_node_t* node) {
             if (ast_write_u16(writer->out, (uint16_t)name_index) < 0) return -1;
             if (ast_write_type(writer, node->data.function.return_type) < 0) return -1;
             if (ast_write_u8(writer->out, (uint8_t)node->data.function.param_count) < 0) return -1;
-            for (size_t i = 0; i < node->data.function.param_count; i++) {
+            for (ast_count_t i = 0; i < node->data.function.param_count; i++) {
                 if (ast_write_node(writer, node->data.function.params[i]) < 0) return -1;
             }
             return ast_write_node(writer, node->data.function.body);
@@ -130,7 +130,7 @@ static int8_t ast_write_node(ast_writer_t* writer, const ast_node_t* node) {
         case AST_COMPOUND_STMT: {
             if (ast_write_u8(writer->out, AST_TAG_COMPOUND_STMT) < 0) return -1;
             if (ast_write_u16(writer->out, (uint16_t)node->data.compound.stmt_count) < 0) return -1;
-            for (size_t i = 0; i < node->data.compound.stmt_count; i++) {
+            for (ast_count_t i = 0; i < node->data.compound.stmt_count; i++) {
                 if (ast_write_node(writer, node->data.compound.statements[i]) < 0) return -1;
             }
             return 0;
@@ -185,7 +185,7 @@ static int8_t ast_write_node(ast_writer_t* writer, const ast_node_t* node) {
             if (ast_write_u8(writer->out, AST_TAG_CALL) < 0) return -1;
             if (ast_write_u16(writer->out, (uint16_t)name_index) < 0) return -1;
             if (ast_write_u8(writer->out, (uint8_t)node->data.call.arg_count) < 0) return -1;
-            for (size_t i = 0; i < node->data.call.arg_count; i++) {
+            for (ast_count_t i = 0; i < node->data.call.arg_count; i++) {
                 if (ast_write_node(writer, node->data.call.args[i]) < 0) return -1;
             }
             return 0;
@@ -267,7 +267,7 @@ static int8_t ast_measure_node(ast_writer_t* writer, const ast_node_t* node, uin
             int16_t name_index = ast_string_index(writer, node->data.function.name);
             if (name_index < 0) return -1;
             uint32_t size = 1 + 2 + 4 + 1;
-            for (size_t i = 0; i < node->data.function.param_count; i++) {
+            for (ast_count_t i = 0; i < node->data.function.param_count; i++) {
                 uint32_t child_size = 0;
                 if (ast_measure_node(writer, node->data.function.params[i], &child_size) < 0) return -1;
                 size += child_size;
@@ -294,7 +294,7 @@ static int8_t ast_measure_node(ast_writer_t* writer, const ast_node_t* node, uin
         }
         case AST_COMPOUND_STMT: {
             uint32_t size = 1 + 2;
-            for (size_t i = 0; i < node->data.compound.stmt_count; i++) {
+            for (ast_count_t i = 0; i < node->data.compound.stmt_count; i++) {
                 uint32_t child_size = 0;
                 if (ast_measure_node(writer, node->data.compound.statements[i], &child_size) < 0) return -1;
                 size += child_size;
@@ -375,7 +375,7 @@ static int8_t ast_measure_node(ast_writer_t* writer, const ast_node_t* node, uin
             int16_t name_index = ast_string_index(writer, node->data.call.name);
             if (name_index < 0) return -1;
             uint32_t size = 1 + 2 + 1;
-            for (size_t i = 0; i < node->data.call.arg_count; i++) {
+            for (ast_count_t i = 0; i < node->data.call.arg_count; i++) {
                 uint32_t child_size = 0;
                 if (ast_measure_node(writer, node->data.call.args[i], &child_size) < 0) return -1;
                 size += child_size;
