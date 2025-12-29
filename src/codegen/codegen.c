@@ -62,6 +62,22 @@ static bool g_expect_result_in_hl = false;
 
 /* Helpers */
 
+static char* codegen_format_label(char labels[8][16], uint8_t* slot,
+                                  char prefix, uint16_t n) {
+    char* label = labels[(*slot)++ & 7];
+    uint16_t i = 0;
+    label[i++] = '_';
+    label[i++] = prefix;
+    for (uint16_t pos = 0; pos < 6; pos++) {
+        uint16_t digit = n % 10;
+        label[i + 5 - pos] = (char)('0' + digit);
+        n /= 10;
+    }
+    i += 6;
+    label[i] = '\0';
+    return label;
+}
+
 static char codegen_to_lower(char c) {
     if (c >= 'A' && c <= 'Z') return (char)(c + ('a' - 'A'));
     return c;
@@ -696,37 +712,13 @@ void codegen_emit(codegen_t* gen, const char* fmt, ...) {
 char* codegen_new_label(codegen_t* gen) {
     static char labels[8][16];
     static uint8_t slot = 0;
-    char* label = labels[slot++ & 7];
-    uint16_t n = gen->label_counter++;
-    uint16_t i = 0;
-    label[i++] = '_';
-    label[i++] = 'l';
-    for (uint16_t pos = 0; pos < 6; pos++) {
-        uint16_t digit = n % 10;
-        label[i + 5 - pos] = (char)('0' + digit);
-        n /= 10;
-    }
-    i += 6;
-    label[i] = '\0';
-    return label;
+    return codegen_format_label(labels, &slot, 'l', gen->label_counter++);
 }
 
 char* codegen_new_string_label(codegen_t* gen) {
     static char labels[8][16];
     static uint8_t slot = 0;
-    char* label = labels[slot++ & 7];
-    uint16_t n = (uint16_t)gen->string_count;
-    uint16_t i = 0;
-    label[i++] = '_';
-    label[i++] = 's';
-    for (uint16_t pos = 0; pos < 6; pos++) {
-        uint16_t digit = n % 10;
-        label[i + 5 - pos] = (char)('0' + digit);
-        n /= 10;
-    }
-    i += 6;
-    label[i] = '\0';
-    return label;
+    return codegen_format_label(labels, &slot, 's', (uint16_t)gen->string_count);
 }
 
 static bool codegen_function_return_is_16bit(codegen_t* gen, uint16_t name_index);
