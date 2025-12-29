@@ -325,7 +325,7 @@ static int8_t codegen_stream_read_string(ast_reader_t* ast, const char** value) 
 
 static int16_t codegen_local_index(codegen_t* gen, const char* name) {
     if (!gen || !name) return -1;
-    for (uint8_t i = 0; i < gen->local_var_count; i++) {
+    for (codegen_local_count_t i = 0; i < gen->local_var_count; i++) {
         if (gen->local_vars[i] == name || codegen_names_equal(gen->local_vars[i], name)) {
             return (int16_t)i;
         }
@@ -335,7 +335,7 @@ static int16_t codegen_local_index(codegen_t* gen, const char* name) {
 
 static int16_t codegen_param_index(codegen_t* gen, const char* name) {
     if (!gen || !name) return -1;
-    for (uint8_t i = 0; i < gen->param_count; i++) {
+    for (codegen_param_count_t i = 0; i < gen->param_count; i++) {
         if (gen->param_names[i] == name || codegen_names_equal(gen->param_names[i], name)) {
             return (int16_t)i;
         }
@@ -345,7 +345,7 @@ static int16_t codegen_param_index(codegen_t* gen, const char* name) {
 
 static int16_t codegen_global_index(codegen_t* gen, const char* name) {
     if (!gen || !name) return -1;
-    for (uint8_t i = 0; i < gen->global_count; i++) {
+    for (codegen_global_count_t i = 0; i < gen->global_count; i++) {
         if (gen->global_names[i] == name || codegen_names_equal(gen->global_names[i], name)) {
             return (int16_t)i;
         }
@@ -663,7 +663,7 @@ static char* codegen_new_label_persist(codegen_t* gen) {
 
 static const char* codegen_get_string_label(codegen_t* gen, const char* value) {
     if (!gen || !value) return NULL;
-    for (uint8_t i = 0; i < gen->string_count; i++) {
+    for (codegen_string_count_t i = 0; i < gen->string_count; i++) {
         if (gen->string_literals[i] && str_cmp(gen->string_literals[i], value) == 0) {
             return gen->string_labels[i];
         }
@@ -709,7 +709,7 @@ void codegen_destroy(codegen_t* gen) {
     if (gen->output_handle) {
         output_close(gen->output_handle);
     }
-    for (uint8_t i = 0; i < gen->string_count; i++) {
+    for (codegen_string_count_t i = 0; i < gen->string_count; i++) {
         if (gen->string_labels[i]) {
             cc_free((void*)gen->string_labels[i]);
         }
@@ -1331,7 +1331,7 @@ static bool codegen_stream_type_is_16bit(uint8_t base, uint8_t depth) {
 
 static bool codegen_function_return_is_16bit(codegen_t* gen, uint16_t name_index) {
     if (!gen) return false;
-    for (uint8_t i = 0; i < gen->function_count; i++) {
+    for (codegen_function_count_t i = 0; i < gen->function_count; i++) {
         uint16_t flags = gen->function_return_flags[i];
         if ((uint16_t)(flags & 0x7FFFu) == name_index) {
             return (flags & 0x8000u) != 0;
@@ -1342,7 +1342,7 @@ static bool codegen_function_return_is_16bit(codegen_t* gen, uint16_t name_index
 
 static void codegen_register_function_return(codegen_t* gen, uint16_t name_index, bool is_16bit) {
     if (!gen) return;
-    for (uint8_t i = 0; i < gen->function_count; i++) {
+    for (codegen_function_count_t i = 0; i < gen->function_count; i++) {
         if ((uint16_t)(gen->function_return_flags[i] & 0x7FFFu) == name_index) {
             gen->function_return_flags[i] =
                 (uint16_t)((name_index & 0x7FFFu) | (is_16bit ? 0x8000u : 0));
@@ -2050,7 +2050,7 @@ void codegen_emit_runtime(codegen_t* gen) {
 void codegen_emit_strings(codegen_t* gen) {
     if (!gen || gen->string_count == 0) return;
     codegen_emit(gen, "\n; String literals\n");
-    for (uint8_t i = 0; i < gen->string_count; i++) {
+    for (codegen_string_count_t i = 0; i < gen->string_count; i++) {
         const char* label = gen->string_labels[i];
         const char* value = gen->string_literals[i];
         if (!label || !value) continue;

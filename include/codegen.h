@@ -6,6 +6,13 @@
 #include "symbol.h"
 #include "target.h"
 
+/* Keep codegen counters consistent across host/ZOS to expose limits early. */
+typedef uint8_t codegen_local_count_t;
+typedef uint8_t codegen_param_count_t;
+typedef uint8_t codegen_function_count_t;
+typedef uint8_t codegen_global_count_t;
+typedef uint8_t codegen_string_count_t;
+
 /* Code generator structure */
 typedef struct {
     output_t output_handle;
@@ -20,19 +27,19 @@ typedef struct {
     bool local_is_array[64];
     uint16_t local_array_len[64];
     uint8_t local_elem_size[64];
-    uint8_t local_var_count;
+    codegen_local_count_t local_var_count;
     const char* param_names[8];
     int16_t param_offsets[8];
     bool param_is_16[8];
     bool param_is_pointer[8];
     uint8_t param_elem_size[8];
-    uint8_t param_count;
+    codegen_param_count_t param_count;
     char* function_end_label;
     bool return_direct;
     bool use_function_end_label;
     bool function_return_is_16;
     uint16_t function_return_flags[64];
-    uint8_t function_count;
+    codegen_function_count_t function_count;
 
     const char* global_names[64];
     bool global_is_16[64];
@@ -40,11 +47,11 @@ typedef struct {
     bool global_is_array[64];
     uint16_t global_array_len[64];
     uint8_t global_elem_size[64];
-    uint8_t global_count;
+    codegen_global_count_t global_count;
 
     const char* string_labels[64];
     char* string_literals[64];
-    uint8_t string_count;
+    codegen_string_count_t string_count;
 } codegen_t;
 
 /* Code generator functions */

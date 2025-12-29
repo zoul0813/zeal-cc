@@ -695,13 +695,13 @@ static ast_node_t* parse_statement(parser_t* parser) {
             node->data.compound.statements = (ast_node_t**)cc_malloc(
                 sizeof(ast_node_t*) * node->data.compound.stmt_count);
             if (!node->data.compound.statements) {
-                for (ast_count_t i = 0; i < node->data.compound.stmt_count; i++) {
+                for (ast_stmt_count_t i = 0; i < node->data.compound.stmt_count; i++) {
                     ast_node_destroy(stmts_tmp[i]);
                 }
                 cc_free(node);
                 return NULL;
             }
-            for (ast_count_t i = 0; i < node->data.compound.stmt_count; i++) {
+            for (ast_stmt_count_t i = 0; i < node->data.compound.stmt_count; i++) {
                 node->data.compound.statements[i] = stmts_tmp[i];
             }
         }
@@ -922,13 +922,13 @@ static ast_node_t* parse_function_after_name(parser_t* parser, char* name, type_
             node->data.function.params = (ast_node_t**)cc_malloc(
                 sizeof(ast_node_t*) * node->data.function.param_count);
             if (!node->data.function.params) {
-                for (ast_count_t i = 0; i < node->data.function.param_count; i++) {
+                for (ast_param_count_t i = 0; i < node->data.function.param_count; i++) {
                     ast_node_destroy(params_tmp[i]);
                 }
                 ast_node_destroy(node);
                 return NULL;
             }
-            for (ast_count_t i = 0; i < node->data.function.param_count; i++) {
+            for (ast_param_count_t i = 0; i < node->data.function.param_count; i++) {
                 node->data.function.params[i] = params_tmp[i];
             }
         }
@@ -970,13 +970,13 @@ ast_node_t* parser_parse(parser_t* parser) {
         program->data.program.declarations = (ast_node_t**)cc_malloc(
             sizeof(ast_node_t*) * program->data.program.decl_count);
         if (!program->data.program.declarations) {
-            for (ast_count_t i = 0; i < program->data.program.decl_count; i++) {
+            for (ast_decl_count_t i = 0; i < program->data.program.decl_count; i++) {
                 ast_node_destroy(decls_tmp[i]);
             }
             cc_free(program);
             return NULL;
         }
-        for (ast_count_t i = 0; i < program->data.program.decl_count; i++) {
+        for (ast_decl_count_t i = 0; i < program->data.program.decl_count; i++) {
             program->data.program.declarations[i] = decls_tmp[i];
         }
     }
@@ -995,7 +995,7 @@ void ast_node_destroy(ast_node_t* node) {
     switch (node->type) {
         case AST_PROGRAM:
             if (node->data.program.declarations) {
-                for (ast_count_t i = 0; i < node->data.program.decl_count; i++) {
+                for (ast_decl_count_t i = 0; i < node->data.program.decl_count; i++) {
                     ast_node_destroy(node->data.program.declarations[i]);
                 }
                 cc_free(node->data.program.declarations);
@@ -1003,7 +1003,7 @@ void ast_node_destroy(ast_node_t* node) {
             break;
         case AST_COMPOUND_STMT:
             if (node->data.compound.statements) {
-                for (ast_count_t i = 0; i < node->data.compound.stmt_count; i++) {
+                for (ast_stmt_count_t i = 0; i < node->data.compound.stmt_count; i++) {
                     ast_node_destroy(node->data.compound.statements[i]);
                 }
                 cc_free(node->data.compound.statements);
@@ -1045,7 +1045,7 @@ void ast_node_destroy(ast_node_t* node) {
                 type_destroy(node->data.function.return_type);
             }
             if (node->data.function.params) {
-                for (ast_count_t i = 0; i < node->data.function.param_count; i++) {
+                for (ast_param_count_t i = 0; i < node->data.function.param_count; i++) {
                     ast_node_destroy(node->data.function.params[i]);
                 }
                 cc_free(node->data.function.params);
@@ -1088,7 +1088,7 @@ void ast_node_destroy(ast_node_t* node) {
                 cc_free(node->data.call.name);
             }
             if (node->data.call.args) {
-                for (ast_count_t i = 0; i < node->data.call.arg_count; i++) {
+                for (ast_arg_count_t i = 0; i < node->data.call.arg_count; i++) {
                     ast_node_destroy(node->data.call.args[i]);
                 }
                 cc_free(node->data.call.args);
