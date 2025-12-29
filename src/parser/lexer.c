@@ -264,7 +264,7 @@ static token_t* lexer_read_identifier(lexer_t* lexer) {
     buffer[len] = '\0';
 
     /* Check if it's a keyword */
-    for (uint16_t i = 0; keywords[i].name != NULL; i++) {
+    for (uint8_t i = 0; keywords[i].name != NULL; i++) {
         bool match = true;
         for (uint8_t j = 0; keywords[i].name[j] != '\0' || buffer[j] != '\0'; j++) {
             if (keywords[i].name[j] != buffer[j]) {
