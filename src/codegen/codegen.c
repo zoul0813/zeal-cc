@@ -208,11 +208,7 @@ static void codegen_emit_stack_adjust(codegen_t* gen, int16_t offset, bool subtr
     codegen_emit(gen, "  ld hl, 0\n  add hl, sp\n  ld de, ");
     codegen_emit_hex(gen, (uint16_t)offset);
     codegen_emit(gen, CG_STR_NL);
-    if (subtract) {
-        codegen_emit(gen, CG_STR_OR_A_SBC_HL_DE);
-    } else {
-        codegen_emit(gen, CG_STR_ADD_HL_DE);
-    }
+    codegen_emit(gen, subtract ? CG_STR_OR_A_SBC_HL_DE : CG_STR_ADD_HL_DE);
     codegen_emit(gen, "  ld sp, hl\n");
 }
 
@@ -1250,13 +1246,12 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
         case AST_TAG_CONSTANT: {
             int16_t value = 0;
             if (ast_read_i16(ast->reader, &value) < 0) return CC_ERROR_CODEGEN;
+            g_result_in_hl = g_expect_result_in_hl;
             if (g_expect_result_in_hl) {
                 codegen_emit(gen, CG_STR_LD_HL);
-                g_result_in_hl = true;
             } else {
                 codegen_emit(gen, CG_STR_LD_A);
                 value = (uint8_t)value;
-                g_result_in_hl = false;
             }
             codegen_emit_hex(gen, value);
             codegen_emit(gen, CG_STR_NL);
@@ -1295,11 +1290,9 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                 }
                 if (g_expect_result_in_hl) {
                     codegen_emit(gen, CG_STR_LD_L_A_H_ZERO);
-                    g_result_in_hl = true;
-                } else {
-                    /* result stays in A */
-                    g_result_in_hl = false;
                 }
+                /* result stays in A when not widened */
+                g_result_in_hl = g_expect_result_in_hl;
             }
             return CC_OK;
         }
@@ -1386,11 +1379,8 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                     if (err != CC_OK) return err;
                     /* If the expression left a 16-bit result in HL, push HL directly.
                        Otherwise widen A to HL and push as before. */
-                    if (g_result_in_hl) {
-                        codegen_emit(gen, "  push hl\n");
-                    } else {
-                        codegen_emit(gen, CG_STR_LD_L_A_H_ZERO_PUSH_HL);
-                    }
+                    codegen_emit(gen,
+                        g_result_in_hl ? "  push hl\n" : CG_STR_LD_L_A_H_ZERO_PUSH_HL);
                 }
                 if (reader_seek(ast->reader, end_pos) < 0) return CC_ERROR_CODEGEN;
             }
