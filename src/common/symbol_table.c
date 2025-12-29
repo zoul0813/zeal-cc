@@ -15,7 +15,7 @@ symbol_table_t* symbol_table_create(symbol_table_t* parent) {
         return NULL;
     }
 
-    for (size_t i = 0; i < SYMBOL_TABLE_SIZE; i++) {
+    for (uint8_t i = 0; i < SYMBOL_TABLE_SIZE; i++) {
         table->buckets[i] = NULL;
     }
 

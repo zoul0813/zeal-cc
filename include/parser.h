@@ -4,6 +4,12 @@
 #include "common.h"
 #include "lexer.h"
 
+/* Keep AST counters consistent across host/ZOS to expose limits early. */
+typedef uint8_t ast_decl_count_t;
+typedef uint8_t ast_param_count_t;
+typedef uint8_t ast_stmt_count_t;
+typedef uint8_t ast_arg_count_t;
+
 /* AST node types */
 typedef enum {
     AST_PROGRAM,
@@ -67,20 +73,20 @@ struct ast_node {
     union {
         struct {
             ast_node_t** declarations;
-            size_t decl_count;
+            ast_decl_count_t decl_count;
         } program;
         
         struct {
             char* name;
             type_t* return_type;
             ast_node_t** params;
-            size_t param_count;
+            ast_param_count_t param_count;
             ast_node_t* body;
         } function;
         
         struct {
             ast_node_t** statements;
-            size_t stmt_count;
+            ast_stmt_count_t stmt_count;
         } compound;
         
         struct {
@@ -124,7 +130,7 @@ struct ast_node {
         struct {
             char* name;
             ast_node_t** args;
-            size_t arg_count;
+            ast_arg_count_t arg_count;
         } call;
         
         struct {
