@@ -35,7 +35,7 @@ static int8_t codegen_stream_collect_locals(codegen_t* gen, ast_reader_t* ast);
 static cc_error_t codegen_stream_function(codegen_t* gen, ast_reader_t* ast);
 static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast);
 static void codegen_emit_ix_offset(codegen_t* gen, int16_t offset);
-static void codegen_emit_u16_hex(codegen_t* gen, uint16_t value);
+static void codegen_emit_hex(codegen_t* gen, uint16_t value);
 static bool codegen_stream_type_is_16bit(uint8_t base, uint8_t depth);
 static void codegen_emit_string_literal(codegen_t* gen, const char* value);
 
@@ -199,28 +199,23 @@ static void codegen_emit_u8_dec(codegen_t* gen, uint8_t value) {
 }
 
 static void codegen_emit_int(codegen_t* gen, int16_t value) {
-    codegen_emit_u16_hex(gen, (uint16_t)value);
+    codegen_emit_hex(gen, (uint16_t)value);
 }
 
-static void codegen_emit_u8_hex(codegen_t* gen, uint8_t value) {
+static void codegen_emit_hex(codegen_t* gen, uint16_t value) {
     char* buf = g_emit_buf;
-    buf[0] = '0';
-    buf[1] = 'x';
-    buf[2] = g_hex_digits[(value >> 4) & 0xF];
-    buf[3] = g_hex_digits[value & 0xF];
-    buf[4] = '\0';
-    codegen_emit(gen, buf);
-}
-
-static void codegen_emit_u16_hex(codegen_t* gen, uint16_t value) {
-    char* buf = g_emit_buf;
-    buf[0] = '0';
-    buf[1] = 'x';
-    buf[2] = g_hex_digits[(value >> 12) & 0xF];
-    buf[3] = g_hex_digits[(value >> 8) & 0xF];
-    buf[4] = g_hex_digits[(value >> 4) & 0xF];
-    buf[5] = g_hex_digits[value & 0xF];
-    buf[6] = '\0';
+    uint8_t i = 0;
+    buf[i++] = '0';
+    buf[i++] = 'x';
+    if (value <= 0xFF) {
+        goto emit_u8;
+    }
+    buf[i++] = g_hex_digits[(value >> 12) & 0xF];
+    buf[i++] = g_hex_digits[(value >> 8) & 0xF];
+emit_u8:
+    buf[i++] = g_hex_digits[(value >> 4) & 0xF];
+    buf[i++] = g_hex_digits[value & 0xF];
+    buf[i++] = '\0';
     codegen_emit(gen, buf);
 }
 
@@ -1346,12 +1341,12 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
             if (ast_read_i16(ast->reader, &value) < 0) return CC_ERROR_CODEGEN;
             if (g_expect_result_in_hl) {
                 codegen_emit(gen, CG_STR_LD_HL);
-                codegen_emit_u16_hex(gen, (uint16_t)value);
+                codegen_emit_hex(gen, (uint16_t)value);
                 codegen_emit(gen, CG_STR_NL);
                 g_result_in_hl = true;
             } else {
                 codegen_emit(gen, CG_STR_LD_A);
-                codegen_emit_u8_hex(gen, (uint8_t)value);
+                codegen_emit_hex(gen, (uint8_t)value);
                 codegen_emit(gen, CG_STR_NL);
                 g_result_in_hl = false;
             }
@@ -2003,9 +1998,9 @@ static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast) {
             codegen_emit(gen, CG_STR_COLON);
             codegen_emit(gen, is_16bit ? CG_STR_DW : CG_STR_DB);
             if (is_16bit) {
-                codegen_emit_u16_hex(gen, (uint16_t)value);
+                codegen_emit_hex(gen, (uint16_t)value);
             } else {
-                codegen_emit_u8_hex(gen, (uint8_t)value);
+                codegen_emit_hex(gen, (uint8_t)value);
             }
             codegen_emit(gen, CG_STR_NL);
             return CC_OK;
@@ -2015,9 +2010,9 @@ static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast) {
     codegen_emit(gen, CG_STR_COLON);
     codegen_emit(gen, is_16bit ? CG_STR_DW : CG_STR_DB);
     if (is_16bit) {
-        codegen_emit_u16_hex(gen, 0);
+        codegen_emit_hex(gen, 0);
     } else {
-        codegen_emit_u8_hex(gen, 0);
+        codegen_emit_hex(gen, 0);
     }
     return CC_OK;
 }
