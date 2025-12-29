@@ -51,12 +51,6 @@ int main(int argc, char** argv) {
         goto cleanup_codegen;
     }
 
-    result = codegen_write_output(codegen);
-    if (result != CC_OK) {
-        log_error("Failed to write output\n");
-        goto cleanup_codegen;
-    }
-
     log_msg(args.input_file);
     log_msg(" -> ");
     log_msg(args.output_file);

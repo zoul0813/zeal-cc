@@ -1981,13 +1981,13 @@ static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast) {
     return CC_OK;
 }
 
-void codegen_emit_runtime(codegen_t* gen) {
+static void codegen_emit_runtime(codegen_t* gen) {
     codegen_emit_file(gen, "runtime/zeal8bit.asm");
     codegen_emit_file(gen, "runtime/math_8.asm");
     codegen_emit_file(gen, "runtime/math_16.asm");
 }
 
-void codegen_emit_strings(codegen_t* gen) {
+static void codegen_emit_strings(codegen_t* gen) {
     if (!gen || gen->string_count == 0) return;
     codegen_emit(gen, "\n; String literals\n");
     for (codegen_string_count_t i = 0; i < gen->string_count; i++) {
@@ -2002,7 +2002,7 @@ void codegen_emit_strings(codegen_t* gen) {
     }
 }
 
-void codegen_emit_preamble(codegen_t* gen) {
+static void codegen_emit_preamble(codegen_t* gen) {
     if (!gen) return;
     codegen_emit_file(gen, "runtime/crt0.asm");
     codegen_emit(gen, "\n; Program code\n");
@@ -2088,11 +2088,5 @@ cc_error_t codegen_generate_stream(codegen_t* gen, ast_reader_t* ast) {
     codegen_emit_strings(gen);
     codegen_emit_runtime(gen);
 
-    return CC_OK;
-}
-
-cc_error_t codegen_write_output(codegen_t* gen) {
-    /* Streaming write already performed; nothing to do */
-    (void)gen;
     return CC_OK;
 }

@@ -58,10 +58,6 @@ typedef struct {
 codegen_t* codegen_create(const char* output_file);
 void codegen_destroy(codegen_t* gen);
 cc_error_t codegen_generate_stream(codegen_t* gen, ast_reader_t* ast);
-void codegen_emit_preamble(codegen_t* gen);
-void codegen_emit_runtime(codegen_t* gen);
-void codegen_emit_strings(codegen_t* gen);
-cc_error_t codegen_write_output(codegen_t* gen);
 
 /* Helper functions */
 void codegen_emit(codegen_t* gen, const char* fmt);
