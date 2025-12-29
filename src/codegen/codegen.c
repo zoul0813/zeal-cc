@@ -140,54 +140,40 @@ static void codegen_emit_label_name(codegen_t* gen, const char* name) {
 
 static void codegen_emit_mangled_var(codegen_t* gen, const char* name) {
     if (!gen || !name) return;
-    uint16_t name_len = (uint16_t)str_len(name);
-    if (name_len + 3 <= CODEGEN_LABEL_MAX) {
-        uint16_t i = 0;
-        g_emit_buf[i++] = '_';
-        g_emit_buf[i++] = 'v';
-        g_emit_buf[i++] = '_';
-        for (uint16_t n = 0; n < name_len && i < CODEGEN_LABEL_MAX; n++) {
-            char c = name[n];
-            if (c >= 'A' && c <= 'Z') {
-                c = (char)(c + ('a' - 'A'));
-            }
-            g_emit_buf[i++] = c;
-        }
-        g_emit_buf[i] = '\0';
-        codegen_emit(gen, g_emit_buf);
-        return;
-    }
+    uint16_t i = 0;
     uint16_t hash = 0x811c;
+    bool need_hash = false;
+    g_emit_buf[i++] = '_';
+    g_emit_buf[i++] = 'v';
+    g_emit_buf[i++] = '_';
     for (uint16_t n = 0; name[n]; n++) {
         char c = name[n];
         if (c >= 'A' && c <= 'Z') {
             c = (char)(c + ('a' - 'A'));
         }
-        hash = (uint16_t)((hash * 33u) ^ (uint8_t)c);
-    }
-    uint16_t i = 0;
-    g_emit_buf[i++] = '_';
-    g_emit_buf[i++] = 'v';
-    g_emit_buf[i++] = '_';
-    uint16_t keep = 1;
-    if (3 + 1 + CODEGEN_LABEL_HASH_LEN < CODEGEN_LABEL_MAX) {
-        keep = (uint16_t)(CODEGEN_LABEL_MAX - 3 - 1 - CODEGEN_LABEL_HASH_LEN);
-    }
-    for (uint16_t n = 0; n < keep && name[n] && i < CODEGEN_LABEL_MAX; n++) {
-        char c = name[n];
-        if (c >= 'A' && c <= 'Z') {
-            c = (char)(c + ('a' - 'A'));
+        if (i < CODEGEN_LABEL_MAX) {
+            g_emit_buf[i] = c;
+        } else {
+            need_hash = true;
         }
-        g_emit_buf[i++] = c;
+        hash = (uint16_t)((hash * 33u) ^ (uint8_t)c);
+        i++;
     }
-    if (i < CODEGEN_LABEL_MAX) {
-        g_emit_buf[i++] = '_';
+    if (!need_hash) {
+        g_emit_buf[i] = '\0';
+        codegen_emit(gen, g_emit_buf);
+        return;
     }
-    for (int shift = 12; shift >= 0; shift -= 4) {
-        g_emit_buf[i++] = g_hex_digits[(hash >> shift) & 0xF];
+    {
+        uint16_t keep = CODEGEN_LABEL_MAX - 1 - CODEGEN_LABEL_HASH_LEN;
+        uint16_t out = keep;
+        g_emit_buf[out++] = '_';
+        for (int shift = 12; shift >= 0; shift -= 4) {
+            g_emit_buf[out++] = g_hex_digits[(hash >> shift) & 0xF];
+        }
+        g_emit_buf[out] = '\0';
+        codegen_emit(gen, g_emit_buf);
     }
-    g_emit_buf[i] = '\0';
-    codegen_emit(gen, g_emit_buf);
 }
 
 static bool codegen_names_equal(const char* a, const char* b) {
