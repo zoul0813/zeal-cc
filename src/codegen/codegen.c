@@ -187,12 +187,12 @@ emit_u8:
     codegen_emit(gen, buf);
 }
 
-static cc_error_t codegen_emit_file(codegen_t* gen, const char* path) {
-    if (!gen || !gen->output_handle || !path) return CC_ERROR_INVALID_ARG;
+static void codegen_emit_file(codegen_t* gen, const char* path) {
+    if (!gen || !gen->output_handle || !path) return;
     reader_t* reader = reader_open(path);
     if (!reader) {
         cc_error("Failed to open runtime file");
-        return CC_ERROR_FILE_NOT_FOUND;
+        return;
     }
     int16_t ch = reader_next(reader);
     while (ch >= 0) {
@@ -201,14 +201,11 @@ static cc_error_t codegen_emit_file(codegen_t* gen, const char* path) {
         ch = reader_next(reader);
     }
     reader_close(reader);
-    return CC_OK;
 }
 
 static void codegen_emit_stack_adjust(codegen_t* gen, int16_t offset, bool subtract) {
     if (!gen || offset <= 0) return;
-    codegen_emit(gen, CG_STR_LD_HL_ZERO);
-    codegen_emit(gen, CG_STR_ADD_HL_SP);
-    codegen_emit(gen, CG_STR_LD_DE);
+    codegen_emit(gen, "  ld hl, 0\n  add hl, sp\n  ld de, ");
     codegen_emit_hex(gen, (uint16_t)offset);
     codegen_emit(gen, CG_STR_NL);
     if (subtract) {
@@ -216,13 +213,13 @@ static void codegen_emit_stack_adjust(codegen_t* gen, int16_t offset, bool subtr
     } else {
         codegen_emit(gen, CG_STR_ADD_HL_DE);
     }
-    codegen_emit(gen, CG_STR_LD_SP_HL);
+    codegen_emit(gen, "  ld sp, hl\n");
 }
 
 static void codegen_emit_label(codegen_t* gen, const char* label) {
     if (!gen || !label) return;
     codegen_emit_label_name(gen, label);
-    codegen_emit(gen, CG_STR_COLON_NL);
+    codegen_emit(gen, CG_STR_COLON);
 }
 
 static void codegen_emit_jump(codegen_t* gen, const char* prefix, const char* label) {
@@ -433,6 +430,32 @@ static uint8_t codegen_pointer_elem_size_by_name(codegen_t* gen, const char* nam
 
 static const char* codegen_get_string_label(codegen_t* gen, const char* value);
 
+static uint8_t codegen_peek_array_elem_size(codegen_t* gen, ast_reader_t* ast) {
+    uint8_t base_tag = 0;
+    uint8_t index_tag = 0;
+    uint8_t elem_size = 1;
+    if (ast_read_u8(ast->reader, &base_tag) < 0) return 0;
+    if (base_tag == AST_TAG_STRING_LITERAL) {
+        const char* base_string = NULL;
+        if (codegen_stream_read_name(ast, &base_string) < 0) return 0;
+    } else if (base_tag == AST_TAG_IDENTIFIER) {
+        const char* base_name = NULL;
+        if (codegen_stream_read_name(ast, &base_name) < 0) return 0;
+        if (codegen_name_is_array(gen, base_name)) {
+            elem_size = codegen_array_elem_size_by_name(gen, base_name);
+        } else if (codegen_name_is_pointer(gen, base_name)) {
+            elem_size = codegen_pointer_elem_size_by_name(gen, base_name);
+        } else {
+            elem_size = 0;
+        }
+    } else {
+        if (ast_reader_skip_tag(ast, base_tag) < 0) return 0;
+    }
+    if (ast_read_u8(ast->reader, &index_tag) < 0) return 0;
+    if (ast_reader_skip_tag(ast, index_tag) < 0) return 0;
+    return elem_size;
+}
+
 static cc_error_t codegen_emit_address_of_identifier(codegen_t* gen, const char* name) {
     int16_t offset = 0;
     if (codegen_local_or_param_offset(gen, name, &offset)) {
@@ -545,9 +568,7 @@ static cc_error_t codegen_emit_array_address(codegen_t* gen, ast_reader_t* ast,
     if (ast_read_u8(ast->reader, &index_tag) < 0) return CC_ERROR_CODEGEN;
 
     uint8_t elem_size = 1;
-    if (base_string) {
-        elem_size = 1;
-    } else if (base_name) {
+    if (base_name) {
         if (codegen_name_is_array(gen, base_name)) {
             elem_size = codegen_array_elem_size_by_name(gen, base_name);
         } else if (codegen_name_is_pointer(gen, base_name)) {
@@ -1169,28 +1190,7 @@ static bool codegen_expression_is_16bit_at(codegen_t* gen, ast_reader_t* ast, ui
             return codegen_function_return_is_16bit(gen, name_index);
         }
         case AST_TAG_ARRAY_ACCESS: {
-            uint8_t base_tag = 0;
-            uint8_t index_tag = 0;
-            uint8_t elem_size = 1;
-            if (ast_read_u8(ast->reader, &base_tag) < 0) return false;
-            if (base_tag == AST_TAG_STRING_LITERAL) {
-                const char* base_string = NULL;
-                if (codegen_stream_read_name(ast, &base_string) < 0) return false;
-            } else if (base_tag == AST_TAG_IDENTIFIER) {
-                const char* base_name = NULL;
-                if (codegen_stream_read_name(ast, &base_name) < 0) return false;
-                if (codegen_name_is_array(gen, base_name)) {
-                    elem_size = codegen_array_elem_size_by_name(gen, base_name);
-                } else if (codegen_name_is_pointer(gen, base_name)) {
-                    elem_size = codegen_pointer_elem_size_by_name(gen, base_name);
-                } else {
-                    elem_size = 0;
-                }
-            } else {
-                if (ast_reader_skip_tag(ast, base_tag) < 0) return false;
-            }
-            if (ast_read_u8(ast->reader, &index_tag) < 0) return false;
-            if (ast_reader_skip_tag(ast, index_tag) < 0) return false;
+            uint8_t elem_size = codegen_peek_array_elem_size(gen, ast);
             return elem_size == 2;
         }
         case AST_TAG_ASSIGN: {
@@ -1199,28 +1199,7 @@ static bool codegen_expression_is_16bit_at(codegen_t* gen, ast_reader_t* ast, ui
             bool lvalue_is_16 = false;
             if (ast_read_u8(ast->reader, &ltag) < 0) return false;
             if (ltag == AST_TAG_ARRAY_ACCESS) {
-                uint8_t base_tag = 0;
-                uint8_t index_tag = 0;
-                uint8_t elem_size = 1;
-                if (ast_read_u8(ast->reader, &base_tag) < 0) return false;
-                if (base_tag == AST_TAG_STRING_LITERAL) {
-                    const char* base_string = NULL;
-                    if (codegen_stream_read_name(ast, &base_string) < 0) return false;
-                } else if (base_tag == AST_TAG_IDENTIFIER) {
-                    const char* base_name = NULL;
-                    if (codegen_stream_read_name(ast, &base_name) < 0) return false;
-                    if (codegen_name_is_array(gen, base_name)) {
-                        elem_size = codegen_array_elem_size_by_name(gen, base_name);
-                    } else if (codegen_name_is_pointer(gen, base_name)) {
-                        elem_size = codegen_pointer_elem_size_by_name(gen, base_name);
-                    } else {
-                        elem_size = 0;
-                    }
-                } else {
-                    if (ast_reader_skip_tag(ast, base_tag) < 0) return false;
-                }
-                if (ast_read_u8(ast->reader, &index_tag) < 0) return false;
-                if (ast_reader_skip_tag(ast, index_tag) < 0) return false;
+                uint8_t elem_size = codegen_peek_array_elem_size(gen, ast);
                 lvalue_is_16 = elem_size == 2;
             } else if (ltag == AST_TAG_IDENTIFIER) {
                 const char* lvalue_name = NULL;
@@ -1931,11 +1910,7 @@ static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast) {
     }
     codegen_emit(gen, CG_STR_COLON);
     codegen_emit(gen, is_16bit ? CG_STR_DW : CG_STR_DB);
-    if (is_16bit) {
-        codegen_emit_hex(gen, 0);
-    } else {
-        codegen_emit_hex(gen, 0);
-    }
+    codegen_emit_hex(gen, 0);
     return CC_OK;
 }
 
