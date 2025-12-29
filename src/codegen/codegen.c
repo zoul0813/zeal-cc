@@ -187,7 +187,7 @@ static void codegen_emit_int(codegen_t* gen, int16_t value) {
 
 static void codegen_emit_u8_dec(codegen_t* gen, uint8_t value) {
     char* buf = g_emit_buf;
-    uint16_t i = 0;
+    uint8_t i = 0;
     if (value == 0) {
         buf[i++] = '0';
     } else {
@@ -195,10 +195,14 @@ static void codegen_emit_u8_dec(codegen_t* gen, uint8_t value) {
             buf[i++] = (char)('0' + (value % 10));
             value /= 10;
         }
-        for (uint16_t j = 0; j < i / 2; j++) {
+        uint8_t j = 0;
+        uint8_t k = (uint8_t)(i - 1);
+        while (j < k) {
             char tmp = buf[j];
-            buf[j] = buf[i - 1 - j];
-            buf[i - 1 - j] = tmp;
+            buf[j] = buf[k];
+            buf[k] = tmp;
+            j++;
+            k--;
         }
     }
     buf[i] = '\0';
@@ -636,11 +640,11 @@ static void codegen_emit_ix_offset(codegen_t* gen, int16_t offset) {
 
 static char* codegen_new_label_persist(codegen_t* gen) {
     char* tmp = codegen_new_label(gen);
-    size_t len = 0;
+    uint8_t len = 0;
     while (tmp[len]) len++;
     char* out = (char*)cc_malloc(len + 1);
     if (!out) return tmp;
-    for (size_t i = 0; i <= len; i++) {
+    for (uint8_t i = 0; i <= len; i++) {
         out[i] = tmp[i];
     }
     return out;
@@ -706,11 +710,11 @@ void codegen_destroy(codegen_t* gen) {
 
 void codegen_emit(codegen_t* gen, const char* fmt, ...) {
     if (!gen || !gen->output_handle || !fmt) return;
-    size_t len = 0;
+    uint16_t len = 0;
     const char* p = fmt;
     while (p[len]) len++;
     if (len > 0) {
-        output_write(gen->output_handle, fmt, (uint16_t)len);
+        output_write(gen->output_handle, fmt, len);
     }
 }
 
