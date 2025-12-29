@@ -62,4 +62,12 @@ extern const char CG_STR_JR_C[];
 extern const char CG_STR_JR_NC[];
 extern const char CG_STR_OR_A_JP_Z[];
 
+extern const char CG_MSG_FAILED_READ_AST_HEADER[];
+extern const char CG_MSG_FAILED_READ_AST_STRING_TABLE[];
+extern const char CG_MSG_UNSUPPORTED_ARRAY_ACCESS[];
+extern const char CG_MSG_ARRAY_INIT_NOT_SUPPORTED[];
+extern const char CG_MSG_USAGE_CODEGEN[];
+extern const char CG_MSG_FAILED_OPEN_OUTPUT[];
+extern const char CG_MSG_CODEGEN_FAILED[];
+
 #endif /* CODEGEN_STRINGS_H */

@@ -60,3 +60,11 @@ const char CG_STR_JR_NZ[] = "  jr nz, ";
 const char CG_STR_JR_C[] = "  jr c, ";
 const char CG_STR_JR_NC[] = "  jr nc, ";
 const char CG_STR_OR_A_JP_Z[] = "  or a\n  jp z, ";
+
+const char CG_MSG_FAILED_READ_AST_HEADER[] = "Failed to read AST header\n";
+const char CG_MSG_FAILED_READ_AST_STRING_TABLE[] = "Failed to read AST string table\n";
+const char CG_MSG_UNSUPPORTED_ARRAY_ACCESS[] = "Unsupported array access";
+const char CG_MSG_ARRAY_INIT_NOT_SUPPORTED[] = "Array initialization not supported";
+const char CG_MSG_USAGE_CODEGEN[] = "Usage: cc_codegen <input.ast> <output.asm>\n";
+const char CG_MSG_FAILED_OPEN_OUTPUT[] = "Failed to open output file\n";
+const char CG_MSG_CODEGEN_FAILED[] = "Code generation failed\n";

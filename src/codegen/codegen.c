@@ -516,12 +516,12 @@ static cc_error_t codegen_load_array_base_to_hl(codegen_t* gen,
             return codegen_emit_address_of_identifier(gen, base_name);
         }
         if (!codegen_name_is_pointer(gen, base_name)) {
-            cc_error("Unsupported array access");
+            cc_error(CG_MSG_UNSUPPORTED_ARRAY_ACCESS);
             return CC_ERROR_CODEGEN;
         }
         return codegen_load_pointer_to_hl(gen, base_name);
     }
-    cc_error("Unsupported array access");
+    cc_error(CG_MSG_UNSUPPORTED_ARRAY_ACCESS);
     return CC_ERROR_CODEGEN;
 }
 
@@ -539,7 +539,7 @@ static cc_error_t codegen_emit_array_address(codegen_t* gen, ast_reader_t* ast,
         if (codegen_stream_read_name(ast, &base_name) < 0) return CC_ERROR_CODEGEN;
     } else {
         if (ast_reader_skip_tag(ast, base_tag) < 0) return CC_ERROR_CODEGEN;
-        cc_error("Unsupported array access");
+        cc_error(CG_MSG_UNSUPPORTED_ARRAY_ACCESS);
         return CC_ERROR_CODEGEN;
     }
     if (ast_read_u8(ast->reader, &index_tag) < 0) return CC_ERROR_CODEGEN;
@@ -553,7 +553,7 @@ static cc_error_t codegen_emit_array_address(codegen_t* gen, ast_reader_t* ast,
         } else if (codegen_name_is_pointer(gen, base_name)) {
             elem_size = codegen_pointer_elem_size_by_name(gen, base_name);
         } else {
-            cc_error("Unsupported array access");
+            cc_error(CG_MSG_UNSUPPORTED_ARRAY_ACCESS);
             return CC_ERROR_CODEGEN;
         }
         if (elem_size == 0) {
@@ -917,7 +917,7 @@ static cc_error_t codegen_statement_var_decl(codegen_t* gen, ast_reader_t* ast, 
     if (array_len > 0) {
         if (has_init) {
             if (ast_reader_skip_node(ast) < 0) return CC_ERROR_CODEGEN;
-            cc_error("Array initialization not supported");
+            cc_error(CG_MSG_ARRAY_INIT_NOT_SUPPORTED);
             return CC_ERROR_CODEGEN;
         }
         return CC_OK;
@@ -1857,7 +1857,7 @@ static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast) {
                 return CC_OK;
             }
             if (ast_reader_skip_tag(ast, tag) < 0) return CC_ERROR_CODEGEN;
-            cc_error("Array initialization not supported");
+            cc_error(CG_MSG_ARRAY_INIT_NOT_SUPPORTED);
             return CC_ERROR_CODEGEN;
         }
         codegen_emit(gen, CG_STR_DS);

@@ -1,5 +1,6 @@
 #include "ast_reader.h"
 #include "codegen.h"
+#include "codegen_strings.h"
 #include "common.h"
 #include "target.h"
 #include "cc_compat.h"
@@ -24,7 +25,7 @@ int main(int argc, char** argv) {
 
     args = parse_args(argc, argv);
     if (args.error) {
-        log_error("Usage: cc_codegen <input.ast> <output.asm>\n");
+        log_error(CG_MSG_USAGE_CODEGEN);
         return 1;
     }
 
@@ -32,22 +33,22 @@ int main(int argc, char** argv) {
     if (!reader) return 1;
 
     if (ast_reader_init(&ast, reader) < 0) {
-        log_error("Failed to read AST header\n");
+        log_error(CG_MSG_FAILED_READ_AST_HEADER);
         goto cleanup_reader;
     }
     if (ast_reader_load_strings(&ast) < 0) {
-        log_error("Failed to read AST string table\n");
+        log_error(CG_MSG_FAILED_READ_AST_STRING_TABLE);
         goto cleanup_reader;
     }
     codegen = codegen_create(args.output_file);
     if (!codegen) {
-        log_error("Failed to open output file\n");
+        log_error(CG_MSG_FAILED_OPEN_OUTPUT);
         goto cleanup_reader;
     }
 
     result = codegen_generate_stream(codegen, &ast);
     if (result != CC_OK) {
-        log_error("Code generation failed\n");
+        log_error(CG_MSG_CODEGEN_FAILED);
         goto cleanup_codegen;
     }
 
