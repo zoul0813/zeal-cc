@@ -41,10 +41,6 @@ static void codegen_emit_string_literal(codegen_t* gen, const char* value);
 
 
 static uint32_t g_arg_offsets[8];
-static const char* g_param_names[8];
-static bool g_param_is_16[8];
-static bool g_param_is_pointer[8];
-static uint8_t g_param_elem_size[8];
 static char g_emit_buf[CODEGEN_LABEL_MAX + 1];
 static codegen_t g_codegen;
 /* Indicates whether the last expression emitted left its result in HL (true)
@@ -1724,8 +1720,6 @@ static cc_error_t codegen_stream_function(codegen_t* gen, ast_reader_t* ast) {
     uint8_t depth = 0;
     uint16_t array_len = 0;
     const char* name = NULL;
-    uint8_t param_used = 0;
-
     if (ast_read_u16(ast->reader, &name_index) < 0) return CC_ERROR_CODEGEN;
     if (ast_reader_read_type_info(ast, &base, &depth, &array_len) < 0) return CC_ERROR_CODEGEN;
     if (ast_read_u8(ast->reader, &param_count) < 0) return CC_ERROR_CODEGEN;
@@ -1756,19 +1750,22 @@ static cc_error_t codegen_stream_function(codegen_t* gen, ast_reader_t* ast) {
                                       &param_array_len) < 0) return CC_ERROR_CODEGEN;
         if (ast_read_u8(ast->reader, &has_init) < 0) return CC_ERROR_CODEGEN;
         if (has_init && ast_reader_skip_node(ast) < 0) return CC_ERROR_CODEGEN;
-        (void)param_array_len;
-        if (param_used < (uint8_t)(sizeof(g_param_names) / sizeof(g_param_names[0]))) {
-            g_param_names[param_used] = ast_reader_string(ast, param_name_index);
-            g_param_is_16[param_used] = codegen_stream_type_is_16bit(param_base, param_depth);
-            g_param_is_pointer[param_used] = (param_depth > 0) || (param_array_len > 0);
-            if (g_param_is_pointer[param_used]) {
-                g_param_elem_size[param_used] = (param_depth > 0)
+        if (gen->param_count < (uint8_t)(sizeof(gen->param_names) /
+                                         sizeof(gen->param_names[0]))) {
+            bool is_pointer = (param_depth > 0) || (param_array_len > 0);
+            gen->param_names[gen->param_count] =
+                ast_reader_string(ast, param_name_index);
+            gen->param_is_16[gen->param_count] =
+                codegen_stream_type_is_16bit(param_base, param_depth);
+            gen->param_is_pointer[gen->param_count] = is_pointer;
+            if (is_pointer) {
+                gen->param_elem_size[gen->param_count] = (param_depth > 0)
                     ? codegen_pointer_elem_size(param_base, param_depth)
                     : codegen_type_size(param_base, 0);
             } else {
-                g_param_elem_size[param_used] = 0;
+                gen->param_elem_size[gen->param_count] = 0;
             }
-            param_used++;
+            gen->param_count++;
         }
     }
 
@@ -1777,14 +1774,9 @@ static cc_error_t codegen_stream_function(codegen_t* gen, ast_reader_t* ast) {
     uint32_t body_start = reader_tell(ast->reader);
     if (codegen_stream_collect_locals(gen, ast) < 0) return CC_ERROR_CODEGEN;
 
-    for (uint8_t i = 0; i < param_used; i++) {
-        gen->param_names[gen->param_count] = g_param_names[i];
-        gen->param_offsets[gen->param_count] =
-            (int16_t)(gen->stack_offset + 4 + (int16_t)(2 * gen->param_count));
-        gen->param_is_16[gen->param_count] = g_param_is_16[i];
-        gen->param_is_pointer[gen->param_count] = g_param_is_pointer[i];
-        gen->param_elem_size[gen->param_count] = g_param_elem_size[i];
-        gen->param_count++;
+    for (codegen_param_count_t i = 0; i < gen->param_count; i++) {
+        gen->param_offsets[i] =
+            (int16_t)(gen->stack_offset + 4 + (int16_t)(2 * i));
     }
 
     gen->function_end_label = codegen_new_label_persist(gen);
