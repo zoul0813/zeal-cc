@@ -1264,15 +1264,14 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
             if (ast_read_i16(ast->reader, &value) < 0) return CC_ERROR_CODEGEN;
             if (g_expect_result_in_hl) {
                 codegen_emit(gen, CG_STR_LD_HL);
-                codegen_emit_hex(gen, (uint16_t)value);
-                codegen_emit(gen, CG_STR_NL);
                 g_result_in_hl = true;
             } else {
                 codegen_emit(gen, CG_STR_LD_A);
-                codegen_emit_hex(gen, (uint8_t)value);
-                codegen_emit(gen, CG_STR_NL);
+                value = (uint8_t)value;
                 g_result_in_hl = false;
             }
+            codegen_emit_hex(gen, value);
+            codegen_emit(gen, CG_STR_NL);
             return CC_OK;
         }
         case AST_TAG_IDENTIFIER: {
@@ -1898,10 +1897,9 @@ static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast) {
             if (ast_read_i16(ast->reader, &value) < 0) return CC_ERROR_CODEGEN;
             codegen_emit(gen, CG_STR_COLON);
             codegen_emit(gen, is_16bit ? CG_STR_DW : CG_STR_DB);
-            if (is_16bit) {
-                codegen_emit_hex(gen, (uint16_t)value);
-            } else {
-                codegen_emit_hex(gen, (uint8_t)value);
+            {
+                uint16_t emit_value = is_16bit ? (uint16_t)value : (uint8_t)value;
+                codegen_emit_hex(gen, emit_value);
             }
             codegen_emit(gen, CG_STR_NL);
             return CC_OK;
