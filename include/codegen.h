@@ -64,7 +64,7 @@ void codegen_emit_strings(codegen_t* gen);
 cc_error_t codegen_write_output(codegen_t* gen);
 
 /* Helper functions */
-void codegen_emit(codegen_t* gen, const char* fmt, ...);
+void codegen_emit(codegen_t* gen, const char* fmt);
 char* codegen_new_label(codegen_t* gen);
 char* codegen_new_string_label(codegen_t* gen);
 #endif /* CODEGEN_H */

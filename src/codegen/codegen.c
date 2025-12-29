@@ -8,13 +8,6 @@
 #include "target.h"
 #include "cc_compat.h"
 
-#ifdef __SDCC
-#include <core.h>
-#else
-#include <stdarg.h>
-#include <stdio.h>
-#endif
-
 #define INITIAL_OUTPUT_CAPACITY 1024
 #define CODEGEN_LABEL_MAX 15 /* Zealasm docs say 16, but 15 avoids edge-case failures. */
 #define CODEGEN_LABEL_HASH_LEN 4
@@ -181,10 +174,6 @@ static bool codegen_names_equal(const char* a, const char* b) {
     return str_cmp(a, b) == 0;
 }
 
-static void codegen_emit_int(codegen_t* gen, int16_t value) {
-    codegen_emit_u16_hex(gen, (uint16_t)value);
-}
-
 static void codegen_emit_u8_dec(codegen_t* gen, uint8_t value) {
     char* buf = g_emit_buf;
     uint8_t i = 0;
@@ -207,6 +196,10 @@ static void codegen_emit_u8_dec(codegen_t* gen, uint8_t value) {
     }
     buf[i] = '\0';
     codegen_emit(gen, buf);
+}
+
+static void codegen_emit_int(codegen_t* gen, int16_t value) {
+    codegen_emit_u16_hex(gen, (uint16_t)value);
 }
 
 static void codegen_emit_u8_hex(codegen_t* gen, uint8_t value) {
@@ -707,7 +700,7 @@ void codegen_destroy(codegen_t* gen) {
     }
 }
 
-void codegen_emit(codegen_t* gen, const char* fmt, ...) {
+void codegen_emit(codegen_t* gen, const char* fmt) {
     if (!gen || !gen->output_handle || !fmt) return;
     uint16_t len = 0;
     const char* p = fmt;
