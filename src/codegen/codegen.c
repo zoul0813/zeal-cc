@@ -198,10 +198,6 @@ static void codegen_emit_u8_dec(codegen_t* gen, uint8_t value) {
     codegen_emit(gen, buf);
 }
 
-static void codegen_emit_int(codegen_t* gen, int16_t value) {
-    codegen_emit_hex(gen, (uint16_t)value);
-}
-
 static void codegen_emit_hex(codegen_t* gen, uint16_t value) {
     char* buf = g_emit_buf;
     uint8_t i = 0;
@@ -241,7 +237,7 @@ static void codegen_emit_stack_adjust(codegen_t* gen, int16_t offset, bool subtr
     codegen_emit(gen, CG_STR_LD_HL_ZERO);
     codegen_emit(gen, CG_STR_ADD_HL_SP);
     codegen_emit(gen, CG_STR_LD_DE);
-    codegen_emit_int(gen, offset);
+    codegen_emit_hex(gen, (uint16_t)offset);
     codegen_emit(gen, CG_STR_NL);
     if (subtract) {
         codegen_emit(gen, CG_STR_OR_A_SBC_HL_DE);
@@ -480,7 +476,7 @@ static cc_error_t codegen_emit_address_of_identifier(codegen_t* gen, const char*
         codegen_emit(gen, CG_STR_PUSH_IX_POP_HL);
         if (offset != 0) {
             codegen_emit(gen, "  ld bc, ");
-            codegen_emit_int(gen, offset);
+            codegen_emit_hex(gen, (uint16_t)offset);
             codegen_emit(gen, "\n  add hl, bc\n");
         }
         return CC_OK;
@@ -1929,7 +1925,7 @@ static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast) {
                 codegen_emit(gen, ".db 0\n");
                 if ((uint16_t)(len + 1u) < array_len) {
                     codegen_emit(gen, CG_STR_DS);
-                    codegen_emit_int(gen, (int16_t)(array_len - (uint16_t)(len + 1u)));
+                    codegen_emit_hex(gen, (uint16_t)(array_len - (uint16_t)(len + 1u)));
                     codegen_emit(gen, CG_STR_NL);
                 }
                 return CC_OK;
@@ -1939,7 +1935,7 @@ static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast) {
             return CC_ERROR_CODEGEN;
         }
         codegen_emit(gen, CG_STR_DS);
-        codegen_emit_int(gen, (int16_t)total_size);
+        codegen_emit_hex(gen, (uint16_t)total_size);
         codegen_emit(gen, CG_STR_NL);
         return CC_OK;
     }
@@ -1984,7 +1980,7 @@ static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast) {
         }
         codegen_emit(gen, CG_STR_COLON);
         codegen_emit(gen, CG_STR_DW);
-        codegen_emit_int(gen, 0);
+        codegen_emit_hex(gen, 0);
         return CC_OK;
     }
 
