@@ -174,30 +174,6 @@ static bool codegen_names_equal(const char* a, const char* b) {
     return str_cmp(a, b) == 0;
 }
 
-static void codegen_emit_u8_dec(codegen_t* gen, uint8_t value) {
-    char* buf = g_emit_buf;
-    uint8_t i = 0;
-    if (value == 0) {
-        buf[i++] = '0';
-    } else {
-        while (value > 0 && i < 4) {
-            buf[i++] = (char)('0' + (value % 10));
-            value /= 10;
-        }
-        uint8_t j = 0;
-        uint8_t k = (uint8_t)(i - 1);
-        while (j < k) {
-            char tmp = buf[j];
-            buf[j] = buf[k];
-            buf[k] = tmp;
-            j++;
-            k--;
-        }
-    }
-    buf[i] = '\0';
-    codegen_emit(gen, buf);
-}
-
 static void codegen_emit_hex(codegen_t* gen, uint16_t value) {
     char* buf = g_emit_buf;
     uint8_t i = 0;
@@ -620,11 +596,11 @@ static cc_error_t codegen_emit_array_address(codegen_t* gen, ast_reader_t* ast,
 static void codegen_emit_ix_offset(codegen_t* gen, int16_t offset) {
     if (offset < 0) {
         codegen_emit(gen, "-");
-        codegen_emit_u8_dec(gen, (uint8_t)(-offset));
+        codegen_emit_hex(gen, (uint8_t)(-offset));
         return;
     }
     codegen_emit(gen, "+");
-    codegen_emit_u8_dec(gen, (uint8_t)offset);
+    codegen_emit_hex(gen, (uint8_t)offset);
 }
 
 static char* codegen_new_label_persist(codegen_t* gen) {
