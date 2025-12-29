@@ -34,8 +34,6 @@ typedef struct {
     uint8_t param_elem_size[8];
     codegen_param_count_t param_count;
     char* function_end_label;
-    bool return_direct;
-    bool use_function_end_label;
     bool function_return_is_16;
     uint16_t function_return_flags[64];
     codegen_function_count_t function_count;

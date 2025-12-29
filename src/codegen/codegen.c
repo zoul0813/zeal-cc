@@ -895,22 +895,7 @@ static cc_error_t codegen_statement_return(codegen_t* gen, ast_reader_t* ast, ui
             g_result_in_hl = false;
         }
     }
-    bool preserve_hl = gen->function_return_is_16;
-    if (gen->return_direct || !gen->function_end_label) {
-        if (preserve_hl) {
-            codegen_emit(gen, "  ld b, h\n  ld c, l\n");
-        }
-        if (gen->stack_offset > 0) {
-            codegen_emit_stack_adjust(gen, gen->stack_offset, false);
-        }
-        if (preserve_hl) {
-            codegen_emit(gen, "  ld h, b\n  ld l, c\n");
-        }
-        codegen_emit(gen, CG_STR_POP_IX_RET);
-    } else {
-        gen->use_function_end_label = true;
-        codegen_emit_jump(gen, CG_STR_JP, gen->function_end_label);
-    }
+    codegen_emit_jump(gen, CG_STR_JP, gen->function_end_label);
     return CC_OK;
 }
 
@@ -1731,8 +1716,6 @@ static cc_error_t codegen_stream_function(codegen_t* gen, ast_reader_t* ast) {
     gen->local_var_count = 0;
     gen->param_count = 0;
     gen->function_end_label = NULL;
-    gen->return_direct = false;
-    gen->use_function_end_label = false;
     gen->stack_offset = 0;
 
     for (uint8_t i = 0; i < param_count; i++) {
@@ -1787,7 +1770,6 @@ static cc_error_t codegen_stream_function(codegen_t* gen, ast_reader_t* ast) {
     }
 
     if (reader_seek(ast->reader, body_start) < 0) return CC_ERROR_CODEGEN;
-    bool last_was_return = false;
     uint8_t body_tag = 0;
     if (ast_read_u8(ast->reader, &body_tag) < 0) return CC_ERROR_CODEGEN;
     if (body_tag == AST_TAG_COMPOUND_STMT) {
@@ -1796,41 +1778,26 @@ static cc_error_t codegen_stream_function(codegen_t* gen, ast_reader_t* ast) {
         for (uint16_t i = 0; i < stmt_count; i++) {
             uint8_t stmt_tag = 0;
             if (ast_read_u8(ast->reader, &stmt_tag) < 0) return CC_ERROR_CODEGEN;
-            if (i + 1 == stmt_count && stmt_tag == AST_TAG_RETURN_STMT) {
-                last_was_return = true;
-                gen->return_direct = true;
-            }
             cc_error_t err = codegen_stream_statement_tag(gen, ast, stmt_tag);
-            gen->return_direct = false;
             if (err != CC_OK) return err;
         }
     } else if (body_tag == AST_TAG_RETURN_STMT) {
-        last_was_return = true;
-        gen->return_direct = true;
         cc_error_t err = codegen_stream_statement_tag(gen, ast, body_tag);
-        gen->return_direct = false;
         if (err != CC_OK) return err;
     } else {
         cc_error_t err = codegen_stream_statement_tag(gen, ast, body_tag);
         if (err != CC_OK) return err;
     }
 
-    if (gen->use_function_end_label) {
+    {
         bool preserve_hl = gen->function_return_is_16;
         codegen_emit_label(gen, gen->function_end_label);
         if (preserve_hl) {
             codegen_emit(gen, "  ld b, h\n  ld c, l\n");
         }
-        if (gen->stack_offset > 0) {
-            codegen_emit_stack_adjust(gen, gen->stack_offset, false);
-        }
+        codegen_emit_stack_adjust(gen, gen->stack_offset, false);
         if (preserve_hl) {
             codegen_emit(gen, "  ld h, b\n  ld l, c\n");
-        }
-        codegen_emit(gen, CG_STR_POP_IX_RET);
-    } else if (!last_was_return) {
-        if (gen->stack_offset > 0) {
-            codegen_emit_stack_adjust(gen, gen->stack_offset, false);
         }
         codegen_emit(gen, CG_STR_POP_IX_RET);
     }
@@ -1972,38 +1939,12 @@ static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast) {
     return CC_OK;
 }
 
-static void codegen_emit_runtime(codegen_t* gen) {
-    codegen_emit_file(gen, "runtime/zeal8bit.asm");
-    codegen_emit_file(gen, "runtime/math_8.asm");
-    codegen_emit_file(gen, "runtime/math_16.asm");
-}
-
-static void codegen_emit_strings(codegen_t* gen) {
-    if (!gen || gen->string_count == 0) return;
-    codegen_emit(gen, "\n; String literals\n");
-    for (codegen_string_count_t i = 0; i < gen->string_count; i++) {
-        const char* label = gen->string_labels[i];
-        const char* value = gen->string_literals[i];
-        if (!label || !value) continue;
-        codegen_emit(gen, label);
-        codegen_emit(gen, ":\n");
-        codegen_emit_string_literal(gen, value);
-        // Emit .db 0
-        codegen_emit(gen, "  .db 0\n");
-    }
-}
-
-static void codegen_emit_preamble(codegen_t* gen) {
-    if (!gen) return;
-    codegen_emit_file(gen, "runtime/crt0.asm");
-    codegen_emit(gen, "\n; Program code\n");
-}
-
 cc_error_t codegen_generate_stream(codegen_t* gen, ast_reader_t* ast) {
     uint16_t decl_count = 0;
     if (!gen || !ast) return CC_ERROR_INTERNAL;
 
-    codegen_emit_preamble(gen);
+    codegen_emit_file(gen, "runtime/crt0.asm");
+    codegen_emit(gen, "\n; Program code\n");
 
     if (ast_reader_begin_program(ast, &decl_count) < 0) {
         return CC_ERROR_CODEGEN;
@@ -2075,8 +2016,22 @@ cc_error_t codegen_generate_stream(codegen_t* gen, ast_reader_t* ast) {
         }
     }
 
-    codegen_emit_strings(gen);
-    codegen_emit_runtime(gen);
+    if (gen->string_count > 0) {
+        codegen_emit(gen, "\n; String literals\n");
+        for (codegen_string_count_t i = 0; i < gen->string_count; i++) {
+            const char* label = gen->string_labels[i];
+            const char* value = gen->string_literals[i];
+            if (!label || !value) continue;
+            codegen_emit(gen, label);
+            codegen_emit(gen, ":\n");
+            codegen_emit_string_literal(gen, value);
+            // Emit .db 0
+            codegen_emit(gen, "  .db 0\n");
+        }
+    }
+    codegen_emit_file(gen, "runtime/zeal8bit.asm");
+    codegen_emit_file(gen, "runtime/math_8.asm");
+    codegen_emit_file(gen, "runtime/math_16.asm");
 
     return CC_OK;
 }
