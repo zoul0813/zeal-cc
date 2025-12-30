@@ -49,16 +49,6 @@ static int8_t reader_fill(reader_t* r) {
     return 0;
 }
 
-int16_t reader_next(reader_t* reader) {
-    if (!reader) return -1;
-    if (reader->pos >= reader->buf_len) {
-        if (reader_fill(reader) < 0) {
-            return -1;
-        }
-    }
-    return (uint8_t)file_buffer[reader->pos++];
-}
-
 int16_t reader_peek(reader_t* reader) {
     if (!reader) return -1;
     if (reader->pos >= reader->buf_len) {
@@ -67,6 +57,12 @@ int16_t reader_peek(reader_t* reader) {
         }
     }
     return (uint8_t)file_buffer[reader->pos];
+}
+
+int16_t reader_next(reader_t* reader) {
+    int16_t ret = reader_peek(reader);
+    if (ret != -1) reader->pos++;
+    return ret;
 }
 
 int8_t reader_seek(reader_t* reader, uint32_t offset) {

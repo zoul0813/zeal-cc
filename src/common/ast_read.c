@@ -1,5 +1,12 @@
 #include "ast_io.h"
 
+static error_handler s_handler;
+
+void ast_read_handler(error_handler f)
+{
+    s_handler = f;
+}
+
 int8_t ast_read_u8(reader_t* reader, uint8_t* out) {
     if (!out) return -1;
     int16_t ch = reader_next(reader);
@@ -42,3 +49,36 @@ int8_t ast_read_i16(reader_t* reader, int16_t* out) {
     *out = (int16_t)value;
     return 0;
 }
+
+uint8_t ast_read_u8_safe(reader_t* reader)
+{
+    static uint8_t ch;
+    if (ast_read_u8(reader, &ch) < 0)
+        s_handler();
+    return ch;
+}
+
+uint16_t ast_read_u16_safe(reader_t* reader)
+{
+    static uint16_t ch;
+    if (ast_read_u16(reader, &ch) < 0)
+        s_handler();
+    return ch;
+}
+
+uint32_t ast_read_u32_safe(reader_t* reader)
+{
+    static uint32_t ch;
+    if (ast_read_u32(reader, &ch) < 0)
+        s_handler();
+    return ch;
+}
+
+int16_t ast_read_i16_safe(reader_t* reader)
+{
+    static int16_t ch;
+    if (ast_read_i16(reader, &ch) < 0)
+        s_handler();
+    return ch;
+}
+
