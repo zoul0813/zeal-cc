@@ -278,7 +278,7 @@ static int8_t codegen_stream_read_name(ast_reader_t* ast, const char** value) {
 static int16_t codegen_local_index(codegen_t* gen, const char* name) {
     if (!gen || !name) return -1;
     for (codegen_local_count_t i = 0; i < gen->local_var_count; i++) {
-        if (gen->local_vars[i] == name || codegen_names_equal(gen->local_vars[i], name)) {
+        if (gen->locals[i].name == name || codegen_names_equal(gen->locals[i].name, name)) {
             return (int16_t)i;
         }
     }
@@ -288,7 +288,7 @@ static int16_t codegen_local_index(codegen_t* gen, const char* name) {
 static int16_t codegen_param_index(codegen_t* gen, const char* name) {
     if (!gen || !name) return -1;
     for (codegen_param_count_t i = 0; i < gen->param_count; i++) {
-        if (gen->param_names[i] == name || codegen_names_equal(gen->param_names[i], name)) {
+        if (gen->params[i].name == name || codegen_names_equal(gen->params[i].name, name)) {
             return (int16_t)i;
         }
     }
@@ -298,7 +298,7 @@ static int16_t codegen_param_index(codegen_t* gen, const char* name) {
 static int16_t codegen_global_index(codegen_t* gen, const char* name) {
     if (!gen || !name) return -1;
     for (codegen_global_count_t i = 0; i < gen->global_count; i++) {
-        if (gen->global_names[i] == name || codegen_names_equal(gen->global_names[i], name)) {
+        if (gen->globals[i].name == name || codegen_names_equal(gen->globals[i].name, name)) {
             return (int16_t)i;
         }
     }
@@ -310,15 +310,18 @@ static void codegen_record_local(codegen_t* gen, const char* name, uint16_t size
                                  bool is_array, uint8_t elem_size, bool elem_signed) {
     if (!gen || !name) return;
     if (codegen_local_index(gen, name) >= 0) return;
-    if (gen->local_var_count < (sizeof(gen->local_vars) / sizeof(gen->local_vars[0]))) {
-        gen->local_vars[gen->local_var_count] = name;
-        gen->local_offsets[gen->local_var_count] = gen->stack_offset;
-        gen->local_is_16[gen->local_var_count] = is_16bit;
-        gen->local_is_signed[gen->local_var_count] = is_signed;
-        gen->local_is_pointer[gen->local_var_count] = is_pointer;
-        gen->local_is_array[gen->local_var_count] = is_array;
-        gen->local_elem_size[gen->local_var_count] = elem_size;
-        gen->local_elem_signed[gen->local_var_count] = elem_signed;
+    if (gen->local_var_count < (sizeof(gen->locals) / sizeof(gen->locals[0]))) {
+        codegen_local_t local;
+        local.name = name;
+        local.offset = gen->stack_offset;
+        local.elem_size = elem_size;
+        local.flags = 0;
+        if (is_16bit) local.flags |= CG_FLAG_IS_16;
+        if (is_signed) local.flags |= CG_FLAG_IS_SIGNED;
+        if (is_pointer) local.flags |= CG_FLAG_IS_POINTER;
+        if (is_array) local.flags |= CG_FLAG_IS_ARRAY;
+        if (elem_signed) local.flags |= CG_FLAG_ELEM_SIGNED;
+        mem_cpy(&gen->locals[gen->local_var_count], &local, sizeof(local));
         gen->stack_offset += size;
         gen->local_var_count++;
     }
@@ -328,7 +331,7 @@ static uint8_t codegen_param_offset(codegen_t* gen, const char* name, int16_t* o
     if (!gen || !name || !out_offset) return 0;
     int16_t idx = codegen_param_index(gen, name);
     if (idx < 0) return 0;
-    *out_offset = gen->param_offsets[idx];
+    *out_offset = gen->params[idx].offset;
     return 1;
 }
 
@@ -336,7 +339,7 @@ static uint8_t codegen_local_offset(codegen_t* gen, const char* name, int16_t* o
     if (!gen || !name || !out_offset) return 0;
     int16_t idx = codegen_local_index(gen, name);
     if (idx < 0) return 0;
-    *out_offset = gen->local_offsets[idx];
+    *out_offset = gen->locals[idx].offset;
     return 1;
 }
 
@@ -348,57 +351,57 @@ static uint8_t codegen_local_or_param_offset(codegen_t* gen, const char* name,
 
 static bool codegen_local_is_16(codegen_t* gen, const char* name) {
     int16_t idx = codegen_local_index(gen, name);
-    return idx >= 0 && gen->local_is_16[idx];
+    return idx >= 0 && (gen->locals[idx].flags & CG_FLAG_IS_16);
 }
 
 static bool codegen_local_is_signed(codegen_t* gen, const char* name) {
     int16_t idx = codegen_local_index(gen, name);
-    return idx >= 0 && gen->local_is_signed[idx];
+    return idx >= 0 && (gen->locals[idx].flags & CG_FLAG_IS_SIGNED);
 }
 
 static bool codegen_local_is_pointer(codegen_t* gen, const char* name) {
     int16_t idx = codegen_local_index(gen, name);
-    return idx >= 0 && gen->local_is_pointer[idx];
+    return idx >= 0 && (gen->locals[idx].flags & CG_FLAG_IS_POINTER);
 }
 
 static bool codegen_local_is_array(codegen_t* gen, const char* name) {
     int16_t idx = codegen_local_index(gen, name);
-    return idx >= 0 && gen->local_is_array[idx];
+    return idx >= 0 && (gen->locals[idx].flags & CG_FLAG_IS_ARRAY);
 }
 
 static bool codegen_param_is_16(codegen_t* gen, const char* name) {
     int16_t idx = codegen_param_index(gen, name);
-    return idx >= 0 && gen->param_is_16[idx];
+    return idx >= 0 && (gen->params[idx].flags & CG_FLAG_IS_16);
 }
 
 static bool codegen_param_is_signed(codegen_t* gen, const char* name) {
     int16_t idx = codegen_param_index(gen, name);
-    return idx >= 0 && gen->param_is_signed[idx];
+    return idx >= 0 && (gen->params[idx].flags & CG_FLAG_IS_SIGNED);
 }
 
 static bool codegen_param_is_pointer(codegen_t* gen, const char* name) {
     int16_t idx = codegen_param_index(gen, name);
-    return idx >= 0 && gen->param_is_pointer[idx];
+    return idx >= 0 && (gen->params[idx].flags & CG_FLAG_IS_POINTER);
 }
 
 static bool codegen_global_is_16(codegen_t* gen, const char* name) {
     int16_t idx = codegen_global_index(gen, name);
-    return idx >= 0 && gen->global_is_16[idx];
+    return idx >= 0 && (gen->globals[idx].flags & CG_FLAG_IS_16);
 }
 
 static bool codegen_global_is_signed(codegen_t* gen, const char* name) {
     int16_t idx = codegen_global_index(gen, name);
-    return idx >= 0 && gen->global_is_signed[idx];
+    return idx >= 0 && (gen->globals[idx].flags & CG_FLAG_IS_SIGNED);
 }
 
 static bool codegen_global_is_pointer(codegen_t* gen, const char* name) {
     int16_t idx = codegen_global_index(gen, name);
-    return idx >= 0 && gen->global_is_pointer[idx];
+    return idx >= 0 && (gen->globals[idx].flags & CG_FLAG_IS_POINTER);
 }
 
 static bool codegen_global_is_array(codegen_t* gen, const char* name) {
     int16_t idx = codegen_global_index(gen, name);
-    return idx >= 0 && gen->global_is_array[idx];
+    return idx >= 0 && (gen->globals[idx].flags & CG_FLAG_IS_ARRAY);
 }
 
 static bool codegen_name_is_16(codegen_t* gen, const char* name) {
@@ -440,56 +443,56 @@ static uint8_t codegen_pointer_elem_size(uint8_t base, uint8_t depth) {
 
 static uint8_t codegen_array_elem_size_by_name(codegen_t* gen, const char* name) {
     int16_t idx = codegen_local_index(gen, name);
-    if (idx >= 0 && gen->local_is_array[idx]) {
-        return gen->local_elem_size[idx];
+    if (idx >= 0 && (gen->locals[idx].flags & CG_FLAG_IS_ARRAY)) {
+        return gen->locals[idx].elem_size;
     }
     idx = codegen_global_index(gen, name);
-    if (idx >= 0 && gen->global_is_array[idx]) {
-        return gen->global_elem_size[idx];
+    if (idx >= 0 && (gen->globals[idx].flags & CG_FLAG_IS_ARRAY)) {
+        return gen->globals[idx].elem_size;
     }
     return 0;
 }
 
 static bool codegen_array_elem_signed_by_name(codegen_t* gen, const char* name) {
     int16_t idx = codegen_local_index(gen, name);
-    if (idx >= 0 && gen->local_is_array[idx]) {
-        return gen->local_elem_signed[idx];
+    if (idx >= 0 && (gen->locals[idx].flags & CG_FLAG_IS_ARRAY)) {
+        return (gen->locals[idx].flags & CG_FLAG_ELEM_SIGNED) != 0;
     }
     idx = codegen_global_index(gen, name);
-    if (idx >= 0 && gen->global_is_array[idx]) {
-        return gen->global_elem_signed[idx];
+    if (idx >= 0 && (gen->globals[idx].flags & CG_FLAG_IS_ARRAY)) {
+        return (gen->globals[idx].flags & CG_FLAG_ELEM_SIGNED) != 0;
     }
     return false;
 }
 
 static uint8_t codegen_pointer_elem_size_by_name(codegen_t* gen, const char* name) {
     int16_t idx = codegen_local_index(gen, name);
-    if (idx >= 0 && gen->local_is_pointer[idx]) {
-        return gen->local_elem_size[idx];
+    if (idx >= 0 && (gen->locals[idx].flags & CG_FLAG_IS_POINTER)) {
+        return gen->locals[idx].elem_size;
     }
     idx = codegen_param_index(gen, name);
-    if (idx >= 0 && gen->param_is_pointer[idx]) {
-        return gen->param_elem_size[idx];
+    if (idx >= 0 && (gen->params[idx].flags & CG_FLAG_IS_POINTER)) {
+        return gen->params[idx].elem_size;
     }
     idx = codegen_global_index(gen, name);
-    if (idx >= 0 && gen->global_is_pointer[idx]) {
-        return gen->global_elem_size[idx];
+    if (idx >= 0 && (gen->globals[idx].flags & CG_FLAG_IS_POINTER)) {
+        return gen->globals[idx].elem_size;
     }
     return 0;
 }
 
 static bool codegen_pointer_elem_signed_by_name(codegen_t* gen, const char* name) {
     int16_t idx = codegen_local_index(gen, name);
-    if (idx >= 0 && gen->local_is_pointer[idx]) {
-        return gen->local_elem_signed[idx];
+    if (idx >= 0 && (gen->locals[idx].flags & CG_FLAG_IS_POINTER)) {
+        return (gen->locals[idx].flags & CG_FLAG_ELEM_SIGNED) != 0;
     }
     idx = codegen_param_index(gen, name);
-    if (idx >= 0 && gen->param_is_pointer[idx]) {
-        return gen->param_elem_signed[idx];
+    if (idx >= 0 && (gen->params[idx].flags & CG_FLAG_IS_POINTER)) {
+        return (gen->params[idx].flags & CG_FLAG_ELEM_SIGNED) != 0;
     }
     idx = codegen_global_index(gen, name);
-    if (idx >= 0 && gen->global_is_pointer[idx]) {
-        return gen->global_elem_signed[idx];
+    if (idx >= 0 && (gen->globals[idx].flags & CG_FLAG_IS_POINTER)) {
+        return (gen->globals[idx].flags & CG_FLAG_ELEM_SIGNED) != 0;
     }
     return false;
 }
@@ -1925,28 +1928,36 @@ static cc_error_t codegen_stream_function(codegen_t* gen, ast_reader_t* ast) {
                                       &param_array_len) < 0) return CC_ERROR_CODEGEN;
         ast_read_u8(ast->reader, &has_init);
         if (has_init && ast_reader_skip_node(ast) < 0) return CC_ERROR_CODEGEN;
-        if (gen->param_count < (uint8_t)(sizeof(gen->param_names) /
-                                         sizeof(gen->param_names[0]))) {
+        if (gen->param_count < (uint8_t)(sizeof(gen->params) /
+                                         sizeof(gen->params[0]))) {
             bool is_pointer = (param_depth > 0) || (param_array_len > 0);
             uint8_t param_base_kind = codegen_base_type(param_base);
             bool param_signed = !codegen_base_is_unsigned(param_base);
             if (param_base_kind == AST_BASE_VOID) {
                 param_signed = true;
             }
-            gen->param_names[gen->param_count] =
-                ast_reader_string(ast, param_name_index);
-            gen->param_is_16[gen->param_count] =
-                codegen_stream_type_is_16bit(param_base, param_depth);
-            gen->param_is_signed[gen->param_count] = param_signed;
-            gen->param_is_pointer[gen->param_count] = is_pointer;
-            if (is_pointer) {
-                gen->param_elem_size[gen->param_count] = (param_depth > 0)
-                    ? codegen_pointer_elem_size(param_base, param_depth)
-                    : codegen_type_size(param_base, 0);
-                gen->param_elem_signed[gen->param_count] = param_signed;
-            } else {
-                gen->param_elem_size[gen->param_count] = 0;
-                gen->param_elem_signed[gen->param_count] = false;
+            {
+                codegen_param_t param;
+                param.name = ast_reader_string(ast, param_name_index);
+                param.offset = 0;
+                param.elem_size = 0;
+                param.flags = 0;
+                if (codegen_stream_type_is_16bit(param_base, param_depth)) {
+                    param.flags |= CG_FLAG_IS_16;
+                }
+                if (param_signed) {
+                    param.flags |= CG_FLAG_IS_SIGNED;
+                }
+                if (is_pointer) {
+                    param.flags |= CG_FLAG_IS_POINTER;
+                    param.elem_size = (param_depth > 0)
+                        ? codegen_pointer_elem_size(param_base, param_depth)
+                        : codegen_type_size(param_base, 0);
+                    if (param_signed) {
+                        param.flags |= CG_FLAG_ELEM_SIGNED;
+                    }
+                }
+                mem_cpy(&gen->params[gen->param_count], &param, sizeof(param));
             }
             gen->param_count++;
         }
@@ -1958,7 +1969,7 @@ static cc_error_t codegen_stream_function(codegen_t* gen, ast_reader_t* ast) {
     if (codegen_stream_collect_locals(gen, ast) < 0) return CC_ERROR_CODEGEN;
 
     for (codegen_param_count_t i = 0; i < gen->param_count; i++) {
-        gen->param_offsets[i] =
+        gen->params[i].offset =
             (int16_t)(gen->stack_offset + 4 + (int16_t)(2 * i));
     }
 
@@ -2160,7 +2171,7 @@ cc_error_t codegen_generate_stream(codegen_t* gen, ast_reader_t* ast) {
             ast_read_u8(ast->reader, &has_init);
             const char* name = ast_reader_string(ast, name_index);
             if (name && codegen_global_index(gen, name) < 0) {
-                if (gen->global_count < (sizeof(gen->global_names) / sizeof(gen->global_names[0]))) {
+                if (gen->global_count < (sizeof(gen->globals) / sizeof(gen->globals[0]))) {
                     bool is_array = array_len > 0;
                     bool is_pointer = (!is_array && depth > 0);
                     bool is_16bit = codegen_stream_type_is_16bit(base, depth);
@@ -2178,13 +2189,18 @@ cc_error_t codegen_generate_stream(codegen_t* gen, ast_reader_t* ast) {
                     } else if (is_pointer) {
                         elem_size = codegen_pointer_elem_size(base, depth);
                     }
-                    gen->global_names[gen->global_count] = name;
-                    gen->global_is_16[gen->global_count] = is_16bit;
-                    gen->global_is_signed[gen->global_count] = is_signed;
-                    gen->global_is_pointer[gen->global_count] = is_pointer;
-                    gen->global_is_array[gen->global_count] = is_array;
-                    gen->global_elem_size[gen->global_count] = elem_size;
-                    gen->global_elem_signed[gen->global_count] = elem_signed;
+                    {
+                        codegen_global_t global;
+                        global.name = name;
+                        global.elem_size = elem_size;
+                        global.flags = 0;
+                        if (is_16bit) global.flags |= CG_FLAG_IS_16;
+                        if (is_signed) global.flags |= CG_FLAG_IS_SIGNED;
+                        if (is_pointer) global.flags |= CG_FLAG_IS_POINTER;
+                        if (is_array) global.flags |= CG_FLAG_IS_ARRAY;
+                        if (elem_signed) global.flags |= CG_FLAG_ELEM_SIGNED;
+                        mem_cpy(&gen->globals[gen->global_count], &global, sizeof(global));
+                    }
                     gen->global_count++;
                 }
             }

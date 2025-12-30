@@ -13,6 +13,34 @@ typedef uint8_t codegen_function_count_t;
 typedef uint8_t codegen_global_count_t;
 typedef uint8_t codegen_string_count_t;
 
+enum {
+    CG_FLAG_IS_16 = 0x01,
+    CG_FLAG_IS_SIGNED = 0x02,
+    CG_FLAG_IS_POINTER = 0x04,
+    CG_FLAG_IS_ARRAY = 0x08,
+    CG_FLAG_ELEM_SIGNED = 0x10
+};
+
+typedef struct {
+    const char* name;
+    int16_t offset;
+    uint8_t elem_size;
+    uint8_t flags;
+} codegen_local_t;
+
+typedef struct {
+    const char* name;
+    int16_t offset;
+    uint8_t elem_size;
+    uint8_t flags;
+} codegen_param_t;
+
+typedef struct {
+    const char* name;
+    uint8_t elem_size;
+    uint8_t flags;
+} codegen_global_t;
+
 /* Code generator structure */
 typedef struct {
     output_t output_handle;
@@ -20,35 +48,16 @@ typedef struct {
     uint16_t label_counter;
 
     int16_t stack_offset;
-    const char* local_vars[64];
-    int16_t local_offsets[64];
-    bool local_is_16[64];
-    bool local_is_signed[64];
-    bool local_is_pointer[64];
-    bool local_is_array[64];
-    uint8_t local_elem_size[64];
-    bool local_elem_signed[64];
+    codegen_local_t locals[64];
     codegen_local_count_t local_var_count;
-    const char* param_names[8];
-    int16_t param_offsets[8];
-    bool param_is_16[8];
-    bool param_is_signed[8];
-    bool param_is_pointer[8];
-    uint8_t param_elem_size[8];
-    bool param_elem_signed[8];
+    codegen_param_t params[8];
     codegen_param_count_t param_count;
     char* function_end_label;
     bool function_return_is_16;
     uint16_t function_return_flags[64];
     codegen_function_count_t function_count;
 
-    const char* global_names[64];
-    bool global_is_16[64];
-    bool global_is_signed[64];
-    bool global_is_pointer[64];
-    bool global_is_array[64];
-    uint8_t global_elem_size[64];
-    bool global_elem_signed[64];
+    codegen_global_t globals[64];
     codegen_global_count_t global_count;
 
     const char* string_labels[64];

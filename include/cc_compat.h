@@ -8,6 +8,7 @@ typedef void* unused;
 #include <string.h>
 typedef void unused;
 #define mem_set memset
+#define mem_cpy memcpy
 #define mem_cmp memcmp
 #define str_cmp strcmp
 #define str_len strlen
