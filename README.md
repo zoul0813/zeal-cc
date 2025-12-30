@@ -12,8 +12,8 @@ This is an iterative development project. Currently implemented:
 - ✅ Phase 4: Symbol table (basic implementation)
 - ✅ Phase 5: Z80 code generator (expressions, statements, runtime helpers)
 - ✅ Phase 6: Control flow (if, while, for)
-- 🚧 Phase 7: Stack-based locals and full calling convention
-- ⏳ Phase 8: Optimizations and documentation
+- ✅ Phase 7: Stack-based locals and full calling convention
+- 🚧 Phase 8: Optimizations and documentation
 
 ### Working Features ✅
 - Complete C99 lexer with all token types
@@ -27,21 +27,24 @@ This is an iterative development project. Currently implemented:
 - Stack-based local variables
 - Variable declarations and assignments
 - Global variable declarations
-- String literals with constant indexing
+- Single-dimension arrays (globals/locals) and array parameters (decay to pointer)
+- Array and pointer indexing (8-bit indices)
+- String literals for pointer/array initialization and indexing
 - Return statements with expressions
 - Compound statements (blocks)
 - Runtime library for mul/div/mod
 - Expression evaluation with correct precedence
 - Multiple functions per file
 - `char` type and character literals
+- Pointer basics: address-of and dereference on identifiers
 
 ### In Progress 🚧
 - Target build uses 12 KB static pool; file buffer at 0xE000 (512 B)
 
 ### Planned Features ⏳
 - Switch statement, break/continue, do/while, ternary
-- Unary operators
-- Pointers and arrays
+- Unary operators (negation, logical not, inc/dec)
+- Full pointer arithmetic and multidimensional arrays
 - Struct and union types
 - More operators (logical, bitwise)
 - Type checking and semantic analysis
@@ -215,24 +218,25 @@ All test artifacts (`.asm`, `.o`, `.bin`, etc.) are stored in `tests/` for versi
 
 ## Current Limitations
 
-- Parser is simplified and needs expansion (no arrays/structs; pointer declarators are limited)
+- Parser lacks do/while, ternary, switch, break/continue, logical/bitwise ops, and full unary ops
 - Fixed 12 KB static pool allocator; no dynamic malloc on target
 - 512-byte input reader buffer; very large source files are not supported
 - No optimization passes yet
 - Limited error reporting
 - `long` (32-bit) is currently unsupported
-- Not yet supported in codegen: do/while, ternary operator, arrays, structs
-- Pointer support is limited: address-of/deref, pointer assignment, and constant indexing only
+- Not yet supported in codegen: do/while, ternary operator, structs/unions
+- Array init is limited to string literals for `char[]`
+- Pointer support is limited to address-of/deref on identifiers and array-style indexing
 
 ## Next Steps
 
 We will iterate on this implementation, adding:
-1. Stack-based locals and calling convention for parameters
-2. Semantic analysis and type checking
-3. Comprehensive code generation (pointers, arrays, structs)
-4. Register allocation
+1. Semantic analysis and type checking
+2. Extend parser support (do/while, ternary, full unary, logical/bitwise, switch/break/continue)
+3. Complete codegen for missing constructs (structs/unions, pointer arithmetic, multidimensional arrays, array init)
+4. Preprocessor support
 5. Optimization passes
-6. Extended C99 feature support (switch, logical/bitwise ops, ternary)
+6. Register allocation
 
 ## License
 

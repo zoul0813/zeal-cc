@@ -152,6 +152,17 @@ cc_parse tests/struct.c tests/struct.ast
 : echo Failed to compile tests/struct.c
 : echo Expected failure: tests/struct.c
 
+echo TEST: tests/signs.c
+cc_parse tests/signs.c tests/signs.ast
+: echo Failed to parse tests/signs.c
+? cc_codegen tests/signs.ast tests/signs.asm
+: echo Failed to codegen tests/signs.ast
+? zealasm tests/signs.asm tests/signs.bin
+? return tests/signs.bin
+: echo Failed to assemble tests/signs.asm
+: echo Failed to compile tests/signs.c
+: echo Expected failure: tests/signs.c
+
 echo TEST: tests/ternary.c
 cc_parse tests/ternary.c tests/ternary.ast
 : echo Failed to parse tests/ternary.c

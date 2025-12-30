@@ -41,6 +41,7 @@ TESTS=(
   pointer
   simple_return
   return16
+  signs
   struct
   ternary
   unary

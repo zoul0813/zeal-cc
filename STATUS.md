@@ -31,7 +31,7 @@
 - Proper line/column tracking
 - **TESTED AND WORKING**
 
-### Phase 3: Parser ✓ COMPLETE
+### Phase 3: Parser ✓ (core subset)
 
 - ✅ Operator precedence climbing (factor/term hierarchy)
 - ✅ Binary operators (+, -, *, /, %)
@@ -46,7 +46,7 @@
 - ✅ For loops (init, condition, increment, body)
 - ✅ Proper AST construction and traversal
 - ✅ Program node with multiple functions
-- **FULLY TESTED AND WORKING**
+- ⚠️ Missing: do/while, ternary, switch, break/continue, logical/bitwise, full unary ops, signed/unsigned qualifiers
 
 ### Phase 4: Symbol Table ✓
 
@@ -69,22 +69,27 @@
 - ✅ While loops with loop/end labels
 - ✅ For loops with init/condition/increment
 - ✅ Runtime library (__mul_a_l, __div_a_l, __mod_a_l)
+- ✅ Single-dimension arrays and array/pointer indexing (8-bit indices)
+- ✅ String literal indexing and pointer/array initialization
 - **GENERATES WORKING Z80 ASSEMBLY**
 
 ## 🚧 In Progress
 
 ### Phase 5: Code Generator (incomplete tasks)
 
-- ❌ Array addressing and dereference codegen
+- ❌ Full unary operators (negation, logical not, inc/dec)
+- ❌ Pointer arithmetic via `+`/`-` (array-style indexing only)
+- ❌ Array initializers beyond string literals
+- ❌ Struct/union codegen
 
 ## ⏳ Not Started
 
 ### Advanced Features
 
-- ❌ Array access
 - ❌ Structs and unions
 - ❌ Type checking and semantic analysis
 - ❌ Optimizations
+- ❌ Signed/unsigned type qualifiers
 
 ### Phase 6: Testing
 
@@ -109,14 +114,16 @@
 6. ✅ **Runtime library** for mul/div/mod
 7. ✅ **Stack-based local variables**
 8. ✅ **Global variable declarations**
-9. ✅ **String literals with constant indexing**
-10. ✅ **Pointer basics** (address-of, deref, pointer assignment, constant indexing)
+9. ✅ **Single-dimension arrays** (globals/locals, array params decay)
+10. ✅ **Array and pointer indexing** (8-bit indices)
+11. ✅ **String literals** (pointer/array init + indexing)
+12. ✅ **Pointer basics** (address-of/deref on identifiers)
 
 ## Current Test Status
 
-- ✅ Host: `tests/*.c` compile to `.asm` (includes simple_return/return16/locals_params/assign/array/compares/comp/expr/for/if/math/params/pointer/struct/while/do_while/unary/string/char/char_ptr/ternary).
+- ✅ Host: `tests/*.c` compile to `.asm` (includes simple_return/return16/assign/array/compares/comp/expr/for/if/math/params/pointer/struct/while/do_while/unary/char/ternary/global/zealos).
 - ✅ Target: headless run passes; `test.zs` includes current tests.
-- ⚠️ Expected-fail tests (tracked in `test.py`): array, struct, do_while, unary, ternary.
+- ⚠️ Expected-fail tests (tracked in `test.py`): do_while, struct, unary, ternary, signs.
 
 **All tests write output to `tests/` only.**
 

@@ -4,17 +4,23 @@
 - Only `int` and `char` are supported. No `float`/`double`.
 - `long` (32-bit) is currently unsupported.
 - Expressions: `+ - * / %` and comparisons `== != < > <= >=`.
+- Unary expressions: address-of (`&`) and dereference (`*`) on identifiers.
 - Statements: `if/else`, `while`, `for`, `return`, compound blocks.
-- Global variable declarations are supported.
+- Global and local variable declarations are supported.
 - Functions: definitions and calls are supported; parameters are passed on the
   stack with an `IX` frame (see calling convention).
-- String literals are supported only for constant indexing (e.g., `"hi"[0]`).
-- Pointers are supported only for address-of/deref, pointer assignment, and
-  constant indexing via `ptr[const]`.
+- Single-dimension arrays are supported for globals/locals, with array params
+  decaying to pointers.
+- Array and pointer indexing are supported (8-bit indices).
+- String literals are supported for pointer/array initialization and indexing
+  (e.g., `"hi"[0]`).
 
 ## Not Implemented Yet
-- Arrays, structs, unions.
-- Pointer arithmetic and non-constant indexing.
+- Multi-dimensional arrays and array initializers (non-string).
+- Structs, unions, enums, typedefs.
+- Pointer arithmetic via `+`/`-` (array-style indexing only).
+- Full unary operators (negation, logical not, inc/dec).
+- Logical/bitwise operators, ternary, switch, break/continue, do/while.
 - Type checking and semantic analysis.
 - Optimizations.
 

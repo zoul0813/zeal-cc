@@ -39,6 +39,7 @@ EXPECTED_RESULTS = {
     "simple_return": "0C",
     "return16": "EF",
     "struct": None,
+    "signs": None,
     "ternary": None,
     "unary": None,
     "while": "0A",
