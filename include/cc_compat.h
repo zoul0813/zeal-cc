@@ -3,8 +3,10 @@
 
 #ifdef __SDCC
 #include <core.h>
+typedef void* unused;
 #else
 #include <string.h>
+typedef void unused;
 #define mem_set memset
 #define mem_cmp memcmp
 #define str_cmp strcmp

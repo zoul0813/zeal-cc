@@ -95,18 +95,6 @@ struct symbol {
     symbol_t* next;
 };
 
-/* Symbol table */
-typedef struct symbol_table {
-    symbol_t** buckets;
-    size_t bucket_count;
-    int16_t scope_level;
-    struct symbol_table* parent;
-} symbol_table_t;
-
-/* Symbol table functions */
-symbol_table_t* symbol_table_create(symbol_table_t* parent);
-void symbol_table_destroy(symbol_table_t* table);
-
 /* Type functions */
 type_t* type_create(type_kind_t kind);
 void type_destroy(type_t* type);

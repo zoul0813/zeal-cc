@@ -23,15 +23,15 @@ static int8_t ast_read_header(
     uint8_t version = 0;
     uint8_t reserved = 0;
     uint16_t flags = 0;
-    if (ast_read_u8(reader, &version) < 0) return -1;
-    if (ast_read_u8(reader, &reserved) < 0) return -1;
-    if (ast_read_u16(reader, &flags) < 0) return -1;
+    ast_read_u8(reader, &version);
+    ast_read_u8(reader, &reserved);
+    ast_read_u16(reader, &flags);
     *out_version = version;
     (void)reserved;
     (void)flags;
-    if (ast_read_u16(reader, node_count) < 0) return -1;
-    if (ast_read_u16(reader, string_count) < 0) return -1;
-    if (ast_read_u32(reader, string_table_offset) < 0) return -1;
+    ast_read_u16(reader, node_count);
+    ast_read_u16(reader, string_count);
+    ast_read_u32(reader, string_table_offset);
     return 0;
 }
 

@@ -24,9 +24,6 @@ const char* ast_reader_string(ast_reader_t* ast, uint16_t index);
 int8_t ast_reader_read_type_info(ast_reader_t* ast, uint8_t* base, uint8_t* depth,
                                  uint16_t* array_len);
 int8_t ast_reader_begin_program(ast_reader_t* ast, uint16_t* decl_count);
-ast_node_t* ast_reader_read_decl(ast_reader_t* ast);
-ast_node_t* ast_reader_read_root(ast_reader_t* ast);
-void ast_tree_destroy(ast_node_t* node);
 int8_t ast_reader_skip_node(ast_reader_t* ast);
 int8_t ast_reader_skip_tag(ast_reader_t* ast, uint8_t tag);
 void ast_reader_destroy(ast_reader_t* ast);

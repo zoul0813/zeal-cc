@@ -26,7 +26,10 @@ typedef struct {
 } ast_writer_t;
 
 char g_memory_pool[CC_POOL_SIZE];
-static ast_writer_t g_writer;
+static ast_writer_t* writer;
+static parser_t* parser;
+static lexer_t* lexer;
+static reader_t* reader;
 
 static int16_t ast_string_index(ast_writer_t* writer, const char* value) {
     if (!writer || !value) return -1;
@@ -106,10 +109,10 @@ static int8_t ast_write_node(ast_writer_t* writer, const ast_node_t* node) {
         case AST_FUNCTION: {
             int16_t name_index = ast_string_index(writer, node->data.function.name);
             if (name_index < 0) return -1;
-            ast_write_u8_safe(writer->out, AST_TAG_FUNCTION);
-            ast_write_u16_safe(writer->out, (uint16_t)name_index);
+            ast_write_u8(writer->out, AST_TAG_FUNCTION);
+            ast_write_u16(writer->out, (uint16_t)name_index);
             ast_write_type(writer, node->data.function.return_type);
-            ast_write_u8_safe(writer->out, (uint8_t)node->data.function.param_count);
+            ast_write_u8(writer->out, (uint8_t)node->data.function.param_count);
             for (ast_param_count_t i = 0; i < node->data.function.param_count; i++) {
                 ast_write_node(writer, node->data.function.params[i]);
             }
@@ -119,36 +122,37 @@ static int8_t ast_write_node(ast_writer_t* writer, const ast_node_t* node) {
         case AST_VAR_DECL: {
             int16_t name_index = ast_string_index(writer, node->data.var_decl.name);
             if (name_index < 0) return -1;
-            ast_write_u8_safe(writer->out, AST_TAG_VAR_DECL);
-            ast_write_u16_safe(writer->out, (uint16_t)name_index);
+            ast_write_u8(writer->out, AST_TAG_VAR_DECL);
+            ast_write_u16(writer->out, (uint16_t)name_index);
             if (ast_write_type(writer, node->data.var_decl.var_type) < 0) return -1;
             if (node->data.var_decl.initializer) {
-                ast_write_u8_safe(writer->out, 1);
+                ast_write_u8(writer->out, 1);
                 return ast_write_node(writer, node->data.var_decl.initializer);
             }
-            return ast_write_u8(writer->out, 0);
+            ast_write_u8(writer->out, 0);
+            return 0;
         }
         case AST_COMPOUND_STMT: {
-            ast_write_u8_safe(writer->out, AST_TAG_COMPOUND_STMT);
-            ast_write_u16_safe(writer->out, (uint16_t)node->data.compound.stmt_count);
+            ast_write_u8(writer->out, AST_TAG_COMPOUND_STMT);
+            ast_write_u16(writer->out, (uint16_t)node->data.compound.stmt_count);
             for (ast_stmt_count_t i = 0; i < node->data.compound.stmt_count; i++) {
                 ast_write_node(writer, node->data.compound.statements[i]);
             }
             return 0;
         }
         case AST_RETURN_STMT: {
-            ast_write_u8_safe(writer->out, AST_TAG_RETURN_STMT);
+            ast_write_u8(writer->out, AST_TAG_RETURN_STMT);
             if (node->data.return_stmt.expr) {
-                ast_write_u8_safe(writer->out, 1);
+                ast_write_u8(writer->out, 1);
                 ast_write_node(writer, node->data.return_stmt.expr);
                 return 0;
             }
-            ast_write_u8_safe(writer->out, 0);
+            ast_write_u8(writer->out, 0);
             return 0;
         }
         case AST_IF_STMT: {
-            ast_write_u8_safe(writer->out, AST_TAG_IF_STMT);
-            ast_write_u8_safe(writer->out, node->data.if_stmt.else_branch ? 1 : 0);
+            ast_write_u8(writer->out, AST_TAG_IF_STMT);
+            ast_write_u8(writer->out, node->data.if_stmt.else_branch ? 1 : 0);
             ast_write_node(writer, node->data.if_stmt.condition);
             ast_write_node(writer, node->data.if_stmt.then_branch);
             if (node->data.if_stmt.else_branch) {
@@ -209,17 +213,20 @@ static int8_t ast_write_node(ast_writer_t* writer, const ast_node_t* node) {
             int16_t name_index = ast_string_index(writer, node->data.identifier.name);
             if (name_index < 0) return -1;
             ast_write_u8(writer->out, AST_TAG_IDENTIFIER);
-            return ast_write_u16(writer->out, (uint16_t)name_index);
+            ast_write_u16(writer->out, (uint16_t)name_index);
+            return 0;
         }
         case AST_CONSTANT: {
             ast_write_u8(writer->out, AST_TAG_CONSTANT);
-            return ast_write_i16(writer->out, node->data.constant.int_value);
+            ast_write_i16(writer->out, node->data.constant.int_value);
+            return 0;
         }
         case AST_STRING_LITERAL: {
             int16_t value_index = ast_string_index(writer, node->data.string_literal.value);
             if (value_index < 0) return -1;
             ast_write_u8(writer->out, AST_TAG_STRING_LITERAL);
-            return ast_write_u16(writer->out, (uint16_t)value_index);
+            ast_write_u16(writer->out, (uint16_t)value_index);
+            return 0;
         }
         case AST_ARRAY_ACCESS: {
             ast_write_u8(writer->out, AST_TAG_ARRAY_ACCESS);
@@ -442,23 +449,45 @@ static void ast_writer_reset_counts(ast_writer_t* writer) {
     writer->decl_count = 0;
 }
 
+void cleanup(void) {
+    if (writer) {
+        if (writer->out) {
+            output_close(writer->out);
+        }
+        ast_free_strings(writer);
+    }
+    if (parser) {
+        parser_destroy(parser);
+    }
+    if (lexer) {
+        lexer_destroy(lexer);
+    }
+    if (reader) {
+        reader_close(reader);
+    }
+}
+
+void handle_error(char* msg) {
+    log_error(msg);
+    cleanup();
+    exit(1);
+}
+
 int main(int argc, char** argv) {
     int8_t err = 1;
     args_t args;
-    reader_t* reader = NULL;
-    lexer_t* lexer = NULL;
-    parser_t* parser = NULL;
     ast_node_t* ast = NULL;
-    ast_writer_t* writer = &g_writer;
     uint32_t string_table_offset = 0;
     uint16_t total_nodes = 0;
     uint16_t total_strings = 0;
     uint16_t total_decls = 0;
     uint32_t program_bytes = 0;
     uint32_t nodes_bytes = 0;
-    mem_set(writer, 0, sizeof(*writer));
 
     cc_init_pool(g_memory_pool, sizeof(g_memory_pool));
+    writer = (ast_writer_t*)cc_malloc(sizeof(*writer));
+    if (!writer) return 1;
+    mem_set(writer, 0, sizeof(*writer));
 
 
     args = parse_args(argc, argv);
@@ -471,10 +500,10 @@ int main(int argc, char** argv) {
     if (!reader) return 1;
 
     lexer = lexer_create(args.input_file, reader);
-    if (!lexer) goto cleanup_reader;
+    if (!lexer) goto cleanup;
 
     parser = parser_create(lexer);
-    if (!parser) goto cleanup_lexer;
+    if (!parser) goto cleanup;
 
     while (1) {
         ast = parser_parse_next(parser);
@@ -490,7 +519,7 @@ int main(int argc, char** argv) {
                 ast_node_destroy(ast);
                 ast = NULL;
                 log_error("Failed to size AST node\n");
-                goto cleanup_strings;
+                goto cleanup;
             }
             nodes_bytes += node_size;
         }
@@ -501,7 +530,7 @@ int main(int argc, char** argv) {
 
     if (parser->error_count > 0) {
         log_error("Parsing failed\n");
-        goto cleanup_strings;
+        goto cleanup;
     }
 
     total_nodes = (uint16_t)(writer->node_count + 1);
@@ -518,19 +547,19 @@ int main(int argc, char** argv) {
     reader = NULL;
 
     reader = reader_open(args.input_file);
-    if (!reader) goto cleanup_strings;
+    if (!reader) goto cleanup;
 
     lexer = lexer_create(args.input_file, reader);
-    if (!lexer) goto cleanup_reader;
+    if (!lexer) goto cleanup;
 
     parser = parser_create(lexer);
-    if (!parser) goto cleanup_lexer;
+    if (!parser) goto cleanup;
 
     writer->out = output_open(args.output_file);
 #ifdef __SDCC
-    if (writer->out < 0) goto cleanup_strings;
+    if (writer->out < 0) goto cleanup;
 #else
-    if (!writer->out) goto cleanup_strings;
+    if (!writer->out) goto cleanup;
 #endif
 
     writer->strings_frozen = true;
@@ -538,18 +567,16 @@ int main(int argc, char** argv) {
 
     if (ast_write_header_full(writer, total_nodes, total_strings, string_table_offset) < 0) {
         log_error("Failed to write AST header\n");
-        goto cleanup_output;
+        goto cleanup;
     }
 
+    ast_write_handler(handle_error, "Failed to write AST program tag\n");
     ast_write_u8(writer->out, AST_TAG_PROGRAM);
-        // log_error("Failed to write AST program tag\n");
-        // goto cleanup_output;
-    // }
-    ast_write_u16(writer->out, total_decls);
-        // log_error("Failed to write AST program decl count\n");
-        // goto cleanup_output;
-    // }
 
+    ast_write_handler(handle_error, "Failed to write AST program decl count\n");
+    ast_write_u16(writer->out, total_decls);
+
+    ast_write_handler(handle_error, "Failed to write AST node\n");
     while (1) {
         ast = parser_parse_next(parser);
         if (!ast) break;
@@ -558,24 +585,19 @@ int main(int argc, char** argv) {
             ast = NULL;
             continue;
         }
-        if (ast_write_node(writer, ast) < 0) {
-            ast_node_destroy(ast);
-            ast = NULL;
-            log_error("Failed to write AST node\n");
-            goto cleanup_output;
-        }
+        ast_write_node(writer, ast);
         ast_node_destroy(ast);
         ast = NULL;
     }
 
     if (parser->error_count > 0) {
         log_error("Parsing failed\n");
-        goto cleanup_output;
+        goto cleanup;
     }
 
     if (ast_write_string_table(writer, &string_table_offset) < 0) {
         log_error("Failed to write AST string table\n");
-        goto cleanup_output;
+        goto cleanup;
     }
 
     log_msg(args.input_file);
@@ -585,15 +607,7 @@ int main(int argc, char** argv) {
 
     err = 0;
 
-cleanup_output:
-    output_close(writer->out);
-cleanup_strings:
-    ast_free_strings(writer);
-cleanup_parser:
-    parser_destroy(parser);
-cleanup_lexer:
-    lexer_destroy(lexer);
-cleanup_reader:
-    reader_close(reader);
+cleanup:
+    cleanup();
     return err;
 }
