@@ -161,7 +161,6 @@ cc_parse tests/signs.c tests/signs.ast
 ? return tests/signs.bin
 : echo Failed to assemble tests/signs.asm
 : echo Failed to compile tests/signs.c
-: echo Expected failure: tests/signs.c
 
 echo TEST: tests/ternary.c
 cc_parse tests/ternary.c tests/ternary.ast

@@ -56,17 +56,28 @@ static const char* unary_op_name(unary_op_t op) {
 static void format_type_info(uint8_t base, uint8_t depth, uint16_t array_len,
                              char* out, size_t out_size) {
     size_t len = 0;
+    bool is_unsigned = (base & AST_BASE_FLAG_UNSIGNED) != 0;
+    uint8_t base_kind = (uint8_t)(base & AST_BASE_MASK);
     const char* base_name = "unknown";
-    switch (base) {
+    switch (base_kind) {
         case AST_BASE_INT: base_name = "int"; break;
         case AST_BASE_CHAR: base_name = "char"; break;
         case AST_BASE_VOID: base_name = "void"; break;
         default: base_name = "unknown"; break;
     }
     if (out_size == 0) return;
-    while (base_name[len] && len + 1 < out_size) {
-        out[len] = base_name[len];
-        len++;
+    if (is_unsigned && base_kind != AST_BASE_VOID) {
+        const char* prefix = "unsigned ";
+        size_t i = 0;
+        while (prefix[i] && len + 1 < out_size) {
+            out[len++] = prefix[i++];
+        }
+    }
+    {
+        size_t i = 0;
+        while (base_name[i] && len + 1 < out_size) {
+            out[len++] = base_name[i++];
+        }
     }
     while (depth > 0 && len + 1 < out_size) {
         out[len++] = '*';

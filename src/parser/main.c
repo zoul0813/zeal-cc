@@ -95,6 +95,10 @@ static int8_t ast_write_type(ast_writer_t* writer, const type_t* type) {
             return -1;
     }
 
+    if (cur->kind != TYPE_VOID && !cur->is_signed) {
+        base |= AST_BASE_FLAG_UNSIGNED;
+    }
+
     ast_write_u8(writer->out, base);
     ast_write_u8(writer->out, depth);
     ast_write_u16(writer->out, array_len);

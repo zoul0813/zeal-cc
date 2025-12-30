@@ -26,5 +26,7 @@
 #define AST_BASE_INT 1
 #define AST_BASE_CHAR 2
 #define AST_BASE_VOID 3
+#define AST_BASE_FLAG_UNSIGNED 0x80
+#define AST_BASE_MASK 0x7F
 
 #endif /* AST_FORMAT_H */

@@ -100,16 +100,69 @@ static ast_node_t* ast_node_create(ast_node_type_t type) {
 }
 
 static type_t* parse_type(parser_t* parser) {
+    typedef enum {
+        SIGN_NONE = 0,
+        SIGN_SIGNED,
+        SIGN_UNSIGNED
+    } sign_state_t;
+
+    sign_state_t sign_state = SIGN_NONE;
+    type_t* type = NULL;
+
+    if (parser_match(parser, TOK_SIGNED)) {
+        sign_state = SIGN_SIGNED;
+    } else if (parser_match(parser, TOK_UNSIGNED)) {
+        sign_state = SIGN_UNSIGNED;
+    }
+
     if (parser_match(parser, TOK_INT)) {
-        return type_create(TYPE_INT);
+        type = type_create(TYPE_INT);
+    } else if (parser_match(parser, TOK_CHAR_KW)) {
+        type = type_create(TYPE_CHAR);
+    } else if (parser_match(parser, TOK_VOID)) {
+        type = type_create(TYPE_VOID);
+    } else if (sign_state != SIGN_NONE) {
+        type = type_create(TYPE_INT);
+    } else {
+        return NULL;
     }
-    if (parser_match(parser, TOK_CHAR_KW)) {
-        return type_create(TYPE_CHAR);
+
+    if (parser_match(parser, TOK_SIGNED)) {
+        if (sign_state == SIGN_UNSIGNED) {
+            token_t* tok = parser_current(parser);
+            parser_report_error("Cannot combine signed and unsigned", tok);
+            parser->error_count++;
+            type_destroy(type);
+            return NULL;
+        }
+        sign_state = SIGN_SIGNED;
+    } else if (parser_match(parser, TOK_UNSIGNED)) {
+        if (sign_state == SIGN_SIGNED) {
+            token_t* tok = parser_current(parser);
+            parser_report_error("Cannot combine signed and unsigned", tok);
+            parser->error_count++;
+            type_destroy(type);
+            return NULL;
+        }
+        sign_state = SIGN_UNSIGNED;
     }
-    if (parser_match(parser, TOK_VOID)) {
-        return type_create(TYPE_VOID);
+
+    if (type->kind == TYPE_VOID) {
+        if (sign_state != SIGN_NONE) {
+            token_t* tok = parser_current(parser);
+            parser_report_error("Void type cannot be signed or unsigned", tok);
+            parser->error_count++;
+            type_destroy(type);
+            return NULL;
+        }
+        return type;
     }
-    return NULL;
+
+    if (type->kind == TYPE_INT || type->kind == TYPE_CHAR) {
+        type->is_signed = (sign_state == SIGN_SIGNED);
+    }
+
+    return type;
 }
 
 static int8_t parse_array_suffix(parser_t* parser, uint16_t* out_len, bool allow_unsized) {

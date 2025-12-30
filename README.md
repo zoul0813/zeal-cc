@@ -37,6 +37,7 @@ This is an iterative development project. Currently implemented:
 - Expression evaluation with correct precedence
 - Multiple functions per file
 - `char` type and character literals
+- `signed`/`unsigned` qualifiers on `char`/`int` (default unsigned)
 - Pointer basics: address-of and dereference on identifiers
 
 ### In Progress 🚧

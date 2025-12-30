@@ -46,7 +46,7 @@
 - ✅ For loops (init, condition, increment, body)
 - ✅ Proper AST construction and traversal
 - ✅ Program node with multiple functions
-- ⚠️ Missing: do/while, ternary, switch, break/continue, logical/bitwise, signed/unsigned qualifiers
+- ⚠️ Missing: do/while, ternary, switch, break/continue, logical/bitwise
 
 ### Phase 4: Symbol Table ✓
 
@@ -88,7 +88,6 @@
 - ❌ Structs and unions
 - ❌ Type checking and semantic analysis
 - ❌ Optimizations
-- ❌ Signed/unsigned type qualifiers
 
 ### Phase 6: Testing
 
@@ -118,12 +117,13 @@
 11. ✅ **String literals** (pointer/array init + indexing)
 12. ✅ **Unary operators** (`+`, `-`, `!`, `++`, `--`)
 13. ✅ **Pointer basics** (address-of/deref on identifiers)
+14. ✅ **Signed/unsigned qualifiers** (`signed`/`unsigned` on `char`/`int`)
 
 ## Current Test Status
 
 - ✅ Host: `tests/*.c` compile to `.asm` (includes simple_return/return16/assign/array/compares/comp/expr/for/if/math/params/pointer/struct/while/do_while/unary/char/ternary/global/zealos).
 - ✅ Target: headless run passes; `test.zs` includes current tests.
-- ⚠️ Expected-fail tests (tracked in `test.py`): do_while, struct, ternary, signs.
+- ⚠️ Expected-fail tests (tracked in `test.py`): do_while, struct, ternary.
 
 **All tests write output to `tests/` only.**
 
