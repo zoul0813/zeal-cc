@@ -46,7 +46,7 @@
 - ✅ For loops (init, condition, increment, body)
 - ✅ Proper AST construction and traversal
 - ✅ Program node with multiple functions
-- ⚠️ Missing: do/while, ternary, switch, break/continue, logical/bitwise, full unary ops, signed/unsigned qualifiers
+- ⚠️ Missing: do/while, ternary, switch, break/continue, logical/bitwise, signed/unsigned qualifiers
 
 ### Phase 4: Symbol Table ✓
 
@@ -77,7 +77,6 @@
 
 ### Phase 5: Code Generator (incomplete tasks)
 
-- ❌ Full unary operators (negation, logical not, inc/dec)
 - ❌ Pointer arithmetic via `+`/`-` (array-style indexing only)
 - ❌ Array initializers beyond string literals
 - ❌ Struct/union codegen
@@ -117,13 +116,14 @@
 9. ✅ **Single-dimension arrays** (globals/locals, array params decay)
 10. ✅ **Array and pointer indexing** (8-bit indices)
 11. ✅ **String literals** (pointer/array init + indexing)
-12. ✅ **Pointer basics** (address-of/deref on identifiers)
+12. ✅ **Unary operators** (`+`, `-`, `!`, `++`, `--`)
+13. ✅ **Pointer basics** (address-of/deref on identifiers)
 
 ## Current Test Status
 
 - ✅ Host: `tests/*.c` compile to `.asm` (includes simple_return/return16/assign/array/compares/comp/expr/for/if/math/params/pointer/struct/while/do_while/unary/char/ternary/global/zealos).
 - ✅ Target: headless run passes; `test.zs` includes current tests.
-- ⚠️ Expected-fail tests (tracked in `test.py`): do_while, struct, unary, ternary, signs.
+- ⚠️ Expected-fail tests (tracked in `test.py`): do_while, struct, ternary, signs.
 
 **All tests write output to `tests/` only.**
 
@@ -151,7 +151,7 @@ done
 ./bin/cc tests/if.c tests/if.asm      # If statement
 ./bin/cc tests/while.c tests/while.asm  # While loop
 ./bin/cc tests/do_while.c tests/do_while.asm  # Do/while (expected fail)
-./bin/cc tests/unary.c tests/unary.asm  # Unary ops (expected fail)
+./bin/cc tests/unary.c tests/unary.asm  # Unary ops
 ./bin/cc tests/string.c tests/string.asm  # String literals
 ./bin/cc tests/char_ptr.c tests/char_ptr.asm  # Char pointer literals
 ./bin/cc tests/char.c tests/char.asm    # Char literals

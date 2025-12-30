@@ -183,7 +183,6 @@ cc_parse tests/unary.c tests/unary.ast
 ? return tests/unary.bin
 : echo Failed to assemble tests/unary.asm
 : echo Failed to compile tests/unary.c
-: echo Expected failure: tests/unary.c
 
 echo TEST: tests/while.c
 cc_parse tests/while.c tests/while.ast

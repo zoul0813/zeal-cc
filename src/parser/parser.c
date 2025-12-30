@@ -292,6 +292,19 @@ static ast_node_t* parse_primary(parser_t* parser) {
         base = access;
     }
 
+    while (base && (parser_check(parser, TOK_PLUS_PLUS) || parser_check(parser, TOK_MINUS_MINUS))) {
+        token_type_t op = parser_current(parser)->type;
+        parser_advance(parser);
+        ast_node_t* node = ast_node_create(AST_UNARY_OP);
+        if (!node) {
+            ast_node_destroy(base);
+            return NULL;
+        }
+        node->data.unary_op.op = (op == TOK_PLUS_PLUS) ? OP_POSTINC : OP_POSTDEC;
+        node->data.unary_op.operand = base;
+        base = node;
+    }
+
     return base;
 }
 
@@ -305,6 +318,57 @@ static ast_node_t* parse_factor(parser_t* parser);
 static ast_node_t* parse_term(parser_t* parser);
 
 static ast_node_t* parse_unary(parser_t* parser) {
+    if (parser_match(parser, TOK_PLUS)) {
+        return parse_unary(parser);
+    }
+    if (parser_match(parser, TOK_MINUS)) {
+        ast_node_t* operand = parse_unary(parser);
+        if (!operand) return NULL;
+        ast_node_t* node = ast_node_create(AST_UNARY_OP);
+        if (!node) {
+            ast_node_destroy(operand);
+            return NULL;
+        }
+        node->data.unary_op.op = OP_NEG;
+        node->data.unary_op.operand = operand;
+        return node;
+    }
+    if (parser_match(parser, TOK_EXCLAIM)) {
+        ast_node_t* operand = parse_unary(parser);
+        if (!operand) return NULL;
+        ast_node_t* node = ast_node_create(AST_UNARY_OP);
+        if (!node) {
+            ast_node_destroy(operand);
+            return NULL;
+        }
+        node->data.unary_op.op = OP_LNOT;
+        node->data.unary_op.operand = operand;
+        return node;
+    }
+    if (parser_match(parser, TOK_PLUS_PLUS)) {
+        ast_node_t* operand = parse_unary(parser);
+        if (!operand) return NULL;
+        ast_node_t* node = ast_node_create(AST_UNARY_OP);
+        if (!node) {
+            ast_node_destroy(operand);
+            return NULL;
+        }
+        node->data.unary_op.op = OP_PREINC;
+        node->data.unary_op.operand = operand;
+        return node;
+    }
+    if (parser_match(parser, TOK_MINUS_MINUS)) {
+        ast_node_t* operand = parse_unary(parser);
+        if (!operand) return NULL;
+        ast_node_t* node = ast_node_create(AST_UNARY_OP);
+        if (!node) {
+            ast_node_destroy(operand);
+            return NULL;
+        }
+        node->data.unary_op.op = OP_PREDEC;
+        node->data.unary_op.operand = operand;
+        return node;
+    }
     if (parser_match(parser, TOK_STAR)) {
         ast_node_t* operand = parse_unary(parser);
         if (!operand) return NULL;
@@ -1062,6 +1126,9 @@ void ast_node_destroy(ast_node_t* node) {
         case AST_BINARY_OP:
             ast_node_destroy(node->data.binary_op.left);
             ast_node_destroy(node->data.binary_op.right);
+            break;
+        case AST_UNARY_OP:
+            ast_node_destroy(node->data.unary_op.operand);
             break;
         case AST_RETURN_STMT:
             if (node->data.return_stmt.expr) {

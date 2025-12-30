@@ -4,7 +4,7 @@
 - Only `int` and `char` are supported. No `float`/`double`.
 - `long` (32-bit) is currently unsupported.
 - Expressions: `+ - * / %` and comparisons `== != < > <= >=`.
-- Unary expressions: address-of (`&`) and dereference (`*`) on identifiers.
+- Unary expressions: `+`, `-`, `!`, `++`, `--`, address-of (`&`), and dereference (`*`) on identifiers.
 - Statements: `if/else`, `while`, `for`, `return`, compound blocks.
 - Global and local variable declarations are supported.
 - Functions: definitions and calls are supported; parameters are passed on the
@@ -19,7 +19,6 @@
 - Multi-dimensional arrays and array initializers (non-string).
 - Structs, unions, enums, typedefs.
 - Pointer arithmetic via `+`/`-` (array-style indexing only).
-- Full unary operators (negation, logical not, inc/dec).
 - Logical/bitwise operators, ternary, switch, break/continue, do/while.
 - Type checking and semantic analysis.
 - Optimizations.

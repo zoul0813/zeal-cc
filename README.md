@@ -30,6 +30,7 @@ This is an iterative development project. Currently implemented:
 - Single-dimension arrays (globals/locals) and array parameters (decay to pointer)
 - Array and pointer indexing (8-bit indices)
 - String literals for pointer/array initialization and indexing
+- Unary operators: `+`, `-`, `!`, `++`, `--`
 - Return statements with expressions
 - Compound statements (blocks)
 - Runtime library for mul/div/mod
@@ -43,7 +44,6 @@ This is an iterative development project. Currently implemented:
 
 ### Planned Features ⏳
 - Switch statement, break/continue, do/while, ternary
-- Unary operators (negation, logical not, inc/dec)
 - Full pointer arithmetic and multidimensional arrays
 - Struct and union types
 - More operators (logical, bitwise)
@@ -198,7 +198,7 @@ Run individual tests:
 ./bin/cc tests/params.c tests/params.asm  # Locals + function parameters
 ./bin/cc tests/comp.c tests/comp.asm  # Factorial comprehensive
 ./bin/cc tests/do_while.c tests/do_while.asm  # Do/while (expected fail)
-./bin/cc tests/unary.c tests/unary.asm  # Unary ops (expected fail)
+./bin/cc tests/unary.c tests/unary.asm  # Unary ops
 ./bin/cc tests/char.c tests/char.asm    # Char literals
 ./bin/cc tests/global.c tests/global.asm  # Global variables
 ./bin/cc tests/pointer.c tests/pointer.asm  # Pointer + string literal indexing
@@ -218,7 +218,7 @@ All test artifacts (`.asm`, `.o`, `.bin`, etc.) are stored in `tests/` for versi
 
 ## Current Limitations
 
-- Parser lacks do/while, ternary, switch, break/continue, logical/bitwise ops, and full unary ops
+- Parser lacks do/while, ternary, switch, break/continue, and logical/bitwise ops
 - Fixed 12 KB static pool allocator; no dynamic malloc on target
 - 512-byte input reader buffer; very large source files are not supported
 - No optimization passes yet
@@ -232,7 +232,7 @@ All test artifacts (`.asm`, `.o`, `.bin`, etc.) are stored in `tests/` for versi
 
 We will iterate on this implementation, adding:
 1. Semantic analysis and type checking
-2. Extend parser support (do/while, ternary, full unary, logical/bitwise, switch/break/continue)
+2. Extend parser support (do/while, ternary, logical/bitwise, switch/break/continue)
 3. Complete codegen for missing constructs (structs/unions, pointer arithmetic, multidimensional arrays, array init)
 4. Preprocessor support
 5. Optimization passes

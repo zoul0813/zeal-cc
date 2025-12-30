@@ -41,7 +41,7 @@ EXPECTED_RESULTS = {
     "struct": None,
     "signs": None,
     "ternary": None,
-    "unary": None,
+    "unary": "AA",
     "while": "0A",
     "zealos": "EA",
 }

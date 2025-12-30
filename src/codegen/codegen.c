@@ -55,7 +55,8 @@ static bool codegen_tag_is_simple_expr(uint8_t tag) {
     return tag == AST_TAG_CONSTANT ||
            tag == AST_TAG_IDENTIFIER ||
            tag == AST_TAG_CALL ||
-           tag == AST_TAG_BINARY_OP;
+           tag == AST_TAG_BINARY_OP ||
+           tag == AST_TAG_UNARY_OP;
 }
 
 static const char g_hex_digits[] = "0123456789abcdef";
@@ -1144,8 +1145,21 @@ static bool codegen_expression_is_16bit_at(codegen_t* gen, ast_reader_t* ast, ui
             uint8_t child_tag = 0;
             ast_read_u8(ast->reader, &op);
             ast_read_u8(ast->reader, &child_tag);
-            if (ast_reader_skip_tag(ast, child_tag) < 0) return false;
-            return op == OP_ADDR;
+            if (op == OP_DEREF) {
+                if (ast_reader_skip_tag(ast, child_tag) < 0) return false;
+                return false;
+            }
+            if (op == OP_ADDR) {
+                if (ast_reader_skip_tag(ast, child_tag) < 0) return false;
+                return true;
+            }
+            {
+                bool child_is_16 = codegen_expression_is_16bit_at(gen, ast, child_tag);
+                if (op == OP_LNOT) {
+                    return false;
+                }
+                return child_is_16;
+            }
         }
         case AST_TAG_BINARY_OP: {
             uint8_t op = 0;
@@ -1323,8 +1337,144 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                 g_result_in_hl = true;
                 return CC_OK;
             }
+            if (op == OP_PREINC || op == OP_PREDEC ||
+                op == OP_POSTINC || op == OP_POSTDEC) {
+                bool is_post = (op == OP_POSTINC || op == OP_POSTDEC);
+                bool is_inc = (op == OP_PREINC || op == OP_POSTINC);
+                if (child_tag == AST_TAG_IDENTIFIER) {
+                    const char* name = NULL;
+                    if (codegen_stream_read_name(ast, &name) < 0) return CC_ERROR_CODEGEN;
+                    if (codegen_name_is_array(gen, name)) {
+                        cc_error("Unsupported ++/-- on array");
+                        return CC_ERROR_CODEGEN;
+                    }
+                    if (codegen_name_is_16(gen, name)) {
+                        cc_error_t err = codegen_load_pointer_to_hl(gen, name);
+                        if (err != CC_OK) return err;
+                        g_result_in_hl = true;
+                        if (is_post) {
+                            codegen_emit(gen, CG_STR_PUSH_HL);
+                        }
+                        codegen_emit(gen, is_inc ? "  inc hl\n" : "  dec hl\n");
+                        err = codegen_store_pointer_from_hl(gen, name);
+                        if (err != CC_OK) return err;
+                        if (is_post) {
+                            codegen_emit(gen, "  pop hl\n");
+                        }
+                        if (!g_expect_result_in_hl) {
+                            codegen_result_to_a(gen);
+                        }
+                        return CC_OK;
+                    }
+                    {
+                        int16_t offset = 0;
+                        if (codegen_local_or_param_offset(gen, name, &offset)) {
+                            codegen_emit(gen, CG_STR_LD_A_IX_PREFIX);
+                            codegen_emit_ix_offset(gen, offset);
+                            codegen_emit(gen, CG_STR_RPAREN_NL);
+                        } else {
+                            codegen_emit(gen, CG_STR_LD_A_LPAREN);
+                            codegen_emit_mangled_var(gen, name);
+                            codegen_emit(gen, CG_STR_RPAREN_NL);
+                        }
+                        g_result_in_hl = false;
+                        if (is_post) {
+                            codegen_emit(gen, CG_STR_PUSH_AF);
+                        }
+                        codegen_emit(gen, is_inc ? "  inc a\n" : "  dec a\n");
+                        cc_error_t err = codegen_store_a_to_identifier(gen, name);
+                        if (err != CC_OK) return err;
+                        if (is_post) {
+                            codegen_emit(gen, "  pop af\n");
+                        }
+                        if (g_expect_result_in_hl) {
+                            codegen_result_to_hl(gen);
+                        }
+                        return CC_OK;
+                    }
+                }
+                if (child_tag == AST_TAG_ARRAY_ACCESS) {
+                    uint8_t elem_size = 0;
+                    cc_error_t err = codegen_emit_array_address(gen, ast, &elem_size);
+                    if (err != CC_OK) return err;
+                    if (elem_size == 2) {
+                        codegen_emit(gen,
+                            "  ld d, h\n  ld e, l\n"
+                            "  ld a, (de)\n"
+                            "  inc de\n"
+                            "  ld h, (de)\n"
+                            "  ld l, a\n"
+                            "  dec de\n");
+                        g_result_in_hl = true;
+                        if (is_post) {
+                            codegen_emit(gen, CG_STR_PUSH_HL);
+                        }
+                        codegen_emit(gen, is_inc ? "  inc hl\n" : "  dec hl\n");
+                        codegen_emit(gen,
+                            "  ld a, l\n  ld (de), a\n"
+                            "  inc de\n"
+                            "  ld a, h\n  ld (de), a\n");
+                        if (is_post) {
+                            codegen_emit(gen, "  pop hl\n");
+                        }
+                        if (!g_expect_result_in_hl) {
+                            codegen_result_to_a(gen);
+                        }
+                        return CC_OK;
+                    }
+                    codegen_emit(gen, CG_STR_LD_A_HL);
+                    g_result_in_hl = false;
+                    if (is_post) {
+                        codegen_emit(gen, CG_STR_PUSH_AF);
+                    }
+                    codegen_emit(gen, is_inc ? "  inc a\n" : "  dec a\n");
+                    codegen_emit(gen, "  ld (hl), a\n");
+                    if (is_post) {
+                        codegen_emit(gen, "  pop af\n");
+                    }
+                    if (g_expect_result_in_hl) {
+                        codegen_result_to_hl(gen);
+                    }
+                    return CC_OK;
+                }
+                ast_reader_skip_tag(ast, child_tag);
+                cc_error("Unsupported ++/-- operand");
+                return CC_ERROR_CODEGEN;
+            }
+            if (op == OP_NEG || op == OP_LNOT) {
+                cc_error_t err = codegen_stream_expression_expect(gen, ast, child_tag, g_expect_result_in_hl);
+                if (err != CC_OK) return err;
+                if (op == OP_NEG) {
+                    if (g_result_in_hl) {
+                        codegen_emit(gen,
+                            "  ld a, h\n"
+                            "  cpl\n"
+                            "  ld h, a\n"
+                            "  ld a, l\n"
+                            "  cpl\n"
+                            "  ld l, a\n"
+                            "  inc hl\n");
+                    } else {
+                        codegen_emit(gen, "  neg\n");
+                    }
+                    if (g_expect_result_in_hl && !g_result_in_hl) {
+                        codegen_result_to_hl(gen);
+                    } else if (!g_expect_result_in_hl && g_result_in_hl) {
+                        codegen_result_to_a(gen);
+                    }
+                    return CC_OK;
+                }
+                if (g_result_in_hl) {
+                    codegen_emit(gen, "  ld a, h\n  or l\n");
+                } else {
+                    codegen_emit(gen, CG_STR_OR_A);
+                }
+                codegen_emit_compare(gen, CG_STR_JR_Z, NULL, g_expect_result_in_hl, true);
+                g_result_in_hl = g_expect_result_in_hl;
+                return CC_OK;
+            }
             ast_reader_skip_tag(ast, child_tag);
-            cc_error("Address-of used without pointer assignment");
+            cc_error("Unsupported unary op");
             return CC_ERROR_CODEGEN;
         }
         case AST_TAG_BINARY_OP: {
@@ -1512,25 +1662,6 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                     codegen_emit(gen, label);
                     codegen_emit(gen, CG_STR_NL);
                     return codegen_store_pointer_from_hl(gen, lvalue_name);
-                }
-                if (rtag == AST_TAG_UNARY_OP) {
-                    uint8_t op = 0;
-                    ast_read_u8(ast->reader, &op);
-                    if (op == OP_ADDR) {
-                        uint8_t operand_tag = 0;
-                        ast_read_u8(ast->reader, &operand_tag);
-                        if (operand_tag == AST_TAG_IDENTIFIER) {
-                            const char* rvalue_name = NULL;
-                            if (codegen_stream_read_name(ast, &rvalue_name) < 0) return CC_ERROR_CODEGEN;
-                            cc_error_t err = codegen_emit_address_of_identifier(gen, rvalue_name);
-                            if (err != CC_OK) return err;
-                            return codegen_store_pointer_from_hl(gen, lvalue_name);
-                        }
-                        ast_reader_skip_tag(ast, operand_tag);
-                        return CC_ERROR_CODEGEN;
-                    }
-                    ast_reader_skip_node(ast);
-                    return CC_ERROR_CODEGEN;
                 }
             }
 
