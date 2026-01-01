@@ -416,14 +416,7 @@ static int8_t ast_measure_return(ast_writer_t* writer, const ast_node_t* node, u
     return 0;
 }
 
-static int8_t ast_measure_break(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
-    (void)writer;
-    (void)node;
-    *out_size = 1;
-    return 0;
-}
-
-static int8_t ast_measure_continue(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
+static int8_t ast_measure_tag_only(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
     (void)writer;
     (void)node;
     *out_size = 1;
@@ -581,8 +574,8 @@ static const ast_measure_fn g_ast_measure_handlers[AST_NODE_TYPE_COUNT] = {
     ast_measure_while,        /* AST_WHILE_STMT */
     ast_measure_for,          /* AST_FOR_STMT */
     ast_measure_return,       /* AST_RETURN_STMT */
-    ast_measure_break,        /* AST_BREAK_STMT */
-    ast_measure_continue,     /* AST_CONTINUE_STMT */
+    ast_measure_tag_only,     /* AST_BREAK_STMT */
+    ast_measure_tag_only,     /* AST_CONTINUE_STMT */
     ast_measure_goto,         /* AST_GOTO_STMT */
     ast_measure_label,        /* AST_LABEL_STMT */
     ast_measure_assign,       /* AST_ASSIGN */

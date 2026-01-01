@@ -16,8 +16,9 @@
   (e.g., `"hi"[0]`).
 
 ## Not Implemented Yet
+- Preprocessor (`#include`, `#define`, macros).
 - Multi-dimensional arrays and array initializers (non-string).
-- Structs, unions, enums, typedefs.
+- Full C type system: `short`, `long`, floats, structs, unions, enums, typedefs.
 - Pointer arithmetic via `+`/`-` (array-style indexing only).
 - Ternary, switch, do/while.
 - Type checking and semantic analysis.

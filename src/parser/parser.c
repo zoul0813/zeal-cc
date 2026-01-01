@@ -1241,14 +1241,6 @@ static void ast_destroy_return(ast_node_t* node) {
     }
 }
 
-static void ast_destroy_break(ast_node_t* node) {
-    (void)node;
-}
-
-static void ast_destroy_continue(ast_node_t* node) {
-    (void)node;
-}
-
 static void ast_destroy_goto(ast_node_t* node) {
     if (node->data.goto_stmt.label) {
         cc_free(node->data.goto_stmt.label);
@@ -1304,8 +1296,8 @@ static const ast_destroy_fn g_ast_destroy_handlers[AST_NODE_TYPE_COUNT] = {
     ast_destroy_while,        /* AST_WHILE_STMT */
     ast_destroy_for,          /* AST_FOR_STMT */
     ast_destroy_return,       /* AST_RETURN_STMT */
-    ast_destroy_break,        /* AST_BREAK_STMT */
-    ast_destroy_continue,     /* AST_CONTINUE_STMT */
+    NULL,                     /* AST_BREAK_STMT */
+    NULL,                     /* AST_CONTINUE_STMT */
     ast_destroy_goto,         /* AST_GOTO_STMT */
     ast_destroy_label,        /* AST_LABEL_STMT */
     ast_destroy_assign,       /* AST_ASSIGN */
