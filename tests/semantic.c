@@ -6,5 +6,7 @@ int test_semantic_addr_lvalue(void) {
 }
 
 int main(void) {
+    int a[4];
+    a = 0;
     return test_semantic_addr_lvalue();
 }

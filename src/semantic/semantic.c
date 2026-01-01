@@ -26,6 +26,7 @@ static const char SEM_ERR_EXPECT_LVALUE[] = "Expected lvalue\n";
 static const char SEM_ERR_RETURN_VALUE_VOID[] = "Return value in void function\n";
 static const char SEM_ERR_RETURN_MISSING_VALUE[] = "Missing return value\n";
 static const char SEM_ERR_GOTO_SCOPE_JUMP[] = "Goto jumps into deeper scope\n";
+static const char SEM_ERR_VAR_INIT_NO_STRING[] = "Array init must be string literal\n";
 
 typedef struct {
     const char* labels[SEM_MAX_LABELS];
@@ -274,6 +275,15 @@ static int8_t semantic_check_node_with_lvalue(
             }
             has_init = ast_read_u8(ast->reader);
             if (has_init) {
+                if (array_len > 0) {
+                    uint8_t tag = ast_read_u8(ast->reader);
+                    if (tag != AST_TAG_STRING_LITERAL) {
+                        log_error(SEM_ERR_VAR_INIT_NO_STRING);
+                        return -1;
+                    }
+                    ast_read_u16(ast->reader);
+                    return 0;
+                }
                 return semantic_check_node_with_lvalue(ast, loop_depth, state, NULL);
             }
             return 0;
