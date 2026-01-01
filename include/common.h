@@ -41,6 +41,11 @@ typedef enum {
     CC_ERROR_INVALID_ARG
 } cc_error_t;
 
+/* If defined, codegen assumes semantic validation already ran. */
+#ifndef CC_TRUST_SEMANTIC
+#define CC_TRUST_SEMANTIC 1
+#endif
+
 /* Forward declarations */
 typedef struct token token_t;
 typedef struct ast_node ast_node_t;

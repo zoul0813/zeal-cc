@@ -1152,10 +1152,12 @@ static cc_error_t codegen_statement_break(codegen_t* gen, ast_reader_t* ast, uin
     (void)ast;
     (void)tag;
     char* label = codegen_loop_break_label(gen);
+#if !CC_TRUST_SEMANTIC
     if (!label) {
         cc_error("break used outside of loop");
         return CC_ERROR_CODEGEN;
     }
+#endif
     codegen_emit_jump(gen, CG_STR_JP, label);
     return CC_OK;
 }
@@ -1164,10 +1166,12 @@ static cc_error_t codegen_statement_continue(codegen_t* gen, ast_reader_t* ast, 
     (void)ast;
     (void)tag;
     char* label = codegen_loop_continue_label(gen);
+#if !CC_TRUST_SEMANTIC
     if (!label) {
         cc_error("continue used outside of loop");
         return CC_ERROR_CODEGEN;
     }
+#endif
     codegen_emit_jump(gen, CG_STR_JP, label);
     return CC_OK;
 }
@@ -1625,7 +1629,9 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                     return CC_OK;
                 }
                 ast_reader_skip_tag(ast, child_tag);
+#if !CC_TRUST_SEMANTIC
                 cc_error("Unsupported dereference operand");
+#endif
                 return CC_ERROR_CODEGEN;
             }
             if (op == OP_ADDR && child_tag == AST_TAG_IDENTIFIER) {
@@ -1645,7 +1651,9 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                     if (codegen_stream_read_name(ast, &name) < 0) return CC_ERROR_CODEGEN;
                     bool is_signed = codegen_name_is_signed(gen, name);
                     if (codegen_name_is_array(gen, name)) {
+#if !CC_TRUST_SEMANTIC
                         cc_error("Unsupported ++/-- on array");
+#endif
                         return CC_ERROR_CODEGEN;
                     }
                     if (codegen_name_is_16(gen, name)) {
@@ -1747,7 +1755,9 @@ static cc_error_t codegen_stream_expression_tag(codegen_t* gen, ast_reader_t* as
                     return CC_OK;
                 }
                 ast_reader_skip_tag(ast, child_tag);
+#if !CC_TRUST_SEMANTIC
                 cc_error("Unsupported ++/-- operand");
+#endif
                 return CC_ERROR_CODEGEN;
             }
             if (op == OP_NEG || op == OP_LNOT || op == OP_NOT) {
@@ -1992,12 +2002,16 @@ logical_cleanup:
                         lvalue_deref = true;
                     } else {
                         ast_reader_skip_tag(ast, operand_tag);
+#if !CC_TRUST_SEMANTIC
                         cc_error("Unsupported dereference assignment");
+#endif
                         return CC_ERROR_CODEGEN;
                     }
                 } else {
                     ast_reader_skip_node(ast);
+#if !CC_TRUST_SEMANTIC
                     cc_error("Unsupported assignment target");
+#endif
                     return CC_ERROR_CODEGEN;
                 }
             } else if (ltag == AST_TAG_IDENTIFIER) {
@@ -2013,7 +2027,9 @@ logical_cleanup:
 
             if (lvalue_name && codegen_name_is_array(gen, lvalue_name)) {
                 if (ast_reader_skip_tag(ast, rtag) < 0) return CC_ERROR_CODEGEN;
+#if !CC_TRUST_SEMANTIC
                 cc_error("Unsupported assignment to array");
+#endif
                 return CC_ERROR_CODEGEN;
             }
 

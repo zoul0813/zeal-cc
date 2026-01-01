@@ -14,6 +14,9 @@ typedef struct {
     uint8_t error;          /* 1 if error occurred, 0 otherwise */
 } args_t;
 
+#define ARG_MODE_IN_OUT 0
+#define ARG_MODE_IN_ONLY 1
+
 #ifdef __SDCC
 typedef int16_t output_t;
 #else
@@ -26,7 +29,7 @@ typedef struct reader reader_t;
 /* Parse command line arguments in a platform-specific way.
  * Returns an args_t structure with parsed arguments.
  * Caller should check error field. */
-args_t parse_args(int argc, char** argv);
+args_t parse_args(int argc, char** argv, uint8_t mode);
 
 /* File I/O - streaming reader */
 reader_t* reader_open(const char* filename);

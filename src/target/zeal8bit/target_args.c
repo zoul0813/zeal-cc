@@ -5,7 +5,7 @@
 #include "common.h"
 #include "target.h"
 
-args_t parse_args(int argc, char** argv) {
+args_t parse_args(int argc, char** argv, uint8_t mode) {
     args_t result = {0};
 
     /* On ZOS, argv[0] contains all arguments as a single string separated by spaces */
@@ -28,11 +28,19 @@ args_t parse_args(int argc, char** argv) {
         p++;
     }
 
-    /* Validate both arguments are present */
-    if (!result.input_file || !result.output_file ||
-        *result.input_file == '\0' || *result.output_file == '\0') {
-        result.error = 1;
-        return result;
+    if (mode == ARG_MODE_IN_ONLY) {
+        if (!result.input_file || *result.input_file == '\0') {
+            result.error = 1;
+            return result;
+        }
+        result.output_file = NULL;
+    } else {
+        /* Validate both arguments are present */
+        if (!result.input_file || !result.output_file ||
+            *result.input_file == '\0' || *result.output_file == '\0') {
+            result.error = 1;
+            return result;
+        }
     }
 
     return result;

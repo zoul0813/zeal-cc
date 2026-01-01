@@ -45,6 +45,7 @@ This is an iterative development project. Currently implemented:
 
 ### In Progress 🚧
 - Parser target build uses 0x1700 static pool; file buffer at 0xC300 (512 B)
+- Semantic pass (cc_semantic) skeleton: validation-only
 
 ### C99/ANSI C Gap (Current Limitations)
 - No preprocessor (`#include`, `#define`, macros).
