@@ -3,6 +3,8 @@ cd h:/
 echo TEST: tests/break.c
 cc_parse tests/break.c tests/break.ast
 : echo Failed to parse tests/break.c
+? cc_semantic tests/break.ast
+: echo Failed to validate tests/break.ast
 ? cc_codegen tests/break.ast tests/break.asm
 : echo Failed to codegen tests/break.ast
 ? zealasm tests/break.asm tests/break.bin
@@ -13,6 +15,8 @@ cc_parse tests/break.c tests/break.ast
 echo TEST: tests/array.c
 cc_parse tests/array.c tests/array.ast
 : echo Failed to parse tests/array.c
+? cc_semantic tests/array.ast
+: echo Failed to validate tests/array.ast
 ? cc_codegen tests/array.ast tests/array.asm
 : echo Failed to codegen tests/array.ast
 ? zealasm tests/array.asm tests/array.bin
@@ -23,6 +27,8 @@ cc_parse tests/array.c tests/array.ast
 echo TEST: tests/assign.c
 cc_parse tests/assign.c tests/assign.ast
 : echo Failed to parse tests/assign.c
+? cc_semantic tests/assign.ast
+: echo Failed to validate tests/assign.ast
 ? cc_codegen tests/assign.ast tests/assign.asm
 : echo Failed to codegen tests/assign.ast
 ? zealasm tests/assign.asm tests/assign.bin
@@ -33,6 +39,8 @@ cc_parse tests/assign.c tests/assign.ast
 echo TEST: tests/char.c
 cc_parse tests/char.c tests/char.ast
 : echo Failed to parse tests/char.c
+? cc_semantic tests/char.ast
+: echo Failed to validate tests/char.ast
 ? cc_codegen tests/char.ast tests/char.asm
 : echo Failed to codegen tests/char.ast
 ? zealasm tests/char.asm tests/char.bin
@@ -43,6 +51,8 @@ cc_parse tests/char.c tests/char.ast
 echo TEST: tests/comp.c
 cc_parse tests/comp.c tests/comp.ast
 : echo Failed to parse tests/comp.c
+? cc_semantic tests/comp.ast
+: echo Failed to validate tests/comp.ast
 ? cc_codegen tests/comp.ast tests/comp.asm
 : echo Failed to codegen tests/comp.ast
 ? zealasm tests/comp.asm tests/comp.bin
@@ -53,6 +63,8 @@ cc_parse tests/comp.c tests/comp.ast
 echo TEST: tests/compares.c
 cc_parse tests/compares.c tests/compares.ast
 : echo Failed to parse tests/compares.c
+? cc_semantic tests/compares.ast
+: echo Failed to validate tests/compares.ast
 ? cc_codegen tests/compares.ast tests/compares.asm
 : echo Failed to codegen tests/compares.ast
 ? zealasm tests/compares.asm tests/compares.bin
@@ -63,6 +75,8 @@ cc_parse tests/compares.c tests/compares.ast
 echo TEST: tests/do_while.c
 cc_parse tests/do_while.c tests/do_while.ast
 : echo Failed to parse tests/do_while.c
+? cc_semantic tests/do_while.ast
+: echo Failed to validate tests/do_while.ast
 ? cc_codegen tests/do_while.ast tests/do_while.asm
 : echo Failed to codegen tests/do_while.ast
 ? zealasm tests/do_while.asm tests/do_while.bin
@@ -74,6 +88,8 @@ cc_parse tests/do_while.c tests/do_while.ast
 echo TEST: tests/expr.c
 cc_parse tests/expr.c tests/expr.ast
 : echo Failed to parse tests/expr.c
+? cc_semantic tests/expr.ast
+: echo Failed to validate tests/expr.ast
 ? cc_codegen tests/expr.ast tests/expr.asm
 : echo Failed to codegen tests/expr.ast
 ? zealasm tests/expr.asm tests/expr.bin
@@ -84,6 +100,8 @@ cc_parse tests/expr.c tests/expr.ast
 echo TEST: tests/for.c
 cc_parse tests/for.c tests/for.ast
 : echo Failed to parse tests/for.c
+? cc_semantic tests/for.ast
+: echo Failed to validate tests/for.ast
 ? cc_codegen tests/for.ast tests/for.asm
 : echo Failed to codegen tests/for.ast
 ? zealasm tests/for.asm tests/for.bin
@@ -94,6 +112,8 @@ cc_parse tests/for.c tests/for.ast
 echo TEST: tests/goto.c
 cc_parse tests/goto.c tests/goto.ast
 : echo Failed to parse tests/goto.c
+? cc_semantic tests/goto.ast
+: echo Failed to validate tests/goto.ast
 ? cc_codegen tests/goto.ast tests/goto.asm
 : echo Failed to codegen tests/goto.ast
 ? zealasm tests/goto.asm tests/goto.bin
@@ -104,6 +124,8 @@ cc_parse tests/goto.c tests/goto.ast
 echo TEST: tests/global.c
 cc_parse tests/global.c tests/global.ast
 : echo Failed to parse tests/global.c
+? cc_semantic tests/global.ast
+: echo Failed to validate tests/global.ast
 ? cc_codegen tests/global.ast tests/global.asm
 : echo Failed to codegen tests/global.ast
 ? zealasm tests/global.asm tests/global.bin
@@ -114,6 +136,8 @@ cc_parse tests/global.c tests/global.ast
 echo TEST: tests/if.c
 cc_parse tests/if.c tests/if.ast
 : echo Failed to parse tests/if.c
+? cc_semantic tests/if.ast
+: echo Failed to validate tests/if.ast
 ? cc_codegen tests/if.ast tests/if.asm
 : echo Failed to codegen tests/if.ast
 ? zealasm tests/if.asm tests/if.bin
@@ -124,6 +148,8 @@ cc_parse tests/if.c tests/if.ast
 echo TEST: tests/bitwise.c
 cc_parse tests/bitwise.c tests/bitwise.ast
 : echo Failed to parse tests/bitwise.c
+? cc_semantic tests/bitwise.ast
+: echo Failed to validate tests/bitwise.ast
 ? cc_codegen tests/bitwise.ast tests/bitwise.asm
 : echo Failed to codegen tests/bitwise.ast
 ? zealasm tests/bitwise.asm tests/bitwise.bin
@@ -134,6 +160,8 @@ cc_parse tests/bitwise.c tests/bitwise.ast
 echo TEST: tests/math.c
 cc_parse tests/math.c tests/math.ast
 : echo Failed to parse tests/math.c
+? cc_semantic tests/math.ast
+: echo Failed to validate tests/math.ast
 ? cc_codegen tests/math.ast tests/math.asm
 : echo Failed to codegen tests/math.ast
 ? zealasm tests/math.asm tests/math.bin
@@ -144,6 +172,8 @@ cc_parse tests/math.c tests/math.ast
 echo TEST: tests/params.c
 cc_parse tests/params.c tests/params.ast
 : echo Failed to parse tests/params.c
+? cc_semantic tests/params.ast
+: echo Failed to validate tests/params.ast
 ? cc_codegen tests/params.ast tests/params.asm
 : echo Failed to codegen tests/params.ast
 ? zealasm tests/params.asm tests/params.bin
@@ -154,6 +184,8 @@ cc_parse tests/params.c tests/params.ast
 echo TEST: tests/pointer.c
 cc_parse tests/pointer.c tests/pointer.ast
 : echo Failed to parse tests/pointer.c
+? cc_semantic tests/pointer.ast
+: echo Failed to validate tests/pointer.ast
 ? cc_codegen tests/pointer.ast tests/pointer.asm
 : echo Failed to codegen tests/pointer.ast
 ? zealasm tests/pointer.asm tests/pointer.bin
@@ -164,6 +196,8 @@ cc_parse tests/pointer.c tests/pointer.ast
 echo TEST: tests/simple_return.c
 cc_parse tests/simple_return.c tests/simple_return.ast
 : echo Failed to parse tests/simple_return.c
+? cc_semantic tests/simple_return.ast
+: echo Failed to validate tests/simple_return.ast
 ? cc_codegen tests/simple_return.ast tests/simple_return.asm
 : echo Failed to codegen tests/simple_return.ast
 ? zealasm tests/simple_return.asm tests/simple_return.bin
@@ -174,6 +208,8 @@ cc_parse tests/simple_return.c tests/simple_return.ast
 echo TEST: tests/struct.c
 cc_parse tests/struct.c tests/struct.ast
 : echo Failed to parse tests/struct.c
+? cc_semantic tests/struct.ast
+: echo Failed to validate tests/struct.ast
 ? cc_codegen tests/struct.ast tests/struct.asm
 : echo Failed to codegen tests/struct.ast
 ? zealasm tests/struct.asm tests/struct.bin
@@ -185,6 +221,8 @@ cc_parse tests/struct.c tests/struct.ast
 echo TEST: tests/signs.c
 cc_parse tests/signs.c tests/signs.ast
 : echo Failed to parse tests/signs.c
+? cc_semantic tests/signs.ast
+: echo Failed to validate tests/signs.ast
 ? cc_codegen tests/signs.ast tests/signs.asm
 : echo Failed to codegen tests/signs.ast
 ? zealasm tests/signs.asm tests/signs.bin
@@ -195,6 +233,8 @@ cc_parse tests/signs.c tests/signs.ast
 echo TEST: tests/ternary.c
 cc_parse tests/ternary.c tests/ternary.ast
 : echo Failed to parse tests/ternary.c
+? cc_semantic tests/ternary.ast
+: echo Failed to validate tests/ternary.ast
 ? cc_codegen tests/ternary.ast tests/ternary.asm
 : echo Failed to codegen tests/ternary.ast
 ? zealasm tests/ternary.asm tests/ternary.bin
@@ -206,6 +246,8 @@ cc_parse tests/ternary.c tests/ternary.ast
 echo TEST: tests/unary.c
 cc_parse tests/unary.c tests/unary.ast
 : echo Failed to parse tests/unary.c
+? cc_semantic tests/unary.ast
+: echo Failed to validate tests/unary.ast
 ? cc_codegen tests/unary.ast tests/unary.asm
 : echo Failed to codegen tests/unary.ast
 ? zealasm tests/unary.asm tests/unary.bin
@@ -216,6 +258,8 @@ cc_parse tests/unary.c tests/unary.ast
 echo TEST: tests/while.c
 cc_parse tests/while.c tests/while.ast
 : echo Failed to parse tests/while.c
+? cc_semantic tests/while.ast
+: echo Failed to validate tests/while.ast
 ? cc_codegen tests/while.ast tests/while.asm
 : echo Failed to codegen tests/while.ast
 ? zealasm tests/while.asm tests/while.bin
@@ -226,6 +270,8 @@ cc_parse tests/while.c tests/while.ast
 echo TEST: tests/return16.c
 cc_parse tests/return16.c tests/return16.ast
 : echo Failed to parse tests/return16.c
+? cc_semantic tests/return16.ast
+: echo Failed to validate tests/return16.ast
 ? cc_codegen tests/return16.ast tests/return16.asm
 : echo Failed to codegen tests/return16.ast
 ? zealasm tests/return16.asm tests/return16.bin
@@ -236,6 +282,8 @@ cc_parse tests/return16.c tests/return16.ast
 echo TEST: tests/zealos.c
 cc_parse tests/zealos.c tests/zealos.ast
 : echo Failed to parse tests/zealos.c
+? cc_semantic tests/zealos.ast
+: echo Failed to validate tests/zealos.ast
 ? cc_codegen tests/zealos.ast tests/zealos.asm
 : echo Failed to codegen tests/zealos.ast
 ? zealasm tests/zealos.asm tests/zealos.bin

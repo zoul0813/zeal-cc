@@ -109,6 +109,23 @@ add_program(cc_codegen
     ILIBS core
 )
 
+add_program(cc_semantic
+    "src/semantic/main.c"
+    "src/semantic/semantic.c"
+    "src/common/common.c"
+    "src/common/ast_read.c"
+    "src/common/ast_reader/ast_reader_init.c"
+    "src/common/ast_reader/ast_reader_load_strings.c"
+    "src/common/ast_reader/ast_reader_read_type_info.c"
+    "src/common/ast_reader/ast_reader_begin_program.c"
+    "src/common/ast_reader/ast_reader_skip_tag.c"
+    "src/common/ast_reader/ast_reader_skip_node.c"
+    "src/common/ast_reader/ast_reader_destroy.c"
+    "src/target/zeal8bit/target_args.c"
+    "src/target/zeal8bit/target_io.c"
+    ILIBS core
+)
+
 add_program(ast_dump
     "src/tools/ast_dump.c"
     "src/common/common.c"

@@ -36,6 +36,13 @@ CODEGEN_SRCS = src/codegen/main.c src/codegen/codegen.c src/codegen/codegen_stri
 CODEGEN_OBJS = $(CODEGEN_SRCS:.c=.o)
 CODEGEN_TARGET = bin/cc_codegen_$(ARCH)
 
+SEMANTIC_SRCS = src/semantic/main.c src/semantic/semantic.c src/common/common.c src/common/ast_read.c \
+                src/common/ast_reader/ast_reader_init.c src/common/ast_reader/ast_reader_load_strings.c src/common/ast_reader/ast_reader_read_type_info.c \
+                src/common/ast_reader/ast_reader_begin_program.c src/common/ast_reader/ast_reader_skip_tag.c src/common/ast_reader/ast_reader_skip_node.c src/common/ast_reader/ast_reader_destroy.c \
+                src/target/modern/target_args.c src/target/modern/target_io.c
+SEMANTIC_OBJS = $(SEMANTIC_SRCS:.c=.o)
+SEMANTIC_TARGET = bin/cc_semantic_$(ARCH)
+
 AST_DUMP_SRCS = src/tools/ast_dump.c src/common/common.c src/common/type.c src/common/ast_read.c \
                 src/common/ast_reader/ast_reader_init.c src/common/ast_reader/ast_reader_load_strings.c src/common/ast_reader/ast_reader_string.c \
                 src/common/ast_reader/ast_reader_read_type_info.c src/common/ast_reader/ast_reader_begin_program.c src/common/ast_reader/ast_reader_destroy.c \
@@ -45,7 +52,7 @@ AST_DUMP_TARGET = bin/ast_dump_$(ARCH)
 
 .PHONY: all clean test
 
-all: $(TARGET) $(PARSE_TARGET) $(CODEGEN_TARGET) $(AST_DUMP_TARGET)
+all: $(TARGET) $(PARSE_TARGET) $(CODEGEN_TARGET) $(SEMANTIC_TARGET) $(AST_DUMP_TARGET)
 
 $(TARGET): $(CC_OBJS)
 	@mkdir -p bin
@@ -56,6 +63,10 @@ $(PARSE_TARGET): $(PARSE_OBJS)
 	$(CC) $(LDFLAGS) -o $@ $^
 
 $(CODEGEN_TARGET): $(CODEGEN_OBJS)
+	@mkdir -p bin
+	$(CC) $(LDFLAGS) -o $@ $^
+
+$(SEMANTIC_TARGET): $(SEMANTIC_OBJS)
 	@mkdir -p bin
 	$(CC) $(LDFLAGS) -o $@ $^
 
@@ -70,6 +81,7 @@ clean:
 	rm -f $(CC_OBJS) $(TARGET)
 	rm -f $(PARSE_OBJS) $(PARSE_TARGET)
 	rm -f $(CODEGEN_OBJS) $(CODEGEN_TARGET)
+	rm -f $(SEMANTIC_OBJS) $(SEMANTIC_TARGET)
 	rm -f $(AST_DUMP_OBJS) $(AST_DUMP_TARGET)
 	rm -rf bin/*.o
 

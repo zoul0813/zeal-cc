@@ -12,10 +12,15 @@ case "$UNAME_S" in
 esac
 
 CC_PARSE="bin/cc_parse_${ARCH}"
+CC_SEMANTIC="bin/cc_semantic_${ARCH}"
 CC_CODEGEN="bin/cc_codegen_${ARCH}"
 
 if [[ ! -x "$CC_PARSE" ]]; then
   echo "Missing $CC_PARSE. Build host binaries first."
+  exit 1
+fi
+if [[ ! -x "$CC_SEMANTIC" ]]; then
+  echo "Missing $CC_SEMANTIC. Build host binaries first."
   exit 1
 fi
 if [[ ! -x "$CC_CODEGEN" ]]; then
@@ -63,6 +68,11 @@ run_test() {
   echo "TEST: ${src}"
   if ! "$CC_PARSE" "$src" "$ast"; then
     echo "Failed to compile ${src}"
+    FAILED=1
+    return
+  fi
+  if ! "$CC_SEMANTIC" "$ast"; then
+    echo "Failed to validate ${ast}"
     FAILED=1
     return
   fi

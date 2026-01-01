@@ -650,7 +650,7 @@ int main(int argc, char** argv) {
     mem_set(writer, 0, sizeof(*writer));
 
 
-    args = parse_args(argc, argv);
+    args = parse_args(argc, argv, ARG_MODE_IN_OUT);
     if (args.error) {
         log_error("Usage: cc_parse <input.c> <output.ast>\n");
         return 1;
