@@ -1,13 +1,10 @@
-int test_semantic_goto_scope(void) {
-    goto inner;
-    {
-        int x = 0;
-inner:
-        x = 1;
-    }
+int test_semantic_addr_lvalue(void) {
+    int x = 0;
+    int* p = &(x + 1);
+    return (p != 0);
     return 0;
 }
 
 int main(void) {
-    return test_semantic_goto_scope();
+    return test_semantic_addr_lvalue();
 }

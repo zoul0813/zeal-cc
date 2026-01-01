@@ -404,6 +404,10 @@ static int8_t semantic_check_node_with_lvalue(
                 }
                 return 0;
             }
+            if (op == OP_ADDR && !is_lvalue) {
+                log_error(SEM_ERR_EXPECT_LVALUE);
+                return -1;
+            }
             if (out_lvalue && op == OP_DEREF) {
                 *out_lvalue = 1;
             }
