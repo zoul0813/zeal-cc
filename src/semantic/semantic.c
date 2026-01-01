@@ -25,12 +25,15 @@ static const char SEM_ERR_SYMBOL_OVERFLOW[] = "Too many symbols in scope\n";
 static const char SEM_ERR_EXPECT_LVALUE[] = "Expected lvalue\n";
 static const char SEM_ERR_RETURN_VALUE_VOID[] = "Return value in void function\n";
 static const char SEM_ERR_RETURN_MISSING_VALUE[] = "Missing return value\n";
+static const char SEM_ERR_GOTO_SCOPE_JUMP[] = "Goto jumps into deeper scope\n";
 
 typedef struct {
     const char* labels[SEM_MAX_LABELS];
     uint8_t label_count;
     const char* gotos[SEM_MAX_GOTOS];
     uint8_t goto_count;
+    uint8_t label_scopes[SEM_MAX_LABELS];
+    uint8_t goto_scopes[SEM_MAX_GOTOS];
 } semantic_ctx_t;
 
 typedef enum {
@@ -167,14 +170,30 @@ static int8_t semantic_add_goto(semantic_ctx_t* ctx, const char* label) {
     return 0;
 }
 
+static int8_t semantic_add_label_scoped(semantic_ctx_t* ctx, const char* label, uint8_t scope_depth) {
+    uint8_t index = ctx->label_count;
+    if (semantic_add_label(ctx, label) < 0) return -1;
+    ctx->label_scopes[index] = scope_depth;
+    return 0;
+}
+
+static int8_t semantic_add_goto_scoped(semantic_ctx_t* ctx, const char* label, uint8_t scope_depth) {
+    uint8_t index = ctx->goto_count;
+    if (semantic_add_goto(ctx, label) < 0) return -1;
+    ctx->goto_scopes[index] = scope_depth;
+    return 0;
+}
+
 static int8_t semantic_check_gotos(const semantic_ctx_t* ctx) {
     if (!ctx) return -1;
     for (uint8_t i = 0; i < ctx->goto_count; i++) {
         const char* label = ctx->gotos[i];
         uint8_t found = 0;
+        uint8_t label_depth = 0;
         for (uint8_t j = 0; j < ctx->label_count; j++) {
             if (str_cmp(ctx->labels[j], label) == 0) {
                 found = 1;
+                label_depth = ctx->label_scopes[j];
                 break;
             }
         }
@@ -182,6 +201,10 @@ static int8_t semantic_check_gotos(const semantic_ctx_t* ctx) {
             log_error(SEM_ERR_GOTO_UNDEFINED);
             log_error(label);
             log_error("\n");
+            return -1;
+        }
+        if (ctx->goto_scopes[i] < label_depth) {
+            log_error(SEM_ERR_GOTO_SCOPE_JUMP);
             return -1;
         }
     }
@@ -299,14 +322,16 @@ static int8_t semantic_check_node_with_lvalue(
             {
                 uint16_t name_index = ast_read_u16(ast->reader);
                 const char* label = ast_reader_string(ast, name_index);
-                return semantic_add_goto(state->label_ctx, label);
+                uint8_t depth = state ? state->scope_depth : 0;
+                return semantic_add_goto_scoped(state->label_ctx, label, depth);
             }
         case AST_TAG_LABEL_STMT:
             if (!state || !state->label_ctx) return -1;
             {
                 uint16_t name_index = ast_read_u16(ast->reader);
                 const char* label = ast_reader_string(ast, name_index);
-                return semantic_add_label(state->label_ctx, label);
+                uint8_t depth = state ? state->scope_depth : 0;
+                return semantic_add_label_scoped(state->label_ctx, label, depth);
             }
         case AST_TAG_IF_STMT: {
             uint8_t has_else = ast_read_u8(ast->reader);
