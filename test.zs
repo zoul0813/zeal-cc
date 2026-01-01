@@ -303,4 +303,4 @@ cc_parse tests/semantic.c tests/semantic.ast
 
 echo !!! Complete !!!
 
-; reset
+reset

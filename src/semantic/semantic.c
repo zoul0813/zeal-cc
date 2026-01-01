@@ -23,6 +23,8 @@ static const char SEM_ERR_FUNC_UNDEFINED[] = "Undefined function: ";
 static const char SEM_ERR_SCOPE_OVERFLOW[] = "Too many scopes\n";
 static const char SEM_ERR_SYMBOL_OVERFLOW[] = "Too many symbols in scope\n";
 static const char SEM_ERR_EXPECT_LVALUE[] = "Expected lvalue\n";
+static const char SEM_ERR_RETURN_VALUE_VOID[] = "Return value in void function\n";
+static const char SEM_ERR_RETURN_MISSING_VALUE[] = "Missing return value\n";
 
 typedef struct {
     const char* labels[SEM_MAX_LABELS];
@@ -51,6 +53,8 @@ typedef struct {
     uint8_t scope_depth;
     uint8_t in_function;
     semantic_ctx_t* label_ctx;
+    uint8_t return_base;
+    uint8_t return_is_void;
 } semantic_state_t;
 
 static semantic_state_t g_semantic_state;
@@ -205,6 +209,8 @@ static int8_t semantic_check_node_with_lvalue(
             uint16_t name_index = ast_read_u16(ast->reader);
             const char* name = ast_reader_string(ast, name_index);
             uint8_t prev_in_function = state ? state->in_function : 0;
+            uint8_t prev_return_base = state ? state->return_base : 0;
+            uint8_t prev_return_is_void = state ? state->return_is_void : 0;
             semantic_ctx_t* prev_label_ctx = state ? state->label_ctx : NULL;
             mem_set(&local_ctx, 0, sizeof(local_ctx));
             if (ast_reader_read_type_info(ast, &base, &depth, &array_len) < 0) return -1;
@@ -216,6 +222,8 @@ static int8_t semantic_check_node_with_lvalue(
                 if (semantic_scope_push(state) < 0) return -1;
                 state->in_function = 1;
                 state->label_ctx = &local_ctx;
+                state->return_base = base;
+                state->return_is_void = ((base & AST_BASE_MASK) == AST_BASE_VOID);
             }
             for (uint8_t i = 0; i < param_count; i++) {
                 if (semantic_check_node_with_lvalue(ast, 0, state, NULL) < 0) return -1;
@@ -225,6 +233,8 @@ static int8_t semantic_check_node_with_lvalue(
                 semantic_scope_pop(state);
                 state->in_function = prev_in_function;
                 state->label_ctx = prev_label_ctx;
+                state->return_base = prev_return_base;
+                state->return_is_void = prev_return_is_void;
             }
             return semantic_check_gotos(&local_ctx);
         }
@@ -259,6 +269,14 @@ static int8_t semantic_check_node_with_lvalue(
         }
         case AST_TAG_RETURN_STMT: {
             uint8_t has_expr = ast_read_u8(ast->reader);
+            if (state && state->return_is_void && has_expr) {
+                log_error(SEM_ERR_RETURN_VALUE_VOID);
+                return -1;
+            }
+            if (state && !state->return_is_void && !has_expr) {
+                log_error(SEM_ERR_RETURN_MISSING_VALUE);
+                return -1;
+            }
             if (has_expr) {
                 return semantic_check_node_with_lvalue(ast, loop_depth, state, NULL);
             }
