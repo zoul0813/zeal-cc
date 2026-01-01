@@ -126,9 +126,6 @@ typedef struct {
 lexer_t* lexer_create(const char* filename, reader_t* reader);
 void lexer_destroy(lexer_t* lexer);
 token_t* lexer_next_token(lexer_t* lexer);
-token_t* lexer_tokenize(lexer_t* lexer);
 void token_destroy(token_t* token);
-void token_list_destroy(token_t* head);
-const char* token_type_to_string(token_type_t type);
 
 #endif /* LEXER_H */

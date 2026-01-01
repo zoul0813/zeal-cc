@@ -53,26 +53,37 @@ int sum_and_fact(int n) {
 }
 
 int main() {
-    int x;
-    int y;
-    int total;
+    int x = 5;
+    int y = 3;
+    int total = 0;
+    int v;
 
-    x = 5;
-    y = 3;
-    total = 0;
+    v = add(x, y);
+    if (v != 8) return 0x01;
+    total = total + v;
+    v = mul(x, y);
+    if (v != 15) return 0x02;
+    total = total + v;
+    v = sum_to_n(4);
+    if (v != 10) return 0x03;
+    total = total + v;
+    v = count_down(3);
+    if (v != 6) return 0x04;
+    total = total + v;
+    v = sum_and_fact(4);
+    if (v != 34) return 0x05;
+    total = total + v;
+    v = chooser(2, 5);
+    if (v != 3) return 0x06;
+    total = total + v;
 
-    total = total + add(x, y);        /* 8 */
-    total = total + mul(x, y);        /* 15 => 23 */
-    total = total + sum_to_n(4);      /* 10 => 33 */
-    total = total + count_down(3);    /* 6 => 39 */
-    total = total + sum_and_fact(4);  /* 10 + 24 = 34 => 73 */
-    total = total + chooser(2, 5);    /* 3 => 76 */
-
+    if (total != 76) return 0x07;
     if (is_even(total) != 0) {
         total = total + 2;
     } else {
         total = total + 1;
     }
+    if (total != 78) return 0x08;
 
-    return total;  /* Should return 78 (0x4E) */
+    return 0x4E;  /* Should return 78 (0x4E) */
 }

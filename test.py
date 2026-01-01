@@ -33,6 +33,7 @@ EXPECTED_RESULTS = {
     "for": "0A",
     "global": "0A",
     "if": "2A",
+    "bitwise": "E4",
     "math": "3A",
     "params": "14",
     "pointer": "86",

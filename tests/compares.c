@@ -1,25 +1,10 @@
 int main() {
-    int total;
-    total = 0;
+    if (!(3 == 3)) return 0x01;
+    if (!(3 != 4)) return 0x02;
+    if (!(2 < 3)) return 0x03;
+    if (!(3 <= 3)) return 0x04;
+    if (!(4 > 3)) return 0x05;
+    if (!(4 >= 4)) return 0x06;
 
-    if (3 == 3) {
-        total = total + 1;
-    }
-    if (3 != 4) {
-        total = total + 2;
-    }
-    if (2 < 3) {
-        total = total + 4;
-    }
-    if (3 <= 3) {
-        total = total + 8;
-    }
-    if (4 > 3) {
-        total = total + 16;
-    }
-    if (4 >= 4) {
-        total = total + 32;
-    }
-
-    return total; /* Should return 63 (0x3F) */
+    return 0x3F; /* Should return 63 (0x3F) */
 }

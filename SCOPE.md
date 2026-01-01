@@ -7,11 +7,11 @@ and user input.  Example projects that are built for ZOS and tested, are in the 
 
 The C Compiler should be able to compile C code written in the C99 standard.
 
-The compiler should produce appropriate Z80 Assembly files that can later be assembled and linked by Zealasm (source for Zealasm in examples/Zealasm). Source reading is streaming-only (512-byte buffered) to fit target RAM limits; no full-file loads.
+The compiler should produce appropriate Z80 Assembly files that can later be assembled and linked by Zealasm (source for Zealasm in examples/Zealasm). Source reading is streaming-only (512-byte buffered) to fit target RAM limits; no full-file loads. The file buffer is placed at 0xC300.
 
 A starter CMakeLists.txt is already in the project root - feel free to modify this as needed, but use it as a starting point as the ZOS Toolchain has a few special needs. Use `zde cmake` to build the ZOS target; `zde cmake --target verbose` enables the `VERBOSE` compile define for `#ifdef VERBOSE`.
 
-Current implementation notes: function arguments and locals are stack-based with an `IX` frame. A custom static allocator is used on both host and target; no malloc/free on target.
+Current implementation notes: function arguments and locals are stack-based with an `IX` frame. A custom static allocator is used on both host and target; no malloc/free on target. Logical/bitwise operators are implemented.
 Signed/unsigned qualifiers are supported for `int` and `char` (default remains unsigned).
 
 ## Development Guidelines

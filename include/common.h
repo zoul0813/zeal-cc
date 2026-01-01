@@ -58,7 +58,6 @@ extern compiler_ctx_t g_ctx;
 
 /* Utility functions */
 void cc_error(const char* msg);
-void cc_warning(const char* msg);
 void* cc_malloc(size_t size);
 void cc_free(void* ptr);
 char* cc_strdup(const char* str);

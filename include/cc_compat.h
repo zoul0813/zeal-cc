@@ -13,6 +13,7 @@ typedef void unused;
 #define str_cmp strcmp
 #define str_len strlen
 #define str_chr strchr
+#define put_c(c) printf("%c", c);
 #define put_s(str) printf("%s", str)
 #define put_hex(i) printf("%04x", i)
 #endif

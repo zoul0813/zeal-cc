@@ -22,6 +22,8 @@ This is an iterative development project. Currently implemented:
 - Control flow: if/else, while, and for
 - Comparison operators (==, !=, <, >, <=, >=)
 - Binary arithmetic operators (+, -, *, /, %)
+- Bitwise operators (&, |, ^, ~, <<, >>)
+- Logical operators (&&, ||) with short-circuit
 - Function definitions and calls
 - Stack-based argument passing (IX frame for params)
 - Stack-based local variables
@@ -30,7 +32,7 @@ This is an iterative development project. Currently implemented:
 - Single-dimension arrays (globals/locals) and array parameters (decay to pointer)
 - Array and pointer indexing (8-bit indices)
 - String literals for pointer/array initialization and indexing
-- Unary operators: `+`, `-`, `!`, `++`, `--`
+- Unary operators: `+`, `-`, `!`, `~`, `++`, `--`
 - Return statements with expressions
 - Compound statements (blocks)
 - Runtime library for mul/div/mod
@@ -41,13 +43,12 @@ This is an iterative development project. Currently implemented:
 - Pointer basics: address-of and dereference on identifiers
 
 ### In Progress 🚧
-- Target build uses 12 KB static pool; file buffer at 0xE000 (512 B)
+- Parser target build uses 0x1700 static pool; file buffer at 0xC300 (512 B)
 
 ### Planned Features ⏳
 - Switch statement, break/continue, do/while, ternary
 - Full pointer arithmetic and multidimensional arrays
 - Struct and union types
-- More operators (logical, bitwise)
 - Type checking and semantic analysis
 - Optimizations (constant folding, dead code elimination)
 - Preprocessor support
@@ -219,8 +220,8 @@ All test artifacts (`.asm`, `.o`, `.bin`, etc.) are stored in `tests/` for versi
 
 ## Current Limitations
 
-- Parser lacks do/while, ternary, switch, break/continue, and logical/bitwise ops
-- Fixed 12 KB static pool allocator; no dynamic malloc on target
+- Parser lacks do/while, ternary, switch, break/continue
+- Fixed static pool allocator; parser uses 0x1700 on target (no dynamic malloc)
 - 512-byte input reader buffer; very large source files are not supported
 - No optimization passes yet
 - Limited error reporting

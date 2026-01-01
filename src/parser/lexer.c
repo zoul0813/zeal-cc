@@ -16,7 +16,7 @@ static const struct {
     const char* name;
     token_type_t type;
 } keywords[] = {
-    {"auto", TOK_AUTO},
+    // {"auto", TOK_AUTO},
     {"break", TOK_BREAK},
     {"case", TOK_CASE},
     {"char", TOK_CHAR_KW},
@@ -24,29 +24,29 @@ static const struct {
     {"continue", TOK_CONTINUE},
     {"default", TOK_DEFAULT},
     {"do", TOK_DO},
-    {"double", TOK_DOUBLE},
+    // {"double", TOK_DOUBLE},
     {"else", TOK_ELSE},
-    {"enum", TOK_ENUM},
-    {"extern", TOK_EXTERN},
-    {"float", TOK_FLOAT},
+    // {"enum", TOK_ENUM},
+    // {"extern", TOK_EXTERN},
+    // {"float", TOK_FLOAT},
     {"for", TOK_FOR},
     {"goto", TOK_GOTO},
     {"if", TOK_IF},
     {"int", TOK_INT},
     {"long", TOK_LONG},
-    {"register", TOK_REGISTER},
+    // {"register", TOK_REGISTER},
     {"return", TOK_RETURN},
-    {"short", TOK_SHORT},
+    // {"short", TOK_SHORT},
     {"signed", TOK_SIGNED},
-    {"sizeof", TOK_SIZEOF},
-    {"static", TOK_STATIC},
-    {"struct", TOK_STRUCT},
+    // {"sizeof", TOK_SIZEOF},
+    // {"static", TOK_STATIC},
+    // {"struct", TOK_STRUCT},
     {"switch", TOK_SWITCH},
-    {"typedef", TOK_TYPEDEF},
-    {"union", TOK_UNION},
+    // {"typedef", TOK_TYPEDEF},
+    // {"union", TOK_UNION},
     {"unsigned", TOK_UNSIGNED},
     {"void", TOK_VOID},
-    {"volatile", TOK_VOLATILE},
+    // {"volatile", TOK_VOLATILE},
     {"while", TOK_WHILE},
     {NULL, TOK_EOF}};
 
@@ -154,7 +154,7 @@ static token_t* token_create(token_type_t type, const char* value, uint16_t line
     token->next = NULL;
     token->value = NULL;
 
-    if (type == TOK_IDENTIFIER || type == TOK_STRING || type == TOK_CHAR) {
+    if (type == TOK_IDENTIFIER || type == TOK_STRING) {
         token->value = cc_strdup(value ? value : "");
     }
 
@@ -280,6 +280,29 @@ static token_t* lexer_read_identifier(lexer_t* lexer) {
     return token_create(TOK_IDENTIFIER, buffer, start_line, start_column);
 }
 
+typedef struct {
+    char esc;
+    char value;
+} lexer_escape_t;
+
+static char lexer_unescape_char(char c) {
+    static const lexer_escape_t escapes[] = {
+        { 'n', '\n' },
+        { 't', '\t' },
+        { 'r', '\r' },
+        { '\\', '\\' },
+        { '"', '"' },
+        { '\'', '\'' },
+        { '0', '\0' }
+    };
+    for (uint8_t i = 0; i < (uint8_t)(sizeof(escapes) / sizeof(escapes[0])); i++) {
+        if (escapes[i].esc == c) {
+            return escapes[i].value;
+        }
+    }
+    return c;
+}
+
 static token_t* lexer_read_string(lexer_t* lexer) {
     uint16_t start_line = lexer->line;
     uint16_t start_column = lexer->column;
@@ -293,29 +316,7 @@ static token_t* lexer_read_string(lexer_t* lexer) {
            len < MAX_STRING_LENGTH - 1) {
         if (lexer->current_char == '\\') {
             lexer_advance(lexer);
-            switch (lexer->current_char) {
-                case 'n':
-                    buffer[len++] = '\n';
-                    break;
-                case 't':
-                    buffer[len++] = '\t';
-                    break;
-                case 'r':
-                    buffer[len++] = '\r';
-                    break;
-                case '\\':
-                    buffer[len++] = '\\';
-                    break;
-                case '"':
-                    buffer[len++] = '"';
-                    break;
-                case '0':
-                    buffer[len++] = '\0';
-                    break;
-                default:
-                    buffer[len++] = lexer->current_char;
-                    break;
-            }
+            buffer[len++] = lexer_unescape_char(lexer->current_char);
             lexer_advance(lexer);
         } else {
             buffer[len++] = lexer->current_char;
@@ -342,29 +343,7 @@ static token_t* lexer_read_char(lexer_t* lexer) {
     char c = lexer->current_char;
     if (c == '\\') {
         lexer_advance(lexer);
-        switch (lexer->current_char) {
-            case 'n':
-                c = '\n';
-                break;
-            case 't':
-                c = '\t';
-                break;
-            case 'r':
-                c = '\r';
-                break;
-            case '\\':
-                c = '\\';
-                break;
-            case '\'':
-                c = '\'';
-                break;
-            case '0':
-                c = '\0';
-                break;
-            default:
-                c = lexer->current_char;
-                break;
-        }
+        c = lexer_unescape_char(lexer->current_char);
     }
     lexer_advance(lexer);
 
@@ -375,7 +354,7 @@ static token_t* lexer_read_char(lexer_t* lexer) {
     buffer[0] = c;
     buffer[1] = '\0';
 
-    token_t* token = token_create(TOK_CHAR, buffer, start_line, start_column);
+    token_t* token = token_create(TOK_CHAR, NULL, start_line, start_column);
     if (token) {
         token->int_val = (int16_t)c;
     }
@@ -383,6 +362,53 @@ static token_t* lexer_read_char(lexer_t* lexer) {
 }
 
 token_t* lexer_next_token(lexer_t* lexer) {
+    static const struct {
+        char ch;
+        token_type_t type;
+    } k_single_tokens[] = {
+        { '(', TOK_LPAREN },
+        { ')', TOK_RPAREN },
+        { '{', TOK_LBRACE },
+        { '}', TOK_RBRACE },
+        { '[', TOK_LBRACKET },
+        { ']', TOK_RBRACKET },
+        { ';', TOK_SEMICOLON },
+        { ',', TOK_COMMA },
+        { '.', TOK_DOT },
+        { '~', TOK_TILDE },
+        { '?', TOK_QUESTION },
+        { ':', TOK_COLON }
+    };
+    static const struct {
+        char ch;
+        token_type_t single;
+        token_type_t next_same;
+        token_type_t next_eq;
+        token_type_t next_alt;
+        char alt_ch;
+    } k_two_char_ops[] = {
+        { '+', TOK_PLUS, TOK_PLUS_PLUS, TOK_PLUS_ASSIGN, TOK_EOF, 0 },
+        { '-', TOK_MINUS, TOK_MINUS_MINUS, TOK_MINUS_ASSIGN, TOK_ARROW, '>' },
+        { '*', TOK_STAR, TOK_EOF, TOK_STAR_ASSIGN, TOK_EOF, 0 },
+        { '/', TOK_SLASH, TOK_EOF, TOK_SLASH_ASSIGN, TOK_EOF, 0 },
+        { '%', TOK_PERCENT, TOK_EOF, TOK_PERCENT_ASSIGN, TOK_EOF, 0 },
+        { '&', TOK_AMPERSAND, TOK_AND, TOK_AND_ASSIGN, TOK_EOF, 0 },
+        { '|', TOK_PIPE, TOK_OR, TOK_OR_ASSIGN, TOK_EOF, 0 },
+        { '^', TOK_CARET, TOK_EOF, TOK_XOR_ASSIGN, TOK_EOF, 0 },
+        { '=', TOK_ASSIGN, TOK_EOF, TOK_EQ, TOK_EOF, 0 },
+        { '!', TOK_EXCLAIM, TOK_EOF, TOK_NE, TOK_EOF, 0 }
+    };
+    static const struct {
+        char ch;
+        token_type_t single;
+        token_type_t eq;
+        token_type_t shift;
+        token_type_t shift_assign;
+    } k_shift_ops[] = {
+        { '<', TOK_LT, TOK_LE, TOK_LSHIFT, TOK_LSHIFT_ASSIGN },
+        { '>', TOK_GT, TOK_GE, TOK_RSHIFT, TOK_RSHIFT_ASSIGN }
+    };
+
     while (lexer->current_char != '\0') {
         /* Skip whitespace */
         if (lexer->current_char == ' ' || lexer->current_char == '\t' ||
@@ -429,202 +455,60 @@ token_t* lexer_next_token(lexer_t* lexer) {
         /* Two-character operators */
         char next = lexer_peek(lexer, 1);
 
-        if (c == '+') {
-            lexer_advance(lexer);
-            if (next == '+') {
-                lexer_advance(lexer);
-                return token_create(TOK_PLUS_PLUS, "++", start_line, start_column);
-            } else if (next == '=') {
-                lexer_advance(lexer);
-                return token_create(TOK_PLUS_ASSIGN, "+=", start_line, start_column);
+        for (uint8_t i = 0; i < (uint8_t)(sizeof(k_two_char_ops) / sizeof(k_two_char_ops[0])); i++) {
+            if (k_two_char_ops[i].ch != c) {
+                continue;
             }
-            return token_create(TOK_PLUS, "+", start_line, start_column);
+            lexer_advance(lexer);
+            if (k_two_char_ops[i].alt_ch && next == k_two_char_ops[i].alt_ch) {
+                lexer_advance(lexer);
+                return token_create(k_two_char_ops[i].next_alt, NULL, start_line, start_column);
+            }
+            if (k_two_char_ops[i].next_same != TOK_EOF && next == c) {
+                lexer_advance(lexer);
+                return token_create(k_two_char_ops[i].next_same, NULL, start_line, start_column);
+            }
+            if (k_two_char_ops[i].next_eq != TOK_EOF && next == '=') {
+                lexer_advance(lexer);
+                return token_create(k_two_char_ops[i].next_eq, NULL, start_line, start_column);
+            }
+            return token_create(k_two_char_ops[i].single, NULL, start_line, start_column);
         }
 
-        if (c == '-') {
-            lexer_advance(lexer);
-            if (next == '-') {
-                lexer_advance(lexer);
-                return token_create(TOK_MINUS_MINUS, "--", start_line, start_column);
-            } else if (next == '=') {
-                lexer_advance(lexer);
-                return token_create(TOK_MINUS_ASSIGN, "-=", start_line, start_column);
-            } else if (next == '>') {
-                lexer_advance(lexer);
-                return token_create(TOK_ARROW, "->", start_line, start_column);
+        for (uint8_t i = 0; i < (uint8_t)(sizeof(k_shift_ops) / sizeof(k_shift_ops[0])); i++) {
+            if (k_shift_ops[i].ch != c) {
+                continue;
             }
-            return token_create(TOK_MINUS, "-", start_line, start_column);
-        }
-
-        if (c == '*') {
             lexer_advance(lexer);
-            if (next == '=') {
-                lexer_advance(lexer);
-                return token_create(TOK_STAR_ASSIGN, "*=", start_line, start_column);
-            }
-            return token_create(TOK_STAR, "*", start_line, start_column);
-        }
-
-        if (c == '/') {
-            lexer_advance(lexer);
-            if (next == '=') {
-                lexer_advance(lexer);
-                return token_create(TOK_SLASH_ASSIGN, "/=", start_line, start_column);
-            }
-            return token_create(TOK_SLASH, "/", start_line, start_column);
-        }
-
-        if (c == '%') {
-            lexer_advance(lexer);
-            if (next == '=') {
-                lexer_advance(lexer);
-                return token_create(TOK_PERCENT_ASSIGN, "%=", start_line, start_column);
-            }
-            return token_create(TOK_PERCENT, "%", start_line, start_column);
-        }
-
-        if (c == '&') {
-            lexer_advance(lexer);
-            if (next == '&') {
-                lexer_advance(lexer);
-                return token_create(TOK_AND, "&&", start_line, start_column);
-            } else if (next == '=') {
-                lexer_advance(lexer);
-                return token_create(TOK_AND_ASSIGN, "&=", start_line, start_column);
-            }
-            return token_create(TOK_AMPERSAND, "&", start_line, start_column);
-        }
-
-        if (c == '|') {
-            lexer_advance(lexer);
-            if (next == '|') {
-                lexer_advance(lexer);
-                return token_create(TOK_OR, "||", start_line, start_column);
-            } else if (next == '=') {
-                lexer_advance(lexer);
-                return token_create(TOK_OR_ASSIGN, "|=", start_line, start_column);
-            }
-            return token_create(TOK_PIPE, "|", start_line, start_column);
-        }
-
-        if (c == '^') {
-            lexer_advance(lexer);
-            if (next == '=') {
-                lexer_advance(lexer);
-                return token_create(TOK_XOR_ASSIGN, "^=", start_line, start_column);
-            }
-            return token_create(TOK_CARET, "^", start_line, start_column);
-        }
-
-        if (c == '<') {
-            lexer_advance(lexer);
-            if (next == '<') {
+            if (next == c) {
                 lexer_advance(lexer);
                 if (lexer->current_char == '=') {
                     lexer_advance(lexer);
-                    return token_create(TOK_LSHIFT_ASSIGN, "<<=", start_line, start_column);
+                    return token_create(k_shift_ops[i].shift_assign, NULL, start_line, start_column);
                 }
-                return token_create(TOK_LSHIFT, "<<", start_line, start_column);
-            } else if (next == '=') {
-                lexer_advance(lexer);
-                return token_create(TOK_LE, "<=", start_line, start_column);
+                return token_create(k_shift_ops[i].shift, NULL, start_line, start_column);
             }
-            return token_create(TOK_LT, "<", start_line, start_column);
-        }
-
-        if (c == '>') {
-            lexer_advance(lexer);
-            if (next == '>') {
-                lexer_advance(lexer);
-                if (lexer->current_char == '=') {
-                    lexer_advance(lexer);
-                    return token_create(TOK_RSHIFT_ASSIGN, ">>=", start_line, start_column);
-                }
-                return token_create(TOK_RSHIFT, ">>", start_line, start_column);
-            } else if (next == '=') {
-                lexer_advance(lexer);
-                return token_create(TOK_GE, ">=", start_line, start_column);
-            }
-            return token_create(TOK_GT, ">", start_line, start_column);
-        }
-
-        if (c == '=') {
-            lexer_advance(lexer);
             if (next == '=') {
                 lexer_advance(lexer);
-                return token_create(TOK_EQ, "==", start_line, start_column);
+                return token_create(k_shift_ops[i].eq, NULL, start_line, start_column);
             }
-            return token_create(TOK_ASSIGN, "=", start_line, start_column);
-        }
-
-        if (c == '!') {
-            lexer_advance(lexer);
-            if (next == '=') {
-                lexer_advance(lexer);
-                return token_create(TOK_NE, "!=", start_line, start_column);
-            }
-            return token_create(TOK_EXCLAIM, "!", start_line, start_column);
+            return token_create(k_shift_ops[i].single, NULL, start_line, start_column);
         }
 
         /* Single-character tokens */
         lexer_advance(lexer);
-        switch (c) {
-            case '(':
-                return token_create(TOK_LPAREN, "(", start_line, start_column);
-            case ')':
-                return token_create(TOK_RPAREN, ")", start_line, start_column);
-            case '{':
-                return token_create(TOK_LBRACE, "{", start_line, start_column);
-            case '}':
-                return token_create(TOK_RBRACE, "}", start_line, start_column);
-            case '[':
-                return token_create(TOK_LBRACKET, "[", start_line, start_column);
-            case ']':
-                return token_create(TOK_RBRACKET, "]", start_line, start_column);
-            case ';':
-                return token_create(TOK_SEMICOLON, ";", start_line, start_column);
-            case ',':
-                return token_create(TOK_COMMA, ",", start_line, start_column);
-            case '.':
-                return token_create(TOK_DOT, ".", start_line, start_column);
-            case '~':
-                return token_create(TOK_TILDE, "~", start_line, start_column);
-            case '?':
-                return token_create(TOK_QUESTION, "?", start_line, start_column);
-            case ':':
-                return token_create(TOK_COLON, ":", start_line, start_column);
-            default:
-                return token_create(TOK_ERROR, "", start_line, start_column);
+        for (uint8_t i = 0; i < (uint8_t)(sizeof(k_single_tokens) / sizeof(k_single_tokens[0])); i++) {
+            if (k_single_tokens[i].ch == c) {
+                return token_create(k_single_tokens[i].type,
+                                    NULL,
+                                    start_line,
+                                    start_column);
+            }
         }
+        return token_create(TOK_ERROR, NULL, start_line, start_column);
     }
 
-    return token_create(TOK_EOF, "", lexer->line, lexer->column);
-}
-
-token_t* lexer_tokenize(lexer_t* lexer) {
-    token_t* head = NULL;
-    token_t* tail = NULL;
-
-    while (true) {
-        token_t* token = lexer_next_token(lexer);
-        if (!token) {
-            break;
-        }
-
-        if (!head) {
-            head = token;
-            tail = token;
-        } else {
-            tail->next = token;
-            tail = token;
-        }
-
-        if (token->type == TOK_EOF || token->type == TOK_ERROR) {
-            break;
-        }
-    }
-
-    return head;
+    return token_create(TOK_EOF, NULL, lexer->line, lexer->column);
 }
 
 void token_destroy(token_t* token) {
@@ -633,74 +517,5 @@ void token_destroy(token_t* token) {
             cc_free(token->value);
         }
         cc_free(token);
-    }
-}
-
-void token_list_destroy(token_t* head) {
-    while (head) {
-        token_t* next = head->next;
-        token_destroy(head);
-        head = next;
-    }
-}
-
-const char* token_type_to_string(token_type_t type) {
-    switch (type) {
-        case TOK_EOF:
-            return "EOF";
-        case TOK_IDENTIFIER:
-            return "IDENTIFIER";
-        case TOK_NUMBER:
-            return "NUMBER";
-        case TOK_STRING:
-            return "STRING";
-        case TOK_CHAR:
-            return "CHAR";
-        case TOK_INT:
-            return "int";
-        case TOK_RETURN:
-            return "return";
-        case TOK_IF:
-            return "if";
-        case TOK_ELSE:
-            return "else";
-        case TOK_WHILE:
-            return "while";
-        case TOK_FOR:
-            return "for";
-        case TOK_VOID:
-            return "void";
-        case TOK_SEMICOLON:
-            return ";";
-        case TOK_LPAREN:
-            return "(";
-        case TOK_RPAREN:
-            return ")";
-        case TOK_LBRACE:
-            return "{";
-        case TOK_RBRACE:
-            return "}";
-        case TOK_COMMA:
-            return ",";
-        case TOK_PLUS:
-            return "+";
-        case TOK_MINUS:
-            return "-";
-        case TOK_STAR:
-            return "*";
-        case TOK_SLASH:
-            return "/";
-        case TOK_ASSIGN:
-            return "=";
-        case TOK_LT:
-            return "<";
-        case TOK_GT:
-            return ">";
-        case TOK_EQ:
-            return "==";
-        case TOK_NE:
-            return "!=";
-        default:
-            return "UNKNOWN";
     }
 }

@@ -101,6 +101,16 @@ cc_parse tests/if.c tests/if.ast
 : echo Failed to assemble tests/if.asm
 : echo Failed to compile tests/if.c
 
+echo TEST: tests/bitwise.c
+cc_parse tests/bitwise.c tests/bitwise.ast
+: echo Failed to parse tests/bitwise.c
+? cc_codegen tests/bitwise.ast tests/bitwise.asm
+: echo Failed to codegen tests/bitwise.ast
+? zealasm tests/bitwise.asm tests/bitwise.bin
+? return tests/bitwise.bin
+: echo Failed to assemble tests/bitwise.asm
+: echo Failed to compile tests/bitwise.c
+
 echo TEST: tests/math.c
 cc_parse tests/math.c tests/math.ast
 : echo Failed to parse tests/math.c

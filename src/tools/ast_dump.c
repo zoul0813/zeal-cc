@@ -156,22 +156,22 @@ static int8_t dump_node_stream(ast_reader_t* ast, uint16_t depth) {
     uint8_t ptr_depth = 0;
     char type_buf[32];
 
-    ast_read_u8(ast->reader, &tag);
+    tag = ast_read_u8(ast->reader);
     print_indent(depth);
 
     switch (tag) {
         case AST_TAG_PROGRAM:
             log_msg("AST_PROGRAM\n");
-            ast_read_u16(ast->reader, &u16);
+            u16 = ast_read_u16(ast->reader);
             for (uint16_t i = 0; i < u16; i++) {
                 if (dump_node_stream(ast, depth + 1) < 0) return -1;
             }
             return 0;
         case AST_TAG_FUNCTION: {
             uint16_t array_len = 0;
-            ast_read_u16(ast->reader, &u16);
+            u16 = ast_read_u16(ast->reader);
             if (ast_reader_read_type_info(ast, &base, &ptr_depth, &array_len) < 0) return -1;
-            ast_read_u8(ast->reader, &u8);
+            u8 = ast_read_u8(ast->reader);
             format_type_info(base, ptr_depth, array_len, type_buf, sizeof(type_buf));
             log_msg("AST_FUNCTION (name=");
             log_msg(ast_reader_string(ast, u16) ? ast_reader_string(ast, u16) : "null");
@@ -186,9 +186,9 @@ static int8_t dump_node_stream(ast_reader_t* ast, uint16_t depth) {
         case AST_TAG_VAR_DECL: {
             uint8_t has_init = 0;
             uint16_t array_len = 0;
-            ast_read_u16(ast->reader, &u16);
+            u16 = ast_read_u16(ast->reader);
             if (ast_reader_read_type_info(ast, &base, &ptr_depth, &array_len) < 0) return -1;
-            ast_read_u8(ast->reader, &has_init);
+            has_init = ast_read_u8(ast->reader);
             format_type_info(base, ptr_depth, array_len, type_buf, sizeof(type_buf));
             log_msg("AST_VAR_DECL (name=");
             log_msg(ast_reader_string(ast, u16) ? ast_reader_string(ast, u16) : "null");
@@ -200,19 +200,19 @@ static int8_t dump_node_stream(ast_reader_t* ast, uint16_t depth) {
         }
         case AST_TAG_COMPOUND_STMT:
             log_msg("AST_COMPOUND_STMT\n");
-            ast_read_u16(ast->reader, &u16);
+            u16 = ast_read_u16(ast->reader);
             for (uint16_t i = 0; i < u16; i++) {
                 if (dump_node_stream(ast, depth + 1) < 0) return -1;
             }
             return 0;
         case AST_TAG_RETURN_STMT:
             log_msg("AST_RETURN_STMT\n");
-            ast_read_u8(ast->reader, &u8);
+            u8 = ast_read_u8(ast->reader);
             if (u8) return dump_node_stream(ast, depth + 1);
             return 0;
         case AST_TAG_IF_STMT:
             log_msg("AST_IF_STMT\n");
-            ast_read_u8(ast->reader, &u8);
+            u8 = ast_read_u8(ast->reader);
             if (dump_node_stream(ast, depth + 1) < 0) return -1;
             if (dump_node_stream(ast, depth + 1) < 0) return -1;
             if (u8) return dump_node_stream(ast, depth + 1);
@@ -226,9 +226,9 @@ static int8_t dump_node_stream(ast_reader_t* ast, uint16_t depth) {
             uint8_t has_cond = 0;
             uint8_t has_inc = 0;
             log_msg("AST_FOR_STMT\n");
-            ast_read_u8(ast->reader, &has_init);
-            ast_read_u8(ast->reader, &has_cond);
-            ast_read_u8(ast->reader, &has_inc);
+            has_init = ast_read_u8(ast->reader);
+            has_cond = ast_read_u8(ast->reader);
+            has_inc = ast_read_u8(ast->reader);
             if (has_init && dump_node_stream(ast, depth + 1) < 0) return -1;
             if (has_cond && dump_node_stream(ast, depth + 1) < 0) return -1;
             if (has_inc && dump_node_stream(ast, depth + 1) < 0) return -1;
@@ -239,8 +239,8 @@ static int8_t dump_node_stream(ast_reader_t* ast, uint16_t depth) {
             if (dump_node_stream(ast, depth + 1) < 0) return -1;
             return dump_node_stream(ast, depth + 1);
         case AST_TAG_CALL:
-            ast_read_u16(ast->reader, &u16);
-            ast_read_u8(ast->reader, &u8);
+            u16 = ast_read_u16(ast->reader);
+            u8 = ast_read_u8(ast->reader);
             log_msg("AST_CALL (name=");
             log_msg(ast_reader_string(ast, u16) ? ast_reader_string(ast, u16) : "null");
             log_msg(")\n");
@@ -249,29 +249,29 @@ static int8_t dump_node_stream(ast_reader_t* ast, uint16_t depth) {
             }
             return 0;
         case AST_TAG_BINARY_OP:
-            ast_read_u8(ast->reader, &u8);
+            u8 = ast_read_u8(ast->reader);
             log_msg("AST_BINARY_OP (op=");
             log_msg(bin_op_name((binary_op_t)u8));
             log_msg(")\n");
             if (dump_node_stream(ast, depth + 1) < 0) return -1;
             return dump_node_stream(ast, depth + 1);
         case AST_TAG_UNARY_OP:
-            ast_read_u8(ast->reader, &u8);
+            u8 = ast_read_u8(ast->reader);
             log_msg("AST_UNARY_OP (op=");
             log_msg(unary_op_name((unary_op_t)u8));
             log_msg(")\n");
             return dump_node_stream(ast, depth + 1);
         case AST_TAG_IDENTIFIER:
-            ast_read_u16(ast->reader, &u16);
+            u16 = ast_read_u16(ast->reader);
             log_msg("AST_IDENTIFIER (name=");
             log_msg(ast_reader_string(ast, u16) ? ast_reader_string(ast, u16) : "null");
             log_msg(")\n");
             return 0;
         case AST_TAG_CONSTANT:
-            ast_read_i16(ast->reader, &i16);
+            i16 = ast_read_i16(ast->reader);
             return dump_constant(i16);
         case AST_TAG_STRING_LITERAL:
-            ast_read_u16(ast->reader, &u16);
+            u16 = ast_read_u16(ast->reader);
             log_msg("AST_STRING_LITERAL (value=");
             log_msg(ast_reader_string(ast, u16) ? ast_reader_string(ast, u16) : "null");
             log_msg(")\n");

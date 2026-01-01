@@ -36,6 +36,7 @@ TESTS=(
   for
   global
   if
+  bitwise
   math
   params
   pointer

@@ -1,20 +1,34 @@
 int main() {
-    int total;
-    int a;
-    int b;
+    int total = 0;
+    int a = 6;
+    int b = 3;
+    int v;
 
-    total = 0;
-    a = 6;
-    b = 3;
+    v = (a + b);
+    if (v != 9) return 0x01;
+    total = total + v;
+    v = (a - b);
+    if (v != 3) return 0x02;
+    total = total + v;
+    v = (a * b);
+    if (v != 18) return 0x03;
+    total = total + v;
+    v = (a / b);
+    if (v != 2) return 0x04;
+    total = total + v;
+    v = (a % b);
+    if (v != 0) return 0x05;
+    total = total + v;
+    v = ((2 + 3) * 4);
+    if (v != 20) return 0x06;
+    total = total + v;
+    v = (20 / 5);
+    if (v != 4) return 0x07;
+    total = total + v;
+    v = (17 % 5);
+    if (v != 2) return 0x08;
+    total = total + v;
 
-    total = total + (a + b);   /* 9 */
-    total = total + (a - b);   /* 3 -> 12 */
-    total = total + (a * b);   /* 18 -> 30 */
-    total = total + (a / b);   /* 2 -> 32 */
-    total = total + (a % b);   /* 0 -> 32 */
-    total = total + ((2 + 3) * 4); /* 20 -> 52 */
-    total = total + (20 / 5);  /* 4 -> 56 */
-    total = total + (17 % 5);  /* 2 -> 58 */
-
-    return total; /* Should return 58 (0x3A) */
+    if (total != 58) return 0x09;
+    return 0x3A; /* Should return 58 (0x3A) */
 }

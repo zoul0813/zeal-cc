@@ -68,30 +68,38 @@ static int8_t ast_read_i16_unsafe(reader_t* reader, int16_t* out)
 }
 
 /** Safe */
-void ast_read_u8(reader_t* reader, uint8_t* out)
+uint8_t ast_read_u8(reader_t* reader)
 {
-    if (ast_read_u8_unsafe(reader, out) < 0) {
+    uint8_t value = 0;
+    if (ast_read_u8_unsafe(reader, &value) < 0) {
         s_handler(s_message);
     }
+    return value;
 }
 
-void ast_read_u16(reader_t* reader, uint16_t* out)
+uint16_t ast_read_u16(reader_t* reader)
 {
-    if (ast_read_u16_unsafe(reader, out) < 0) {
+    uint16_t value = 0;
+    if (ast_read_u16_unsafe(reader, &value) < 0) {
         s_handler(s_message);
     }
+    return value;
 }
 
-void ast_read_u32(reader_t* reader, uint32_t* out)
+uint32_t ast_read_u32(reader_t* reader)
 {
-    if (ast_read_u32_unsafe(reader, out) < 0) {
+    uint32_t value = 0;
+    if (ast_read_u32_unsafe(reader, &value) < 0) {
         s_handler(s_message);
     }
+    return value;
 }
 
-void ast_read_i16(reader_t* reader, int16_t* out)
+int16_t ast_read_i16(reader_t* reader)
 {
-    if (ast_read_i16_unsafe(reader, out) < 0) {
+    int16_t value = 0;
+    if (ast_read_i16_unsafe(reader, &value) < 0) {
         s_handler(s_message);
     }
+    return value;
 }

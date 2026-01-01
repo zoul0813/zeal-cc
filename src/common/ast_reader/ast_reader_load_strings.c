@@ -14,7 +14,7 @@ int8_t ast_reader_load_strings(ast_reader_t* ast) {
     }
     for (uint16_t i = 0; i < ast->string_count; i++) {
         uint16_t len = 0;
-        ast_read_u16(ast->reader, &len);
+        len = ast_read_u16(ast->reader);
         char* buf = (char*)cc_malloc(len + 1);
         if (!buf) {
             ast_reader_destroy(ast);

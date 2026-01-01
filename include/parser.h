@@ -14,42 +14,20 @@ typedef uint8_t ast_arg_count_t;
 typedef enum {
     AST_PROGRAM,
     AST_FUNCTION,
-    AST_DECLARATION,
-    AST_STATEMENT,
-    AST_EXPRESSION,
-    
-    /* Statements */
+    AST_VAR_DECL,
     AST_COMPOUND_STMT,
     AST_IF_STMT,
     AST_WHILE_STMT,
     AST_FOR_STMT,
     AST_RETURN_STMT,
-    AST_EXPR_STMT,
-    AST_BREAK_STMT,
-    AST_CONTINUE_STMT,
-    
-    /* Expressions */
-    AST_BINARY_OP,
-    AST_UNARY_OP,
     AST_ASSIGN,
     AST_CALL,
-    AST_CAST,
-    AST_SIZEOF,
+    AST_BINARY_OP,
+    AST_UNARY_OP,
     AST_IDENTIFIER,
     AST_CONSTANT,
     AST_STRING_LITERAL,
-    AST_ARRAY_ACCESS,
-    AST_MEMBER_ACCESS,
-    AST_POINTER_ACCESS,
-    AST_TERNARY,
-    
-    /* Declarations */
-    AST_VAR_DECL,
-    AST_FUNC_DECL,
-    AST_PARAM_DECL,
-    AST_STRUCT_DECL,
-    AST_ENUM_DECL,
-    AST_TYPEDEF_DECL
+    AST_ARRAY_ACCESS
 } ast_node_type_t;
 
 /* Binary operators */
@@ -172,6 +150,5 @@ void parser_destroy(parser_t* parser);
 ast_node_t* parser_parse(parser_t* parser);
 ast_node_t* parser_parse_next(parser_t* parser);
 void ast_node_destroy(ast_node_t* node);
-const char* ast_node_type_to_string(ast_node_type_t type);
 
 #endif /* PARSER_H */

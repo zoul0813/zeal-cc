@@ -20,17 +20,6 @@ void cc_error(const char* msg) {
 #endif
 }
 
-void cc_warning(const char* msg) {
-    g_ctx.warning_count++;
-#ifdef __SDCC
-    put_s("WARNING: ");
-    put_s(msg);
-    put_c('\n');
-#else
-    fprintf(stderr, "WARNING: %s\n", msg);
-#endif
-}
-
 typedef struct cc_block_header {
     size_t size;
     bool free;
