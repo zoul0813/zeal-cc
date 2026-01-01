@@ -22,6 +22,7 @@ static const char SEM_ERR_IDENT_UNDEFINED[] = "Undefined identifier: ";
 static const char SEM_ERR_FUNC_UNDEFINED[] = "Undefined function: ";
 static const char SEM_ERR_SCOPE_OVERFLOW[] = "Too many scopes\n";
 static const char SEM_ERR_SYMBOL_OVERFLOW[] = "Too many symbols in scope\n";
+static const char SEM_ERR_EXPECT_LVALUE[] = "Expected lvalue\n";
 
 typedef struct {
     const char* labels[SEM_MAX_LABELS];
@@ -54,7 +55,7 @@ typedef struct {
 
 static semantic_state_t g_semantic_state;
 
-static const char* k_semantic_builtin_funcs[] = {
+static const char* builtin_funcs[] = {
     "putchar",
     "fflush_stdout",
     "open",
@@ -66,8 +67,8 @@ static const char* k_semantic_builtin_funcs[] = {
 
 static uint8_t semantic_is_builtin_function(const char* name) {
     if (!name || !*name) return 0;
-    for (uint8_t i = 0; k_semantic_builtin_funcs[i]; i++) {
-        if (str_cmp(k_semantic_builtin_funcs[i], name) == 0) {
+    for (uint8_t i = 0; builtin_funcs[i]; i++) {
+        if (str_cmp(builtin_funcs[i], name) == 0) {
             return 1;
         }
     }
@@ -183,9 +184,15 @@ static int8_t semantic_check_gotos(const semantic_ctx_t* ctx) {
     return 0;
 }
 
-static int8_t semantic_check_node(ast_reader_t* ast, uint8_t loop_depth, semantic_state_t* state) {
+static int8_t semantic_check_node_with_lvalue(
+    ast_reader_t* ast,
+    uint8_t loop_depth,
+    semantic_state_t* state,
+    uint8_t* out_lvalue
+) {
     uint8_t tag = 0;
     if (!ast || !ast->reader) return -1;
+    if (out_lvalue) *out_lvalue = 0;
 
     tag = ast_read_u8(ast->reader);
     switch (tag) {
@@ -211,9 +218,9 @@ static int8_t semantic_check_node(ast_reader_t* ast, uint8_t loop_depth, semanti
                 state->label_ctx = &local_ctx;
             }
             for (uint8_t i = 0; i < param_count; i++) {
-                if (semantic_check_node(ast, 0, state) < 0) return -1;
+                if (semantic_check_node_with_lvalue(ast, 0, state, NULL) < 0) return -1;
             }
-            if (semantic_check_node(ast, 0, state) < 0) return -1;
+            if (semantic_check_node_with_lvalue(ast, 0, state, NULL) < 0) return -1;
             if (state) {
                 semantic_scope_pop(state);
                 state->in_function = prev_in_function;
@@ -234,7 +241,7 @@ static int8_t semantic_check_node(ast_reader_t* ast, uint8_t loop_depth, semanti
             }
             has_init = ast_read_u8(ast->reader);
             if (has_init) {
-                return semantic_check_node(ast, loop_depth, state);
+                return semantic_check_node_with_lvalue(ast, loop_depth, state, NULL);
             }
             return 0;
         }
@@ -242,7 +249,7 @@ static int8_t semantic_check_node(ast_reader_t* ast, uint8_t loop_depth, semanti
             uint16_t stmt_count = ast_read_u16(ast->reader);
             if (state && semantic_scope_push(state) < 0) return -1;
             for (uint16_t i = 0; i < stmt_count; i++) {
-                if (semantic_check_node(ast, loop_depth, state) < 0) {
+                if (semantic_check_node_with_lvalue(ast, loop_depth, state, NULL) < 0) {
                     if (state) semantic_scope_pop(state);
                     return -1;
                 }
@@ -253,7 +260,7 @@ static int8_t semantic_check_node(ast_reader_t* ast, uint8_t loop_depth, semanti
         case AST_TAG_RETURN_STMT: {
             uint8_t has_expr = ast_read_u8(ast->reader);
             if (has_expr) {
-                return semantic_check_node(ast, loop_depth, state);
+                return semantic_check_node_with_lvalue(ast, loop_depth, state, NULL);
             }
             return 0;
         }
@@ -285,28 +292,34 @@ static int8_t semantic_check_node(ast_reader_t* ast, uint8_t loop_depth, semanti
             }
         case AST_TAG_IF_STMT: {
             uint8_t has_else = ast_read_u8(ast->reader);
-            if (semantic_check_node(ast, loop_depth, state) < 0) return -1;
-            if (semantic_check_node(ast, loop_depth, state) < 0) return -1;
+            if (semantic_check_node_with_lvalue(ast, loop_depth, state, NULL) < 0) return -1;
+            if (semantic_check_node_with_lvalue(ast, loop_depth, state, NULL) < 0) return -1;
             if (has_else) {
-                return semantic_check_node(ast, loop_depth, state);
+                return semantic_check_node_with_lvalue(ast, loop_depth, state, NULL);
             }
             return 0;
         }
         case AST_TAG_WHILE_STMT:
-            if (semantic_check_node(ast, loop_depth, state) < 0) return -1;
-            return semantic_check_node(ast, (uint8_t)(loop_depth + 1), state);
+            if (semantic_check_node_with_lvalue(ast, loop_depth, state, NULL) < 0) return -1;
+            return semantic_check_node_with_lvalue(ast, (uint8_t)(loop_depth + 1), state, NULL);
         case AST_TAG_FOR_STMT: {
             uint8_t has_init = ast_read_u8(ast->reader);
             uint8_t has_cond = ast_read_u8(ast->reader);
             uint8_t has_inc = ast_read_u8(ast->reader);
-            if (has_init && semantic_check_node(ast, loop_depth, state) < 0) return -1;
-            if (has_cond && semantic_check_node(ast, loop_depth, state) < 0) return -1;
-            if (has_inc && semantic_check_node(ast, loop_depth, state) < 0) return -1;
-            return semantic_check_node(ast, (uint8_t)(loop_depth + 1), state);
+            if (has_init && semantic_check_node_with_lvalue(ast, loop_depth, state, NULL) < 0) return -1;
+            if (has_cond && semantic_check_node_with_lvalue(ast, loop_depth, state, NULL) < 0) return -1;
+            if (has_inc && semantic_check_node_with_lvalue(ast, loop_depth, state, NULL) < 0) return -1;
+            return semantic_check_node_with_lvalue(ast, (uint8_t)(loop_depth + 1), state, NULL);
         }
-        case AST_TAG_ASSIGN:
-            if (semantic_check_node(ast, loop_depth, state) < 0) return -1;
-            return semantic_check_node(ast, loop_depth, state);
+        case AST_TAG_ASSIGN: {
+            uint8_t is_lvalue = 0;
+            if (semantic_check_node_with_lvalue(ast, loop_depth, state, &is_lvalue) < 0) return -1;
+            if (!is_lvalue) {
+                log_error(SEM_ERR_EXPECT_LVALUE);
+                return -1;
+            }
+            return semantic_check_node_with_lvalue(ast, loop_depth, state, NULL);
+        }
         case AST_TAG_CALL: {
             uint8_t arg_count = 0;
             uint16_t name_index = ast_read_u16(ast->reader);
@@ -329,17 +342,30 @@ static int8_t semantic_check_node(ast_reader_t* ast, uint8_t loop_depth, semanti
             }
             arg_count = ast_read_u8(ast->reader);
             for (uint8_t i = 0; i < arg_count; i++) {
-                if (semantic_check_node(ast, loop_depth, state) < 0) return -1;
+                if (semantic_check_node_with_lvalue(ast, loop_depth, state, NULL) < 0) return -1;
             }
             return 0;
         }
         case AST_TAG_BINARY_OP:
             ast_read_u8(ast->reader);
-            if (semantic_check_node(ast, loop_depth, state) < 0) return -1;
-            return semantic_check_node(ast, loop_depth, state);
-        case AST_TAG_UNARY_OP:
-            ast_read_u8(ast->reader);
-            return semantic_check_node(ast, loop_depth, state);
+            if (semantic_check_node_with_lvalue(ast, loop_depth, state, NULL) < 0) return -1;
+            return semantic_check_node_with_lvalue(ast, loop_depth, state, NULL);
+        case AST_TAG_UNARY_OP: {
+            uint8_t op = ast_read_u8(ast->reader);
+            uint8_t is_lvalue = 0;
+            if (semantic_check_node_with_lvalue(ast, loop_depth, state, &is_lvalue) < 0) return -1;
+            if (op == OP_PREINC || op == OP_PREDEC || op == OP_POSTINC || op == OP_POSTDEC) {
+                if (!is_lvalue) {
+                    log_error(SEM_ERR_EXPECT_LVALUE);
+                    return -1;
+                }
+                return 0;
+            }
+            if (out_lvalue && op == OP_DEREF) {
+                *out_lvalue = 1;
+            }
+            return 0;
+        }
         case AST_TAG_IDENTIFIER:
         {
             uint16_t name_index = ast_read_u16(ast->reader);
@@ -353,6 +379,7 @@ static int8_t semantic_check_node(ast_reader_t* ast, uint8_t loop_depth, semanti
                     return -1;
                 }
             }
+            if (out_lvalue) *out_lvalue = 1;
             return 0;
         }
         case AST_TAG_CONSTANT:
@@ -362,11 +389,17 @@ static int8_t semantic_check_node(ast_reader_t* ast, uint8_t loop_depth, semanti
             ast_read_u16(ast->reader);
             return 0;
         case AST_TAG_ARRAY_ACCESS:
-            if (semantic_check_node(ast, loop_depth, state) < 0) return -1;
-            return semantic_check_node(ast, loop_depth, state);
+            if (semantic_check_node_with_lvalue(ast, loop_depth, state, NULL) < 0) return -1;
+            if (semantic_check_node_with_lvalue(ast, loop_depth, state, NULL) < 0) return -1;
+            if (out_lvalue) *out_lvalue = 1;
+            return 0;
         default:
             return -1;
     }
+}
+
+static int8_t semantic_check_node(ast_reader_t* ast, uint8_t loop_depth, semantic_state_t* state) {
+    return semantic_check_node_with_lvalue(ast, loop_depth, state, NULL);
 }
 
 cc_error_t semantic_validate(ast_reader_t* ast) {
