@@ -1,5 +1,15 @@
 cd h:/
 
+echo TEST: tests/break.c
+cc_parse tests/break.c tests/break.ast
+: echo Failed to parse tests/break.c
+? cc_codegen tests/break.ast tests/break.asm
+: echo Failed to codegen tests/break.ast
+? zealasm tests/break.asm tests/break.bin
+? return tests/break.bin
+: echo Failed to assemble tests/break.asm
+: echo Failed to compile tests/break.c
+
 echo TEST: tests/array.c
 cc_parse tests/array.c tests/array.ast
 : echo Failed to parse tests/array.c
@@ -80,6 +90,16 @@ cc_parse tests/for.c tests/for.ast
 ? return tests/for.bin
 : echo Failed to assemble tests/for.asm
 : echo Failed to compile tests/for.c
+
+echo TEST: tests/goto.c
+cc_parse tests/goto.c tests/goto.ast
+: echo Failed to parse tests/goto.c
+? cc_codegen tests/goto.ast tests/goto.asm
+: echo Failed to codegen tests/goto.ast
+? zealasm tests/goto.asm tests/goto.bin
+? return tests/goto.bin
+: echo Failed to assemble tests/goto.asm
+: echo Failed to compile tests/goto.c
 
 echo TEST: tests/global.c
 cc_parse tests/global.c tests/global.ast

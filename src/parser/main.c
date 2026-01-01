@@ -169,6 +169,34 @@ static int8_t ast_write_return(ast_writer_t* writer, const ast_node_t* node) {
     return 0;
 }
 
+static int8_t ast_write_break(ast_writer_t* writer, const ast_node_t* node) {
+    (void)node;
+    ast_write_u8(writer->out, AST_TAG_BREAK_STMT);
+    return 0;
+}
+
+static int8_t ast_write_continue(ast_writer_t* writer, const ast_node_t* node) {
+    (void)node;
+    ast_write_u8(writer->out, AST_TAG_CONTINUE_STMT);
+    return 0;
+}
+
+static int8_t ast_write_goto(ast_writer_t* writer, const ast_node_t* node) {
+    int16_t name_index = ast_string_index(writer, node->data.goto_stmt.label);
+    if (name_index < 0) return -1;
+    ast_write_u8(writer->out, AST_TAG_GOTO_STMT);
+    ast_write_u16(writer->out, (uint16_t)name_index);
+    return 0;
+}
+
+static int8_t ast_write_label(ast_writer_t* writer, const ast_node_t* node) {
+    int16_t name_index = ast_string_index(writer, node->data.label_stmt.label);
+    if (name_index < 0) return -1;
+    ast_write_u8(writer->out, AST_TAG_LABEL_STMT);
+    ast_write_u16(writer->out, (uint16_t)name_index);
+    return 0;
+}
+
 static int8_t ast_write_if(ast_writer_t* writer, const ast_node_t* node) {
     ast_write_u8(writer->out, AST_TAG_IF_STMT);
     ast_write_u8(writer->out, node->data.if_stmt.else_branch ? 1 : 0);
@@ -271,6 +299,10 @@ static const ast_write_fn g_ast_write_handlers[AST_NODE_TYPE_COUNT] = {
     ast_write_while,        /* AST_WHILE_STMT */
     ast_write_for,          /* AST_FOR_STMT */
     ast_write_return,       /* AST_RETURN_STMT */
+    ast_write_break,        /* AST_BREAK_STMT */
+    ast_write_continue,     /* AST_CONTINUE_STMT */
+    ast_write_goto,         /* AST_GOTO_STMT */
+    ast_write_label,        /* AST_LABEL_STMT */
     ast_write_assign,       /* AST_ASSIGN */
     ast_write_call,         /* AST_CALL */
     ast_write_binary,       /* AST_BINARY_OP */
@@ -381,6 +413,34 @@ static int8_t ast_measure_return(ast_writer_t* writer, const ast_node_t* node, u
         size += child_size;
     }
     *out_size = size;
+    return 0;
+}
+
+static int8_t ast_measure_break(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
+    (void)writer;
+    (void)node;
+    *out_size = 1;
+    return 0;
+}
+
+static int8_t ast_measure_continue(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
+    (void)writer;
+    (void)node;
+    *out_size = 1;
+    return 0;
+}
+
+static int8_t ast_measure_goto(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
+    int16_t name_index = ast_string_index(writer, node->data.goto_stmt.label);
+    if (name_index < 0) return -1;
+    *out_size = 1 + 2;
+    return 0;
+}
+
+static int8_t ast_measure_label(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
+    int16_t name_index = ast_string_index(writer, node->data.label_stmt.label);
+    if (name_index < 0) return -1;
+    *out_size = 1 + 2;
     return 0;
 }
 
@@ -521,6 +581,10 @@ static const ast_measure_fn g_ast_measure_handlers[AST_NODE_TYPE_COUNT] = {
     ast_measure_while,        /* AST_WHILE_STMT */
     ast_measure_for,          /* AST_FOR_STMT */
     ast_measure_return,       /* AST_RETURN_STMT */
+    ast_measure_break,        /* AST_BREAK_STMT */
+    ast_measure_continue,     /* AST_CONTINUE_STMT */
+    ast_measure_goto,         /* AST_GOTO_STMT */
+    ast_measure_label,        /* AST_LABEL_STMT */
     ast_measure_assign,       /* AST_ASSIGN */
     ast_measure_call,         /* AST_CALL */
     ast_measure_binary,       /* AST_BINARY_OP */

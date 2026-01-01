@@ -47,6 +47,7 @@ typedef struct {
     
     uint16_t label_counter;
 
+    const char* current_function_name;
     int16_t stack_offset;
     codegen_local_t locals[64];
     codegen_local_count_t local_var_count;
@@ -63,6 +64,10 @@ typedef struct {
     const char* string_labels[64];
     char* string_literals[64];
     codegen_string_count_t string_count;
+
+    char* loop_break_labels[8];
+    char* loop_continue_labels[8];
+    uint8_t loop_depth;
 } codegen_t;
 
 /* Code generator functions */

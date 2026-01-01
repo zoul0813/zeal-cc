@@ -26,6 +26,7 @@ fi
 rm -f tests/*.asm tests/*.bin tests/*.ast
 
 TESTS=(
+  break
   assign
   array
   char
@@ -34,6 +35,7 @@ TESTS=(
   do_while
   expr
   for
+  goto
   global
   if
   bitwise

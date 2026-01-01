@@ -116,6 +116,13 @@ static void print_indent(uint16_t depth) {
     }
 }
 
+static void log_string(ast_reader_t* ast, uint16_t index) {
+    const char* value = ast_reader_string(ast, index);
+    if (value) {
+        log_msg(value);
+    }
+}
+
 static int8_t dump_node_stream(ast_reader_t* ast, uint16_t depth);
 
 static int8_t dump_constant(int16_t value) {
@@ -209,6 +216,24 @@ static int8_t dump_node_stream(ast_reader_t* ast, uint16_t depth) {
             log_msg("AST_RETURN_STMT\n");
             u8 = ast_read_u8(ast->reader);
             if (u8) return dump_node_stream(ast, depth + 1);
+            return 0;
+        case AST_TAG_BREAK_STMT:
+            log_msg("AST_BREAK_STMT\n");
+            return 0;
+        case AST_TAG_CONTINUE_STMT:
+            log_msg("AST_CONTINUE_STMT\n");
+            return 0;
+        case AST_TAG_GOTO_STMT:
+            log_msg("AST_GOTO_STMT (label=");
+            u16 = ast_read_u16(ast->reader);
+            log_string(ast, u16);
+            log_msg(")\n");
+            return 0;
+        case AST_TAG_LABEL_STMT:
+            log_msg("AST_LABEL_STMT (label=");
+            u16 = ast_read_u16(ast->reader);
+            log_string(ast, u16);
+            log_msg(")\n");
             return 0;
         case AST_TAG_IF_STMT:
             log_msg("AST_IF_STMT\n");

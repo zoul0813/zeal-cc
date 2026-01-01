@@ -861,6 +861,54 @@ static ast_node_t* parse_statement(parser_t* parser) {
         return node;
     }
 
+    if (parser_match(parser, TOK_BREAK)) {
+        ast_node_t* node = ast_node_create(AST_BREAK_STMT);
+        parser_consume_expected(parser, TOK_SEMICOLON, NULL);
+        return node;
+    }
+
+    if (parser_match(parser, TOK_CONTINUE)) {
+        ast_node_t* node = ast_node_create(AST_CONTINUE_STMT);
+        parser_consume_expected(parser, TOK_SEMICOLON, NULL);
+        return node;
+    }
+
+    if (parser_match(parser, TOK_GOTO)) {
+        token_t* name_tok = parser_current(parser);
+        char* name = name_tok->value;
+        name_tok->value = NULL;
+        if (!parser_consume(parser, TOK_IDENTIFIER, ERR_EXPECT_IDENT)) {
+            cc_free(name);
+            return NULL;
+        }
+        ast_node_t* node = ast_node_create(AST_GOTO_STMT);
+        if (!node) {
+            cc_free(name);
+            return NULL;
+        }
+        node->data.goto_stmt.label = name;
+        parser_consume_expected(parser, TOK_SEMICOLON, NULL);
+        return node;
+    }
+
+    if (parser_check(parser, TOK_IDENTIFIER) && parser_peek_type(parser) == TOK_COLON) {
+        token_t* name_tok = parser_current(parser);
+        char* name = name_tok->value;
+        name_tok->value = NULL;
+        parser_advance(parser);
+        if (!parser_consume_expected(parser, TOK_COLON, NULL)) {
+            cc_free(name);
+            return NULL;
+        }
+        ast_node_t* node = ast_node_create(AST_LABEL_STMT);
+        if (!node) {
+            cc_free(name);
+            return NULL;
+        }
+        node->data.label_stmt.label = name;
+        return node;
+    }
+
     if (parser_match(parser, TOK_LBRACE)) {
         ast_node_t* node = ast_node_create(AST_COMPOUND_STMT);
         if (!node) return NULL;
@@ -1193,6 +1241,26 @@ static void ast_destroy_return(ast_node_t* node) {
     }
 }
 
+static void ast_destroy_break(ast_node_t* node) {
+    (void)node;
+}
+
+static void ast_destroy_continue(ast_node_t* node) {
+    (void)node;
+}
+
+static void ast_destroy_goto(ast_node_t* node) {
+    if (node->data.goto_stmt.label) {
+        cc_free(node->data.goto_stmt.label);
+    }
+}
+
+static void ast_destroy_label(ast_node_t* node) {
+    if (node->data.label_stmt.label) {
+        cc_free(node->data.label_stmt.label);
+    }
+}
+
 static void ast_destroy_var_decl(ast_node_t* node) {
     if (node->data.var_decl.name) {
         cc_free(node->data.var_decl.name);
@@ -1236,6 +1304,10 @@ static const ast_destroy_fn g_ast_destroy_handlers[AST_NODE_TYPE_COUNT] = {
     ast_destroy_while,        /* AST_WHILE_STMT */
     ast_destroy_for,          /* AST_FOR_STMT */
     ast_destroy_return,       /* AST_RETURN_STMT */
+    ast_destroy_break,        /* AST_BREAK_STMT */
+    ast_destroy_continue,     /* AST_CONTINUE_STMT */
+    ast_destroy_goto,         /* AST_GOTO_STMT */
+    ast_destroy_label,        /* AST_LABEL_STMT */
     ast_destroy_assign,       /* AST_ASSIGN */
     ast_destroy_call,         /* AST_CALL */
     ast_destroy_binary,       /* AST_BINARY_OP */

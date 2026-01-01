@@ -23,6 +23,7 @@ TESTS_PASSED = 0
 TESTS_FAILED = 0
 
 EXPECTED_RESULTS = {
+    "break": "B1",
     "assign": "15",
     "array": "EF",
     "char": "41",
@@ -31,6 +32,7 @@ EXPECTED_RESULTS = {
     "do_while": None,
     "expr": "1C",
     "for": "0A",
+    "goto": "B2",
     "global": "0A",
     "if": "2A",
     "bitwise": "E4",

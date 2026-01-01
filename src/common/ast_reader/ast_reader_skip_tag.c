@@ -74,6 +74,24 @@ static int8_t ast_skip_return(ast_reader_t* ast) {
     return ast_skip_optional(ast, has_expr);
 }
 
+static int8_t ast_skip_break(ast_reader_t* ast) {
+    (void)ast;
+    return 0;
+}
+
+static int8_t ast_skip_continue(ast_reader_t* ast) {
+    (void)ast;
+    return 0;
+}
+
+static int8_t ast_skip_goto(ast_reader_t* ast) {
+    return ast_skip_u16(ast);
+}
+
+static int8_t ast_skip_label(ast_reader_t* ast) {
+    return ast_skip_u16(ast);
+}
+
 static int8_t ast_skip_if(ast_reader_t* ast) {
     uint8_t has_else = 0;
     has_else = ast_read_u8(ast->reader);
@@ -149,6 +167,10 @@ static const ast_skip_fn g_ast_skip_handlers[AST_TAG_COUNT] = {
     ast_skip_var_decl,   /* AST_TAG_VAR_DECL */
     ast_skip_compound,   /* AST_TAG_COMPOUND_STMT */
     ast_skip_return,     /* AST_TAG_RETURN_STMT */
+    ast_skip_break,      /* AST_TAG_BREAK_STMT */
+    ast_skip_continue,   /* AST_TAG_CONTINUE_STMT */
+    ast_skip_goto,       /* AST_TAG_GOTO_STMT */
+    ast_skip_label,      /* AST_TAG_LABEL_STMT */
     ast_skip_if,         /* AST_TAG_IF_STMT */
     ast_skip_while,      /* AST_TAG_WHILE_STMT */
     ast_skip_for,        /* AST_TAG_FOR_STMT */

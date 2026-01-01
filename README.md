@@ -20,6 +20,7 @@ This is an iterative development project. Currently implemented:
 - Recursive descent parser with operator precedence
 - Streaming file input on both host and ZOS (512-byte buffered reader; no full-file loads)
 - Control flow: if/else, while, and for
+- Control flow: break, continue, goto, labels
 - Comparison operators (==, !=, <, >, <=, >=)
 - Binary arithmetic operators (+, -, *, /, %)
 - Bitwise operators (&, |, ^, ~, <<, >>)
@@ -46,7 +47,7 @@ This is an iterative development project. Currently implemented:
 - Parser target build uses 0x1700 static pool; file buffer at 0xC300 (512 B)
 
 ### Planned Features ⏳
-- Switch statement, break/continue, do/while, ternary
+- Switch statement, do/while, ternary
 - Full pointer arithmetic and multidimensional arrays
 - Struct and union types
 - Type checking and semantic analysis

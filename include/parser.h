@@ -20,6 +20,10 @@ typedef enum {
     AST_WHILE_STMT,
     AST_FOR_STMT,
     AST_RETURN_STMT,
+    AST_BREAK_STMT,
+    AST_CONTINUE_STMT,
+    AST_GOTO_STMT,
+    AST_LABEL_STMT,
     AST_ASSIGN,
     AST_CALL,
     AST_BINARY_OP,
@@ -88,7 +92,15 @@ struct ast_node {
         struct {
             ast_node_t* expr;
         } return_stmt;
-        
+
+        struct {
+            char* label;
+        } goto_stmt;
+
+        struct {
+            char* label;
+        } label_stmt;
+
         struct {
             binary_op_t op;
             ast_node_t* left;

@@ -244,6 +244,55 @@ static void codegen_emit_jump(codegen_t* gen, const char* prefix, const char* la
     codegen_emit(gen, CG_STR_NL);
 }
 
+static void codegen_build_scoped_label(codegen_t* gen, const char* label, char* out, uint16_t out_len) {
+    uint16_t pos = 0;
+    if (!out || out_len == 0) return;
+    if (gen && gen->current_function_name && gen->current_function_name[0]) {
+        const char* p = gen->current_function_name;
+        while (*p && pos + 1 < out_len) {
+            out[pos++] = *p++;
+        }
+        if (pos + 1 < out_len) {
+            out[pos++] = '_';
+        }
+    }
+    if (label) {
+        const char* p = label;
+        while (*p && pos + 1 < out_len) {
+            out[pos++] = *p++;
+        }
+    }
+    out[pos] = '\0';
+}
+
+static void codegen_loop_push(codegen_t* gen, char* break_label, char* continue_label) {
+    if (!gen) return;
+    if (gen->loop_depth >= (uint8_t)(sizeof(gen->loop_break_labels) / sizeof(gen->loop_break_labels[0]))) {
+        cc_error("Loop nesting too deep");
+        return;
+    }
+    gen->loop_break_labels[gen->loop_depth] = break_label;
+    gen->loop_continue_labels[gen->loop_depth] = continue_label;
+    gen->loop_depth++;
+}
+
+static void codegen_loop_pop(codegen_t* gen) {
+    if (!gen || gen->loop_depth == 0) return;
+    gen->loop_depth--;
+    gen->loop_break_labels[gen->loop_depth] = NULL;
+    gen->loop_continue_labels[gen->loop_depth] = NULL;
+}
+
+static char* codegen_loop_break_label(codegen_t* gen) {
+    if (!gen || gen->loop_depth == 0) return NULL;
+    return gen->loop_break_labels[gen->loop_depth - 1];
+}
+
+static char* codegen_loop_continue_label(codegen_t* gen) {
+    if (!gen || gen->loop_depth == 0) return NULL;
+    return gen->loop_continue_labels[gen->loop_depth - 1];
+}
+
 static void codegen_emit_string_literal(codegen_t* gen, const char* value) {
     if (!gen || !value) return;
     codegen_emit(gen, CG_STR_DM);
@@ -1099,6 +1148,50 @@ static cc_error_t codegen_statement_return(codegen_t* gen, ast_reader_t* ast, ui
     return CC_OK;
 }
 
+static cc_error_t codegen_statement_break(codegen_t* gen, ast_reader_t* ast, uint8_t tag) {
+    (void)ast;
+    (void)tag;
+    char* label = codegen_loop_break_label(gen);
+    if (!label) {
+        cc_error("break used outside of loop");
+        return CC_ERROR_CODEGEN;
+    }
+    codegen_emit_jump(gen, CG_STR_JP, label);
+    return CC_OK;
+}
+
+static cc_error_t codegen_statement_continue(codegen_t* gen, ast_reader_t* ast, uint8_t tag) {
+    (void)ast;
+    (void)tag;
+    char* label = codegen_loop_continue_label(gen);
+    if (!label) {
+        cc_error("continue used outside of loop");
+        return CC_ERROR_CODEGEN;
+    }
+    codegen_emit_jump(gen, CG_STR_JP, label);
+    return CC_OK;
+}
+
+static cc_error_t codegen_statement_goto(codegen_t* gen, ast_reader_t* ast, uint8_t tag) {
+    (void)tag;
+    const char* name = NULL;
+    char scoped[64];
+    if (codegen_stream_read_name(ast, &name) < 0) return CC_ERROR_CODEGEN;
+    codegen_build_scoped_label(gen, name, scoped, (uint16_t)sizeof(scoped));
+    codegen_emit_jump(gen, CG_STR_JP, scoped);
+    return CC_OK;
+}
+
+static cc_error_t codegen_statement_label(codegen_t* gen, ast_reader_t* ast, uint8_t tag) {
+    (void)tag;
+    const char* name = NULL;
+    char scoped[64];
+    if (codegen_stream_read_name(ast, &name) < 0) return CC_ERROR_CODEGEN;
+    codegen_build_scoped_label(gen, name, scoped, (uint16_t)sizeof(scoped));
+    codegen_emit_label(gen, scoped);
+    return CC_OK;
+}
+
 static cc_error_t codegen_statement_var_decl(codegen_t* gen, ast_reader_t* ast, uint8_t tag) {
     (void)tag;
     uint16_t name_index = 0;
@@ -1248,7 +1341,9 @@ static cc_error_t codegen_statement_while(codegen_t* gen, ast_reader_t* ast, uin
         goto while_cleanup;
     }
     codegen_emit_jump(gen, CG_STR_OR_A_JP_Z, end_label);
+    codegen_loop_push(gen, end_label, loop_label);
     err = codegen_read_and_stream_statement(gen, ast);
+    codegen_loop_pop(gen);
     if (err != CC_OK) {
         goto while_cleanup;
     }
@@ -1272,6 +1367,7 @@ static cc_error_t codegen_statement_for(codegen_t* gen, ast_reader_t* ast, uint8
     has_inc = ast_read_u8(ast->reader);
     char* loop_label = codegen_new_label_persist(gen);
     char* end_label = codegen_new_label_persist(gen);
+    char* inc_label = has_inc ? codegen_new_label_persist(gen) : NULL;
     cc_error_t err;
     if (has_init) {
         err = codegen_read_and_stream_statement(gen, ast);
@@ -1294,7 +1390,9 @@ static cc_error_t codegen_statement_for(codegen_t* gen, ast_reader_t* ast, uint8
             goto for_cleanup;
         }
     }
+    codegen_loop_push(gen, end_label, inc_label ? inc_label : loop_label);
     err = codegen_read_and_stream_statement(gen, ast);
+    codegen_loop_pop(gen);
     if (err != CC_OK) {
         goto for_cleanup;
     }
@@ -1304,6 +1402,7 @@ static cc_error_t codegen_statement_for(codegen_t* gen, ast_reader_t* ast, uint8
             err = CC_ERROR_CODEGEN;
             goto for_cleanup;
         }
+        codegen_emit_label(gen, inc_label);
         err = codegen_read_and_stream_expression(gen, ast);
         if (err != CC_OK) {
             goto for_cleanup;
@@ -1319,6 +1418,7 @@ static cc_error_t codegen_statement_for(codegen_t* gen, ast_reader_t* ast, uint8
 for_cleanup:
     if (loop_label) cc_free(loop_label);
     if (end_label) cc_free(end_label);
+    if (inc_label) cc_free(inc_label);
     return err;
 }
 
@@ -1965,6 +2065,10 @@ static cc_error_t codegen_stream_statement_tag(codegen_t* gen, ast_reader_t* ast
         statement_handler_t handler;
     } handlers[] = {
         { AST_TAG_RETURN_STMT, codegen_statement_return },
+        { AST_TAG_BREAK_STMT, codegen_statement_break },
+        { AST_TAG_CONTINUE_STMT, codegen_statement_continue },
+        { AST_TAG_GOTO_STMT, codegen_statement_goto },
+        { AST_TAG_LABEL_STMT, codegen_statement_label },
         { AST_TAG_VAR_DECL, codegen_statement_var_decl },
         { AST_TAG_COMPOUND_STMT, codegen_statement_compound },
         { AST_TAG_IF_STMT, codegen_statement_if },
@@ -2078,6 +2182,7 @@ static cc_error_t codegen_stream_function(codegen_t* gen, ast_reader_t* ast) {
     name = ast_reader_string(ast, name_index);
     if (!name) return CC_ERROR_CODEGEN;
 
+    gen->current_function_name = name;
     gen->function_return_is_16 = codegen_stream_type_is_16bit(base, depth);
     codegen_register_function_return(gen, name_index, gen->function_return_is_16);
 
@@ -2085,6 +2190,7 @@ static cc_error_t codegen_stream_function(codegen_t* gen, ast_reader_t* ast) {
     gen->param_count = 0;
     gen->function_end_label = NULL;
     gen->stack_offset = 0;
+    gen->loop_depth = 0;
 
     for (uint8_t i = 0; i < param_count; i++) {
         uint8_t tag = 0;
@@ -2191,6 +2297,7 @@ static cc_error_t codegen_stream_function(codegen_t* gen, ast_reader_t* ast) {
         gen->function_end_label = NULL;
     }
     codegen_emit(gen, CG_STR_NL);
+    gen->current_function_name = NULL;
 
     return CC_OK;
 }

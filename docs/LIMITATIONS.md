@@ -19,7 +19,7 @@
 - Multi-dimensional arrays and array initializers (non-string).
 - Structs, unions, enums, typedefs.
 - Pointer arithmetic via `+`/`-` (array-style indexing only).
-- Ternary, switch, break/continue, do/while.
+- Ternary, switch, do/while.
 - Type checking and semantic analysis.
 - Optimizations.
 
