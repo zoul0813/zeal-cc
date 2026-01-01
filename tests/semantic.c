@@ -1,9 +1,7 @@
-int test_semantic_break_continue(void) {
-    break;
-    continue;
-    return 0;
+int test_semantic_symbols(void) {
+    return missing_var;
 }
 
 int main(void) {
-    return test_semantic_break_continue();
+    return test_semantic_symbols();
 }

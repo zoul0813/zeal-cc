@@ -555,6 +555,7 @@ def main(argv: list[str] | None = None) -> int:
     arch = host_arch()
     cc_parse = Path(f"bin/cc_parse_{arch}")
     cc_codegen = Path(f"bin/cc_codegen_{arch}")
+    cc_semantic = Path(f"bin/cc_semantic_{arch}")
     host_results = {}
     zeal_results = {}
     zeal_messages = {}
@@ -587,6 +588,7 @@ def main(argv: list[str] | None = None) -> int:
         print_result("ZOS binary exists (bin/cc)", 0 if Path("bin/cc").exists() else 1)
         print_result(f"Host cc_parse exists ({cc_parse})", 0 if cc_parse.exists() else 1)
         print_result(f"Host cc_codegen exists ({cc_codegen})", 0 if cc_codegen.exists() else 1)
+        print_result(f"Host cc_semantic exists ({cc_semantic})", 0 if cc_semantic.exists() else 1)
         print_result("ZOS debug symbols exist", 0 if Path("debug/cc.cdb").exists() else 1)
 
     print_header("Zeal-native Headless Smoke Test")
