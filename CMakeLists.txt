@@ -116,6 +116,7 @@ add_program(cc_semantic
     "src/common/ast_read.c"
     "src/common/ast_reader/ast_reader_init.c"
     "src/common/ast_reader/ast_reader_load_strings.c"
+    "src/common/ast_reader/ast_reader_string.c"
     "src/common/ast_reader/ast_reader_read_type_info.c"
     "src/common/ast_reader/ast_reader_begin_program.c"
     "src/common/ast_reader/ast_reader_skip_tag.c"

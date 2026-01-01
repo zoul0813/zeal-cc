@@ -37,7 +37,7 @@ CODEGEN_OBJS = $(CODEGEN_SRCS:.c=.o)
 CODEGEN_TARGET = bin/cc_codegen_$(ARCH)
 
 SEMANTIC_SRCS = src/semantic/main.c src/semantic/semantic.c src/common/common.c src/common/ast_read.c \
-                src/common/ast_reader/ast_reader_init.c src/common/ast_reader/ast_reader_load_strings.c src/common/ast_reader/ast_reader_read_type_info.c \
+                src/common/ast_reader/ast_reader_init.c src/common/ast_reader/ast_reader_load_strings.c src/common/ast_reader/ast_reader_string.c src/common/ast_reader/ast_reader_read_type_info.c \
                 src/common/ast_reader/ast_reader_begin_program.c src/common/ast_reader/ast_reader_skip_tag.c src/common/ast_reader/ast_reader_skip_node.c src/common/ast_reader/ast_reader_destroy.c \
                 src/target/modern/target_args.c src/target/modern/target_io.c
 SEMANTIC_OBJS = $(SEMANTIC_SRCS:.c=.o)

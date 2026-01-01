@@ -55,6 +55,7 @@ TESTS=(
   unary
   while
   zealos
+  semantic
 )
 
 
@@ -69,6 +70,16 @@ run_test() {
   if ! "$CC_PARSE" "$src" "$ast"; then
     echo "Failed to compile ${src}"
     FAILED=1
+    return
+  fi
+  if [[ "$name" == "semantic" ]]; then
+    if "$CC_SEMANTIC" "$ast"; then
+      echo "OK: ${src}"
+      echo "Unexpected pass: ${src}"
+      FAILED=1
+    else
+      echo "OK (expected failure): ${src}"
+    fi
     return
   fi
   if ! "$CC_SEMANTIC" "$ast"; then

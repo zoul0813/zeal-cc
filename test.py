@@ -43,6 +43,7 @@ EXPECTED_RESULTS = {
     "return16": "EF",
     "struct": None,
     "signs": "EE",
+    "semantic": None,
     "ternary": None,
     "unary": "AA",
     "while": "0A",
@@ -270,6 +271,7 @@ def parse_compile_failures(log: str):
     test_re = re.compile(r"TEST:\s+(\S+)")
     patterns = [
         ("parse", re.compile(r"Failed to parse\s+(\S+)")),
+        ("semantic", re.compile(r"Failed to validate\s+(\S+)")),
         ("codegen", re.compile(r"Failed to codegen\s+(\S+)")),
         ("assemble", re.compile(r"Failed to assemble\s+(\S+)")),
         ("compile", re.compile(r"Failed to compile\s+(\S+)")),
@@ -342,6 +344,23 @@ def parse_zeal_test_results(log: str):
                 messages[path] = f"expected ${expected}, got ${actual}"
             else:
                 messages[path] = f"returned ${actual}"
+
+    ok_re = re.compile(r"OK:\s+(\S+)")
+    for raw in log.splitlines():
+        line = raw.rstrip("\r").lstrip()
+        ok_match = ok_re.search(line)
+        if not ok_match:
+            continue
+        path = normalize_test_case(ok_match.group(1))
+        if path in results:
+            continue
+        stem = Path(path).stem
+        expected = EXPECTED_RESULTS.get(stem)
+        if stem in EXPECTED_RESULTS and expected is None:
+            results[path] = "unexpected_pass"
+            messages[path] = "unexpected pass"
+        else:
+            results[path] = "ok"
     return results, messages
 
 
@@ -351,6 +370,7 @@ def parse_host_test_results(log: str, all_tests: list[str] | None = None):
     test_re = re.compile(r"TEST:\s+(\S+)")
     fail_re = re.compile(r"Failed to compile\s+(\S+)")
     ok_re = re.compile(r"OK:\s+(\S+)")
+    expected_re = re.compile(r"OK \(expected failure\):\s+(\S+)")
     for raw in log.splitlines():
         line = raw.rstrip("\r").lstrip()
         test_match = test_re.search(line)
@@ -362,6 +382,11 @@ def parse_host_test_results(log: str, all_tests: list[str] | None = None):
         if ok_match:
             path = normalize_test_path(ok_match.group(1))
             results[path] = "ok"
+            continue
+        expected_match = expected_re.search(line)
+        if expected_match:
+            path = normalize_test_path(expected_match.group(1))
+            results[path] = "expected_fail"
             continue
         fail_match = fail_re.search(line)
         if fail_match:
