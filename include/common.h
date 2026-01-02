@@ -46,6 +46,8 @@ typedef enum {
 #define CC_TRUST_SEMANTIC 1
 #endif
 
+#define DIM(a) (sizeof(a) / sizeof(a[0]))
+
 /* Forward declarations */
 typedef struct token token_t;
 typedef struct ast_node ast_node_t;
