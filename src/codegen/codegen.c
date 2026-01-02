@@ -670,12 +670,16 @@ static cc_error_t codegen_load_array_base_to_hl(codegen_t* gen,
             return codegen_emit_address_of_identifier(gen, base_name);
         }
         if (!codegen_name_is_pointer(gen, base_name)) {
+#if !CC_TRUST_SEMANTIC
             cc_error(CG_MSG_UNSUPPORTED_ARRAY_ACCESS);
+#endif
             return CC_ERROR_CODEGEN;
         }
         return codegen_load_pointer_to_hl(gen, base_name);
     }
+#if !CC_TRUST_SEMANTIC
     cc_error(CG_MSG_UNSUPPORTED_ARRAY_ACCESS);
+#endif
     return CC_ERROR_CODEGEN;
 }
 
@@ -694,7 +698,9 @@ static cc_error_t codegen_emit_array_address(codegen_t* gen, ast_reader_t* ast,
         if (codegen_stream_read_name(ast, &base_name) < 0) return CC_ERROR_CODEGEN;
     } else {
         if (ast_reader_skip_tag(ast, base_tag) < 0) return CC_ERROR_CODEGEN;
+#if !CC_TRUST_SEMANTIC
         cc_error(CG_MSG_UNSUPPORTED_ARRAY_ACCESS);
+#endif
         return CC_ERROR_CODEGEN;
     }
     index_tag = ast_read_u8(ast->reader);
@@ -709,11 +715,15 @@ static cc_error_t codegen_emit_array_address(codegen_t* gen, ast_reader_t* ast,
             elem_size = codegen_pointer_elem_size_by_name(gen, base_name);
             elem_signed = codegen_pointer_elem_signed_by_name(gen, base_name);
         } else {
+#if !CC_TRUST_SEMANTIC
             cc_error(CG_MSG_UNSUPPORTED_ARRAY_ACCESS);
+#endif
             return CC_ERROR_CODEGEN;
         }
         if (elem_size == 0) {
+#if !CC_TRUST_SEMANTIC
             cc_error("Unsupported array element size");
+#endif
             return CC_ERROR_CODEGEN;
         }
     }
@@ -1232,7 +1242,9 @@ static cc_error_t codegen_statement_var_decl(codegen_t* gen, ast_reader_t* ast, 
     if (array_len > 0) {
         if (has_init) {
             if (ast_reader_skip_node(ast) < 0) return CC_ERROR_CODEGEN;
+#if !CC_TRUST_SEMANTIC
             cc_error(CG_MSG_ARRAY_INIT_NOT_SUPPORTED);
+#endif
             return CC_ERROR_CODEGEN;
         }
         return CC_OK;
@@ -2369,7 +2381,9 @@ static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast) {
         uint16_t total_size = (uint16_t)(elem_size * array_len);
         codegen_emit(gen, CG_STR_COLON);
         if (elem_size == 0) {
+#if !CC_TRUST_SEMANTIC
             cc_error("Unsupported array element type");
+#endif
             return CC_ERROR_CODEGEN;
         }
         if (has_init) {
@@ -2394,7 +2408,9 @@ static cc_error_t codegen_stream_global_var(codegen_t* gen, ast_reader_t* ast) {
                 return CC_OK;
             }
             if (ast_reader_skip_tag(ast, tag) < 0) return CC_ERROR_CODEGEN;
+#if !CC_TRUST_SEMANTIC
             cc_error(CG_MSG_ARRAY_INIT_NOT_SUPPORTED);
+#endif
             return CC_ERROR_CODEGEN;
         }
         codegen_emit(gen, CG_STR_DS);
