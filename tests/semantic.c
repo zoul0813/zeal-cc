@@ -1,9 +1,7 @@
 int test_semantic_types(void) {
-    char c = 1;
-    int x = c;
-    int* p = 0;
-    p = 1;
-    return x;
+    int a[2];
+    int* p = a;
+    return a[2];
 }
 
 int main(void) {

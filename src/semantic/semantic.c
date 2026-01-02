@@ -34,6 +34,7 @@ static const char SEM_ERR_INVALID_CONDITION[] = "Condition must be scalar\n";
 static const char SEM_ERR_INVALID_ARRAY_BASE[] =
     "Array access base must be identifier or string literal\n";
 static const char SEM_ERR_INVALID_ARRAY_INDEX[] = "Array index must be integer\n";
+static const char SEM_ERR_ARRAY_INDEX_OOB[] = "Array index out of bounds\n";
 static const char SEM_ERR_INVALID_ADDR[] = "Address-of requires identifier\n";
 static const char SEM_ERR_INVALID_DEREF[] = "Dereference requires pointer identifier\n";
 static const char SEM_ERR_INVALID_INCDEC[] = "Increment/decrement requires identifier\n";
@@ -881,19 +882,35 @@ static int8_t semantic_check_tag_with_lvalue(
             uint8_t base_tag = ast_read_u8(ast->reader);
             semantic_type_t base_type;
             semantic_type_t index_type;
+            uint8_t index_tag = 0;
+            int16_t index_value = 0;
+            uint8_t index_is_const = 0;
             if (base_tag != AST_TAG_IDENTIFIER && base_tag != AST_TAG_STRING_LITERAL) {
                 log_error(SEM_ERR_INVALID_ARRAY_BASE);
+                return -1;
             }
             if (semantic_check_tag_with_lvalue(ast, base_tag, loop_depth, state,
                                                &base_type, NULL, NULL) < 0) return -1;
-            if (semantic_check_node_with_lvalue(ast, loop_depth, state,
-                                                &index_type, NULL, NULL) < 0) return -1;
+            index_tag = ast_read_u8(ast->reader);
+            if (index_tag == AST_TAG_CONSTANT) {
+                index_value = ast_read_i16(ast->reader);
+                index_is_const = 1;
+                index_type = semantic_type_make(AST_BASE_INT, 0, 0);
+            } else {
+                if (semantic_check_tag_with_lvalue(ast, index_tag, loop_depth, state,
+                                                   &index_type, NULL, NULL) < 0) return -1;
+            }
             index_type = semantic_type_decay_array(index_type);
             if (!semantic_type_is_numeric(&index_type)) {
                 log_error(SEM_ERR_INVALID_ARRAY_INDEX);
                 return -1;
             }
             if (semantic_type_is_array(&base_type)) {
+                if (index_is_const && (index_value < 0 ||
+                                       (uint16_t)index_value >= base_type.array_len)) {
+                    log_error(SEM_ERR_ARRAY_INDEX_OOB);
+                    return -1;
+                }
                 base_type.array_len = 0;
                 if (semantic_type_is_void_scalar(&base_type)) {
                     log_error(SEM_ERR_VOID_VALUE);
