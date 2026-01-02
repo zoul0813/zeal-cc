@@ -15,10 +15,10 @@
 - Function return rules: void functions can’t return values; non-void functions must return a value
 - Array init constraint: array initializers must be string literals
 - Type checking and implicit conversions.
+- Array/pointer decay rules and index validity.
 
 ## Planned Responsibilities
 
-- Array/pointer decay rules and index validity.
 - Emit semantic diagnostics with line context where available.
 - Optional type annotations in the AST for codegen.
 
