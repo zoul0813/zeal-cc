@@ -5,17 +5,11 @@
 #include "semantic.h"
 #include "target.h"
 
-#ifndef CC_POOL_SIZE
-#define CC_POOL_SIZE 1024 /* 1 KB pool to avoid file_buffer overlap */
-#endif
-
 static const char SEM_MSG_USAGE[] = "Usage: cc_semantic <input.ast>\n";
 static const char SEM_MSG_FAILED_READ_AST_HEADER[] = "Failed to read AST header\n";
 static const char SEM_MSG_FAILED_READ_AST_STRING_TABLE[] = "Failed to read AST string table\n";
 static const char SEM_MSG_FAILED_SEMANTIC[] = "Semantic validation failed\n";
 static const char SEM_MSG_FAILED_OPEN_INPUT[] = "Failed to open input file\n";
-
-char g_memory_pool[CC_POOL_SIZE];
 
 reader_t* reader;
 ast_reader_t* ast;
@@ -39,7 +33,7 @@ int main(int argc, char** argv) {
 
     ast = &ast_ctx;
     mem_set(ast, 0, sizeof(ast_ctx));
-    cc_init_pool(g_memory_pool, sizeof(g_memory_pool));
+    cc_init_pool_default();
 
     args = parse_args(argc, argv, ARG_MODE_IN_ONLY);
     if (args.error) {

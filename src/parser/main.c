@@ -8,9 +8,6 @@
 #include "cc_compat.h"
 
 #define MAX_AST_STRINGS 512
-#ifndef CC_POOL_SIZE
-#define CC_POOL_SIZE 6144 /* 6K to stay below file_buffer at 0xC300 */
-#endif
 
 typedef struct {
     output_t out;
@@ -25,7 +22,6 @@ typedef struct {
     const char* strings[MAX_AST_STRINGS];
 } ast_writer_t;
 
-char g_memory_pool[CC_POOL_SIZE];
 ast_writer_t* writer;
 parser_t* parser;
 lexer_t* lexer;
@@ -643,7 +639,8 @@ int main(int argc, char** argv) {
     uint32_t program_bytes = 0;
     uint32_t nodes_bytes = 0;
 
-    cc_init_pool(g_memory_pool, sizeof(g_memory_pool));
+    cc_init_pool_default();
+
     writer = (ast_writer_t*)cc_malloc(sizeof(*writer));
     if (!writer) return 1;
     mem_set(writer, 0, sizeof(*writer));
