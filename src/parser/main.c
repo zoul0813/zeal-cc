@@ -26,12 +26,12 @@ typedef struct {
 } ast_writer_t;
 
 char g_memory_pool[CC_POOL_SIZE];
-static ast_writer_t* writer;
-static parser_t* parser;
-static lexer_t* lexer;
-static reader_t* reader;
+ast_writer_t* writer;
+parser_t* parser;
+lexer_t* lexer;
+reader_t* reader;
 
-static int16_t ast_string_index(ast_writer_t* writer, const char* value) {
+static int16_t ast_string_index(const char* value) {
     if (!writer || !value) return -1;
     for (uint16_t i = 0; i < writer->string_count; i++) {
         if (str_cmp(writer->strings[i], value) == 0) {
@@ -52,7 +52,7 @@ static int16_t ast_string_index(ast_writer_t* writer, const char* value) {
     return (int16_t)(writer->string_count++);
 }
 
-static void ast_free_strings(ast_writer_t* writer) {
+static void ast_free_strings(void) {
     if (!writer) return;
     for (uint16_t i = 0; i < writer->string_count; i++) {
         cc_free((void*)writer->strings[i]);
@@ -61,7 +61,7 @@ static void ast_free_strings(ast_writer_t* writer) {
     writer->string_count = 0;
 }
 
-static int8_t ast_write_type(ast_writer_t* writer, const type_t* type) {
+static int8_t ast_write_type(const type_t* type) {
     const type_t* cur = type;
     uint16_t array_len = 0;
     if (cur && cur->kind == TYPE_ARRAY) {
@@ -117,177 +117,177 @@ static int8_t ast_write_type(ast_writer_t* writer, const type_t* type) {
 
 #define AST_NODE_TYPE_COUNT ((uint8_t)AST_ARRAY_ACCESS + 1)
 
-typedef int8_t (*ast_write_fn)(ast_writer_t* writer, const ast_node_t* node);
+typedef int8_t (*ast_write_fn)(const ast_node_t* node);
 
-static int8_t ast_write_node(ast_writer_t* writer, const ast_node_t* node);
+static int8_t ast_write_node(const ast_node_t* node);
 
-static int8_t ast_write_function(ast_writer_t* writer, const ast_node_t* node) {
-    int16_t name_index = ast_string_index(writer, node->data.function.name);
+static int8_t ast_write_function(const ast_node_t* node) {
+    int16_t name_index = ast_string_index(node->data.function.name);
     if (name_index < 0) return -1;
     ast_write_u8(writer->out, AST_TAG_FUNCTION);
     ast_write_u16(writer->out, (uint16_t)name_index);
-    ast_write_type(writer, node->data.function.return_type);
+    ast_write_type(node->data.function.return_type);
     ast_write_u8(writer->out, (uint8_t)node->data.function.param_count);
     for (ast_param_count_t i = 0; i < node->data.function.param_count; i++) {
-        ast_write_node(writer, node->data.function.params[i]);
+        ast_write_node(node->data.function.params[i]);
     }
-    ast_write_node(writer, node->data.function.body);
+    ast_write_node(node->data.function.body);
     return 0;
 }
 
-static int8_t ast_write_var_decl(ast_writer_t* writer, const ast_node_t* node) {
-    int16_t name_index = ast_string_index(writer, node->data.var_decl.name);
+static int8_t ast_write_var_decl(const ast_node_t* node) {
+    int16_t name_index = ast_string_index(node->data.var_decl.name);
     if (name_index < 0) return -1;
     ast_write_u8(writer->out, AST_TAG_VAR_DECL);
     ast_write_u16(writer->out, (uint16_t)name_index);
-    if (ast_write_type(writer, node->data.var_decl.var_type) < 0) return -1;
+    if (ast_write_type(node->data.var_decl.var_type) < 0) return -1;
     if (node->data.var_decl.initializer) {
         ast_write_u8(writer->out, 1);
-        return ast_write_node(writer, node->data.var_decl.initializer);
+        return ast_write_node(node->data.var_decl.initializer);
     }
     ast_write_u8(writer->out, 0);
     return 0;
 }
 
-static int8_t ast_write_compound(ast_writer_t* writer, const ast_node_t* node) {
+static int8_t ast_write_compound(const ast_node_t* node) {
     ast_write_u8(writer->out, AST_TAG_COMPOUND_STMT);
     ast_write_u16(writer->out, (uint16_t)node->data.compound.stmt_count);
     for (ast_stmt_count_t i = 0; i < node->data.compound.stmt_count; i++) {
-        ast_write_node(writer, node->data.compound.statements[i]);
+        ast_write_node(node->data.compound.statements[i]);
     }
     return 0;
 }
 
-static int8_t ast_write_return(ast_writer_t* writer, const ast_node_t* node) {
+static int8_t ast_write_return(const ast_node_t* node) {
     ast_write_u8(writer->out, AST_TAG_RETURN_STMT);
     if (node->data.return_stmt.expr) {
         ast_write_u8(writer->out, 1);
-        ast_write_node(writer, node->data.return_stmt.expr);
+        ast_write_node(node->data.return_stmt.expr);
         return 0;
     }
     ast_write_u8(writer->out, 0);
     return 0;
 }
 
-static int8_t ast_write_break(ast_writer_t* writer, const ast_node_t* node) {
+static int8_t ast_write_break(const ast_node_t* node) {
     (void)node;
     ast_write_u8(writer->out, AST_TAG_BREAK_STMT);
     return 0;
 }
 
-static int8_t ast_write_continue(ast_writer_t* writer, const ast_node_t* node) {
+static int8_t ast_write_continue(const ast_node_t* node) {
     (void)node;
     ast_write_u8(writer->out, AST_TAG_CONTINUE_STMT);
     return 0;
 }
 
-static int8_t ast_write_goto(ast_writer_t* writer, const ast_node_t* node) {
-    int16_t name_index = ast_string_index(writer, node->data.goto_stmt.label);
+static int8_t ast_write_goto(const ast_node_t* node) {
+    int16_t name_index = ast_string_index(node->data.goto_stmt.label);
     if (name_index < 0) return -1;
     ast_write_u8(writer->out, AST_TAG_GOTO_STMT);
     ast_write_u16(writer->out, (uint16_t)name_index);
     return 0;
 }
 
-static int8_t ast_write_label(ast_writer_t* writer, const ast_node_t* node) {
-    int16_t name_index = ast_string_index(writer, node->data.label_stmt.label);
+static int8_t ast_write_label(const ast_node_t* node) {
+    int16_t name_index = ast_string_index(node->data.label_stmt.label);
     if (name_index < 0) return -1;
     ast_write_u8(writer->out, AST_TAG_LABEL_STMT);
     ast_write_u16(writer->out, (uint16_t)name_index);
     return 0;
 }
 
-static int8_t ast_write_if(ast_writer_t* writer, const ast_node_t* node) {
+static int8_t ast_write_if(const ast_node_t* node) {
     ast_write_u8(writer->out, AST_TAG_IF_STMT);
     ast_write_u8(writer->out, node->data.if_stmt.else_branch ? 1 : 0);
-    ast_write_node(writer, node->data.if_stmt.condition);
-    ast_write_node(writer, node->data.if_stmt.then_branch);
+    ast_write_node(node->data.if_stmt.condition);
+    ast_write_node(node->data.if_stmt.then_branch);
     if (node->data.if_stmt.else_branch) {
-        ast_write_node(writer, node->data.if_stmt.else_branch);
+        ast_write_node(node->data.if_stmt.else_branch);
     }
     return 0;
 }
 
-static int8_t ast_write_while(ast_writer_t* writer, const ast_node_t* node) {
+static int8_t ast_write_while(const ast_node_t* node) {
     ast_write_u8(writer->out, AST_TAG_WHILE_STMT);
-    if (ast_write_node(writer, node->data.while_stmt.condition) < 0) return -1;
-    return ast_write_node(writer, node->data.while_stmt.body);
+    if (ast_write_node(node->data.while_stmt.condition) < 0) return -1;
+    return ast_write_node(node->data.while_stmt.body);
 }
 
-static int8_t ast_write_for(ast_writer_t* writer, const ast_node_t* node) {
+static int8_t ast_write_for(const ast_node_t* node) {
     ast_write_u8(writer->out, AST_TAG_FOR_STMT);
     ast_write_u8(writer->out, node->data.for_stmt.init ? 1 : 0);
     ast_write_u8(writer->out, node->data.for_stmt.condition ? 1 : 0);
     ast_write_u8(writer->out, node->data.for_stmt.increment ? 1 : 0);
     if (node->data.for_stmt.init) {
-        if (ast_write_node(writer, node->data.for_stmt.init) < 0) return -1;
+        if (ast_write_node(node->data.for_stmt.init) < 0) return -1;
     }
     if (node->data.for_stmt.condition) {
-        if (ast_write_node(writer, node->data.for_stmt.condition) < 0) return -1;
+        if (ast_write_node(node->data.for_stmt.condition) < 0) return -1;
     }
     if (node->data.for_stmt.increment) {
-        if (ast_write_node(writer, node->data.for_stmt.increment) < 0) return -1;
+        if (ast_write_node(node->data.for_stmt.increment) < 0) return -1;
     }
-    return ast_write_node(writer, node->data.for_stmt.body);
+    return ast_write_node(node->data.for_stmt.body);
 }
 
-static int8_t ast_write_assign(ast_writer_t* writer, const ast_node_t* node) {
+static int8_t ast_write_assign(const ast_node_t* node) {
     ast_write_u8(writer->out, AST_TAG_ASSIGN);
-    if (ast_write_node(writer, node->data.assign.lvalue) < 0) return -1;
-    return ast_write_node(writer, node->data.assign.rvalue);
+    if (ast_write_node(node->data.assign.lvalue) < 0) return -1;
+    return ast_write_node(node->data.assign.rvalue);
 }
 
-static int8_t ast_write_call(ast_writer_t* writer, const ast_node_t* node) {
-    int16_t name_index = ast_string_index(writer, node->data.call.name);
+static int8_t ast_write_call(const ast_node_t* node) {
+    int16_t name_index = ast_string_index(node->data.call.name);
     if (name_index < 0) return -1;
     ast_write_u8(writer->out, AST_TAG_CALL);
     ast_write_u16(writer->out, (uint16_t)name_index);
     ast_write_u8(writer->out, (uint8_t)node->data.call.arg_count);
     for (ast_arg_count_t i = 0; i < node->data.call.arg_count; i++) {
-        if (ast_write_node(writer, node->data.call.args[i]) < 0) return -1;
+        if (ast_write_node(node->data.call.args[i]) < 0) return -1;
     }
     return 0;
 }
 
-static int8_t ast_write_binary(ast_writer_t* writer, const ast_node_t* node) {
+static int8_t ast_write_binary(const ast_node_t* node) {
     ast_write_u8(writer->out, AST_TAG_BINARY_OP);
     ast_write_u8(writer->out, (uint8_t)node->data.binary_op.op);
-    if (ast_write_node(writer, node->data.binary_op.left) < 0) return -1;
-    return ast_write_node(writer, node->data.binary_op.right);
+    if (ast_write_node(node->data.binary_op.left) < 0) return -1;
+    return ast_write_node(node->data.binary_op.right);
 }
 
-static int8_t ast_write_unary(ast_writer_t* writer, const ast_node_t* node) {
+static int8_t ast_write_unary(const ast_node_t* node) {
     ast_write_u8(writer->out, AST_TAG_UNARY_OP);
     ast_write_u8(writer->out, (uint8_t)node->data.unary_op.op);
-    return ast_write_node(writer, node->data.unary_op.operand);
+    return ast_write_node(node->data.unary_op.operand);
 }
 
-static int8_t ast_write_identifier(ast_writer_t* writer, const ast_node_t* node) {
-    int16_t name_index = ast_string_index(writer, node->data.identifier.name);
+static int8_t ast_write_identifier(const ast_node_t* node) {
+    int16_t name_index = ast_string_index(node->data.identifier.name);
     if (name_index < 0) return -1;
     ast_write_u8(writer->out, AST_TAG_IDENTIFIER);
     ast_write_u16(writer->out, (uint16_t)name_index);
     return 0;
 }
 
-static int8_t ast_write_constant(ast_writer_t* writer, const ast_node_t* node) {
+static int8_t ast_write_constant(const ast_node_t* node) {
     ast_write_u8(writer->out, AST_TAG_CONSTANT);
     ast_write_i16(writer->out, node->data.constant.int_value);
     return 0;
 }
 
-static int8_t ast_write_string(ast_writer_t* writer, const ast_node_t* node) {
-    int16_t value_index = ast_string_index(writer, node->data.string_literal.value);
+static int8_t ast_write_string(const ast_node_t* node) {
+    int16_t value_index = ast_string_index(node->data.string_literal.value);
     if (value_index < 0) return -1;
     ast_write_u8(writer->out, AST_TAG_STRING_LITERAL);
     ast_write_u16(writer->out, (uint16_t)value_index);
     return 0;
 }
 
-static int8_t ast_write_array_access(ast_writer_t* writer, const ast_node_t* node) {
+static int8_t ast_write_array_access(const ast_node_t* node) {
     ast_write_u8(writer->out, AST_TAG_ARRAY_ACCESS);
-    if (ast_write_node(writer, node->data.array_access.base) < 0) return -1;
-    return ast_write_node(writer, node->data.array_access.index);
+    if (ast_write_node(node->data.array_access.base) < 0) return -1;
+    return ast_write_node(node->data.array_access.index);
 }
 
 static const ast_write_fn g_ast_write_handlers[AST_NODE_TYPE_COUNT] = {
@@ -313,7 +313,7 @@ static const ast_write_fn g_ast_write_handlers[AST_NODE_TYPE_COUNT] = {
     ast_write_array_access, /* AST_ARRAY_ACCESS */
 };
 
-static int8_t ast_write_node(ast_writer_t* writer, const ast_node_t* node) {
+static int8_t ast_write_node(const ast_node_t* node) {
     if (!writer || !node) return -1;
     writer->node_count++;
     if (node->type >= AST_NODE_TYPE_COUNT) {
@@ -325,11 +325,10 @@ static int8_t ast_write_node(ast_writer_t* writer, const ast_node_t* node) {
         cc_error("Unsupported AST node in writer");
         return -1;
     }
-    return fn(writer, node);
+    return fn(node);
 }
 
 static int8_t ast_write_header_full(
-    ast_writer_t* writer,
     uint16_t node_count,
     uint16_t string_count,
     uint32_t string_table_offset
@@ -344,7 +343,7 @@ static int8_t ast_write_header_full(
     return 0;
 }
 
-static int8_t ast_write_string_table(ast_writer_t* writer, uint32_t* out_offset) {
+static int8_t ast_write_string_table(uint32_t* out_offset) {
     if (!writer || !out_offset) return -1;
     *out_offset = output_tell(writer->out);
     for (uint16_t i = 0; i < writer->string_count; i++) {
@@ -359,207 +358,207 @@ static int8_t ast_write_string_table(ast_writer_t* writer, uint32_t* out_offset)
     return 0;
 }
 
-typedef int8_t (*ast_measure_fn)(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size);
+typedef int8_t (*ast_measure_fn)(const ast_node_t* node, uint32_t* out_size);
 
-static int8_t ast_measure_node(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size);
+static int8_t ast_measure_node(const ast_node_t* node, uint32_t* out_size);
 
-static int8_t ast_measure_function(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
-    int16_t name_index = ast_string_index(writer, node->data.function.name);
+static int8_t ast_measure_function(const ast_node_t* node, uint32_t* out_size) {
+    int16_t name_index = ast_string_index(node->data.function.name);
     if (name_index < 0) return -1;
     uint32_t size = 1 + 2 + 4 + 1;
     for (ast_param_count_t i = 0; i < node->data.function.param_count; i++) {
         uint32_t child_size = 0;
-        if (ast_measure_node(writer, node->data.function.params[i], &child_size) < 0) return -1;
+        if (ast_measure_node(node->data.function.params[i], &child_size) < 0) return -1;
         size += child_size;
     }
     {
         uint32_t child_size = 0;
-        if (ast_measure_node(writer, node->data.function.body, &child_size) < 0) return -1;
+        if (ast_measure_node(node->data.function.body, &child_size) < 0) return -1;
         size += child_size;
     }
     *out_size = size;
     return 0;
 }
 
-static int8_t ast_measure_var_decl(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
-    int16_t name_index = ast_string_index(writer, node->data.var_decl.name);
+static int8_t ast_measure_var_decl(const ast_node_t* node, uint32_t* out_size) {
+    int16_t name_index = ast_string_index(node->data.var_decl.name);
     if (name_index < 0) return -1;
     uint32_t size = 1 + 2 + 4 + 1;
     if (node->data.var_decl.initializer) {
         uint32_t child_size = 0;
-        if (ast_measure_node(writer, node->data.var_decl.initializer, &child_size) < 0) return -1;
+        if (ast_measure_node(node->data.var_decl.initializer, &child_size) < 0) return -1;
         size += child_size;
     }
     *out_size = size;
     return 0;
 }
 
-static int8_t ast_measure_compound(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
+static int8_t ast_measure_compound(const ast_node_t* node, uint32_t* out_size) {
     uint32_t size = 1 + 2;
     for (ast_stmt_count_t i = 0; i < node->data.compound.stmt_count; i++) {
         uint32_t child_size = 0;
-        if (ast_measure_node(writer, node->data.compound.statements[i], &child_size) < 0) return -1;
+        if (ast_measure_node(node->data.compound.statements[i], &child_size) < 0) return -1;
         size += child_size;
     }
     *out_size = size;
     return 0;
 }
 
-static int8_t ast_measure_return(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
+static int8_t ast_measure_return(const ast_node_t* node, uint32_t* out_size) {
     uint32_t size = 1 + 1;
     if (node->data.return_stmt.expr) {
         uint32_t child_size = 0;
-        if (ast_measure_node(writer, node->data.return_stmt.expr, &child_size) < 0) return -1;
+        if (ast_measure_node(node->data.return_stmt.expr, &child_size) < 0) return -1;
         size += child_size;
     }
     *out_size = size;
     return 0;
 }
 
-static int8_t ast_measure_tag_only(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
+static int8_t ast_measure_tag_only(const ast_node_t* node, uint32_t* out_size) {
     (void)writer;
     (void)node;
     *out_size = 1;
     return 0;
 }
 
-static int8_t ast_measure_goto(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
-    int16_t name_index = ast_string_index(writer, node->data.goto_stmt.label);
+static int8_t ast_measure_goto(const ast_node_t* node, uint32_t* out_size) {
+    int16_t name_index = ast_string_index(node->data.goto_stmt.label);
     if (name_index < 0) return -1;
     *out_size = 1 + 2;
     return 0;
 }
 
-static int8_t ast_measure_label(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
-    int16_t name_index = ast_string_index(writer, node->data.label_stmt.label);
+static int8_t ast_measure_label(const ast_node_t* node, uint32_t* out_size) {
+    int16_t name_index = ast_string_index(node->data.label_stmt.label);
     if (name_index < 0) return -1;
     *out_size = 1 + 2;
     return 0;
 }
 
-static int8_t ast_measure_if(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
+static int8_t ast_measure_if(const ast_node_t* node, uint32_t* out_size) {
     uint32_t size = 1 + 1;
     uint32_t child_size = 0;
-    if (ast_measure_node(writer, node->data.if_stmt.condition, &child_size) < 0) return -1;
+    if (ast_measure_node(node->data.if_stmt.condition, &child_size) < 0) return -1;
     size += child_size;
-    if (ast_measure_node(writer, node->data.if_stmt.then_branch, &child_size) < 0) return -1;
+    if (ast_measure_node(node->data.if_stmt.then_branch, &child_size) < 0) return -1;
     size += child_size;
     if (node->data.if_stmt.else_branch) {
-        if (ast_measure_node(writer, node->data.if_stmt.else_branch, &child_size) < 0) return -1;
+        if (ast_measure_node(node->data.if_stmt.else_branch, &child_size) < 0) return -1;
         size += child_size;
     }
     *out_size = size;
     return 0;
 }
 
-static int8_t ast_measure_while(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
+static int8_t ast_measure_while(const ast_node_t* node, uint32_t* out_size) {
     uint32_t size = 1;
     uint32_t child_size = 0;
-    if (ast_measure_node(writer, node->data.while_stmt.condition, &child_size) < 0) return -1;
+    if (ast_measure_node(node->data.while_stmt.condition, &child_size) < 0) return -1;
     size += child_size;
-    if (ast_measure_node(writer, node->data.while_stmt.body, &child_size) < 0) return -1;
+    if (ast_measure_node(node->data.while_stmt.body, &child_size) < 0) return -1;
     size += child_size;
     *out_size = size;
     return 0;
 }
 
-static int8_t ast_measure_for(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
+static int8_t ast_measure_for(const ast_node_t* node, uint32_t* out_size) {
     uint32_t size = 1 + 3;
     if (node->data.for_stmt.init) {
         uint32_t child_size = 0;
-        if (ast_measure_node(writer, node->data.for_stmt.init, &child_size) < 0) return -1;
+        if (ast_measure_node(node->data.for_stmt.init, &child_size) < 0) return -1;
         size += child_size;
     }
     if (node->data.for_stmt.condition) {
         uint32_t child_size = 0;
-        if (ast_measure_node(writer, node->data.for_stmt.condition, &child_size) < 0) return -1;
+        if (ast_measure_node(node->data.for_stmt.condition, &child_size) < 0) return -1;
         size += child_size;
     }
     if (node->data.for_stmt.increment) {
         uint32_t child_size = 0;
-        if (ast_measure_node(writer, node->data.for_stmt.increment, &child_size) < 0) return -1;
+        if (ast_measure_node(node->data.for_stmt.increment, &child_size) < 0) return -1;
         size += child_size;
     }
     {
         uint32_t child_size = 0;
-        if (ast_measure_node(writer, node->data.for_stmt.body, &child_size) < 0) return -1;
+        if (ast_measure_node(node->data.for_stmt.body, &child_size) < 0) return -1;
         size += child_size;
     }
     *out_size = size;
     return 0;
 }
 
-static int8_t ast_measure_assign(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
+static int8_t ast_measure_assign(const ast_node_t* node, uint32_t* out_size) {
     uint32_t size = 1;
     uint32_t child_size = 0;
-    if (ast_measure_node(writer, node->data.assign.lvalue, &child_size) < 0) return -1;
+    if (ast_measure_node(node->data.assign.lvalue, &child_size) < 0) return -1;
     size += child_size;
-    if (ast_measure_node(writer, node->data.assign.rvalue, &child_size) < 0) return -1;
+    if (ast_measure_node(node->data.assign.rvalue, &child_size) < 0) return -1;
     size += child_size;
     *out_size = size;
     return 0;
 }
 
-static int8_t ast_measure_call(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
-    int16_t name_index = ast_string_index(writer, node->data.call.name);
+static int8_t ast_measure_call(const ast_node_t* node, uint32_t* out_size) {
+    int16_t name_index = ast_string_index(node->data.call.name);
     if (name_index < 0) return -1;
     uint32_t size = 1 + 2 + 1;
     for (ast_arg_count_t i = 0; i < node->data.call.arg_count; i++) {
         uint32_t child_size = 0;
-        if (ast_measure_node(writer, node->data.call.args[i], &child_size) < 0) return -1;
+        if (ast_measure_node(node->data.call.args[i], &child_size) < 0) return -1;
         size += child_size;
     }
     *out_size = size;
     return 0;
 }
 
-static int8_t ast_measure_binary(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
+static int8_t ast_measure_binary(const ast_node_t* node, uint32_t* out_size) {
     uint32_t size = 1 + 1;
     uint32_t child_size = 0;
-    if (ast_measure_node(writer, node->data.binary_op.left, &child_size) < 0) return -1;
+    if (ast_measure_node(node->data.binary_op.left, &child_size) < 0) return -1;
     size += child_size;
-    if (ast_measure_node(writer, node->data.binary_op.right, &child_size) < 0) return -1;
+    if (ast_measure_node(node->data.binary_op.right, &child_size) < 0) return -1;
     size += child_size;
     *out_size = size;
     return 0;
 }
 
-static int8_t ast_measure_unary(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
+static int8_t ast_measure_unary(const ast_node_t* node, uint32_t* out_size) {
     uint32_t size = 1 + 1;
     uint32_t child_size = 0;
-    if (ast_measure_node(writer, node->data.unary_op.operand, &child_size) < 0) return -1;
+    if (ast_measure_node(node->data.unary_op.operand, &child_size) < 0) return -1;
     size += child_size;
     *out_size = size;
     return 0;
 }
 
-static int8_t ast_measure_identifier(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
-    int16_t name_index = ast_string_index(writer, node->data.identifier.name);
+static int8_t ast_measure_identifier(const ast_node_t* node, uint32_t* out_size) {
+    int16_t name_index = ast_string_index(node->data.identifier.name);
     if (name_index < 0) return -1;
     *out_size = 1 + 2;
     return 0;
 }
 
-static int8_t ast_measure_constant(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
+static int8_t ast_measure_constant(const ast_node_t* node, uint32_t* out_size) {
     (void)writer;
     (void)node;
     *out_size = 1 + 2;
     return 0;
 }
 
-static int8_t ast_measure_string(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
-    int16_t value_index = ast_string_index(writer, node->data.string_literal.value);
+static int8_t ast_measure_string(const ast_node_t* node, uint32_t* out_size) {
+    int16_t value_index = ast_string_index(node->data.string_literal.value);
     if (value_index < 0) return -1;
     *out_size = 1 + 2;
     return 0;
 }
 
-static int8_t ast_measure_array_access(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
+static int8_t ast_measure_array_access(const ast_node_t* node, uint32_t* out_size) {
     uint32_t size = 1;
     uint32_t child_size = 0;
-    if (ast_measure_node(writer, node->data.array_access.base, &child_size) < 0) return -1;
+    if (ast_measure_node(node->data.array_access.base, &child_size) < 0) return -1;
     size += child_size;
-    if (ast_measure_node(writer, node->data.array_access.index, &child_size) < 0) return -1;
+    if (ast_measure_node(node->data.array_access.index, &child_size) < 0) return -1;
     size += child_size;
     *out_size = size;
     return 0;
@@ -588,7 +587,7 @@ static const ast_measure_fn g_ast_measure_handlers[AST_NODE_TYPE_COUNT] = {
     ast_measure_array_access, /* AST_ARRAY_ACCESS */
 };
 
-static int8_t ast_measure_node(ast_writer_t* writer, const ast_node_t* node, uint32_t* out_size) {
+static int8_t ast_measure_node(const ast_node_t* node, uint32_t* out_size) {
     if (!writer || !node || !out_size) return -1;
     writer->node_count++;
     if (node->type >= AST_NODE_TYPE_COUNT) {
@@ -600,10 +599,10 @@ static int8_t ast_measure_node(ast_writer_t* writer, const ast_node_t* node, uin
         cc_error("Unsupported AST node in size pass");
         return -1;
     }
-    return fn(writer, node, out_size);
+    return fn(node, out_size);
 }
 
-static void ast_writer_reset_counts(ast_writer_t* writer) {
+static void ast_writer_reset_counts(void) {
     if (!writer) return;
     writer->node_count = 0;
     writer->decl_count = 0;
@@ -614,7 +613,7 @@ void cleanup(void) {
         if (writer->out) {
             output_close(writer->out);
         }
-        ast_free_strings(writer);
+        ast_free_strings();
     }
     if (parser) {
         parser_destroy(parser);
@@ -659,14 +658,14 @@ int main(int argc, char** argv) {
     reader = reader_open(args.input_file);
     if (!reader) return 1;
 
-    lexer = lexer_create(args.input_file, reader);
+    lexer = lexer_create(args.input_file);
     if (!lexer) goto cleanup;
 
-    parser = parser_create(lexer);
+    parser = parser_create();
     if (!parser) goto cleanup;
 
     while (1) {
-        ast = parser_parse_next(parser);
+        ast = parser_parse_next();
         if (!ast) break;
         if (ast->type != AST_FUNCTION && ast->type != AST_VAR_DECL) {
             ast_node_destroy(ast);
@@ -675,7 +674,7 @@ int main(int argc, char** argv) {
         }
         {
             uint32_t node_size = 0;
-            if (ast_measure_node(writer, ast, &node_size) < 0) {
+            if (ast_measure_node(ast, &node_size) < 0) {
                 ast_node_destroy(ast);
                 ast = NULL;
                 log_error("Failed to size AST node\n");
@@ -709,10 +708,10 @@ int main(int argc, char** argv) {
     reader = reader_open(args.input_file);
     if (!reader) goto cleanup;
 
-    lexer = lexer_create(args.input_file, reader);
+    lexer = lexer_create(args.input_file);
     if (!lexer) goto cleanup;
 
-    parser = parser_create(lexer);
+    parser = parser_create();
     if (!parser) goto cleanup;
 
     writer->out = output_open(args.output_file);
@@ -723,9 +722,9 @@ int main(int argc, char** argv) {
 #endif
 
     writer->strings_frozen = true;
-    ast_writer_reset_counts(writer);
+    ast_writer_reset_counts();
 
-    if (ast_write_header_full(writer, total_nodes, total_strings, string_table_offset) < 0) {
+    if (ast_write_header_full(total_nodes, total_strings, string_table_offset) < 0) {
         log_error("Failed to write AST header\n");
         goto cleanup;
     }
@@ -738,14 +737,14 @@ int main(int argc, char** argv) {
 
     ast_write_handler(handle_error, "Failed to write AST node\n");
     while (1) {
-        ast = parser_parse_next(parser);
+        ast = parser_parse_next();
         if (!ast) break;
         if (ast->type != AST_FUNCTION && ast->type != AST_VAR_DECL) {
             ast_node_destroy(ast);
             ast = NULL;
             continue;
         }
-        ast_write_node(writer, ast);
+        ast_write_node(ast);
         ast_node_destroy(ast);
         ast = NULL;
     }
@@ -755,7 +754,7 @@ int main(int argc, char** argv) {
         goto cleanup;
     }
 
-    if (ast_write_string_table(writer, &string_table_offset) < 0) {
+    if (ast_write_string_table(&string_table_offset) < 0) {
         log_error("Failed to write AST string table\n");
         goto cleanup;
     }

@@ -12,7 +12,7 @@ static int8_t ast_read_header(
     uint16_t* string_count,
     uint32_t* string_table_offset
 ) {
-    if (!reader || !out_version || !node_count || !string_count || !string_table_offset) return -1;
+    if (!out_version || !node_count || !string_count || !string_table_offset) return -1;
     char magic[4];
     for (uint8_t i = 0; i < 4; i++) {
         int16_t ch = reader_next(reader);
@@ -23,21 +23,19 @@ static int8_t ast_read_header(
     uint8_t version = 0;
     uint8_t reserved = 0;
     uint16_t flags = 0;
-    version = ast_read_u8(reader);
-    reserved = ast_read_u8(reader);
-    flags = ast_read_u16(reader);
+    version = ast_read_u8();
+    reserved = ast_read_u8();
+    flags = ast_read_u16();
     *out_version = version;
     (void)reserved;
     (void)flags;
-    *node_count = ast_read_u16(reader);
-    *string_count = ast_read_u16(reader);
-    *string_table_offset = ast_read_u32(reader);
+    *node_count = ast_read_u16();
+    *string_count = ast_read_u16();
+    *string_table_offset = ast_read_u32();
     return 0;
 }
 
-int8_t ast_reader_init(ast_reader_t* ast, reader_t* reader) {
-    if (!ast || !reader) return -1;
-    ast->reader = reader;
+int8_t ast_reader_init(void) {
     ast->node_count = 0;
     ast->string_count = 0;
     ast->string_table_offset = 0;

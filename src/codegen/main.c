@@ -12,13 +12,15 @@
 
 char g_memory_pool[CC_POOL_SIZE];
 
-static reader_t* reader;
-static ast_reader_t ast;
-static codegen_t* codegen;
+reader_t* reader;
+ast_reader_t* ast;
+ast_reader_t ast_ctx;
+codegen_t codegen;
+codegen_t* codegen_ctx;
 
 void cleanup(void) {
-    codegen_destroy(codegen);
-    ast_reader_destroy(&ast);
+    codegen_destroy(codegen_ctx);
+    ast_reader_destroy();
     reader_close(reader);
 }
 
@@ -33,7 +35,8 @@ int main(int argc, char** argv) {
     args_t args;
     cc_error_t result;
 
-    mem_set(&ast, 0, sizeof(ast));
+    ast = &ast_ctx;
+    mem_set(ast, 0, sizeof(ast_ctx));
     cc_init_pool(g_memory_pool, sizeof(g_memory_pool));
 
 
@@ -47,21 +50,21 @@ int main(int argc, char** argv) {
     if (!reader) return 1;
 
     ast_read_handler(handle_error, "Failed to read AST\n");
-    if (ast_reader_init(&ast, reader) < 0) {
+    if (ast_reader_init() < 0) {
         log_error(CG_MSG_FAILED_READ_AST_HEADER);
         goto cleanup;
     }
-    if (ast_reader_load_strings(&ast) < 0) {
+    if (ast_reader_load_strings() < 0) {
         log_error(CG_MSG_FAILED_READ_AST_STRING_TABLE);
         goto cleanup;
     }
-    codegen = codegen_create(args.output_file);
-    if (!codegen) {
+    codegen_ctx = codegen_create(args.output_file);
+    if (!codegen_ctx) {
         log_error(CG_MSG_FAILED_OPEN_OUTPUT);
         goto cleanup;
     }
 
-    result = codegen_generate_stream(codegen, &ast);
+    result = codegen_generate_stream();
     if (result != CC_OK) {
         log_error(CG_MSG_CODEGEN_FAILED);
         goto cleanup;

@@ -150,17 +150,18 @@ struct ast_node {
 
 /* Parser structure */
 typedef struct {
-    lexer_t* lexer;
     token_t* current;
     token_t* next;
     uint16_t error_count;
 } parser_t;
 
+extern parser_t* parser;
+
 /* Parser functions */
-parser_t* parser_create(lexer_t* lexer);
+parser_t* parser_create(void);
 void parser_destroy(parser_t* parser);
-ast_node_t* parser_parse(parser_t* parser);
-ast_node_t* parser_parse_next(parser_t* parser);
+ast_node_t* parser_parse(void);
+ast_node_t* parser_parse_next(void);
 void ast_node_destroy(ast_node_t* node);
 
 #endif /* PARSER_H */

@@ -115,17 +115,19 @@ struct token {
 /* Lexer structure */
 typedef struct {
     const char* filename;
-    reader_t* reader;
     int16_t current_char;
     bool eof;
     uint16_t line;
     uint16_t column;
 } lexer_t;
 
+extern lexer_t* lexer;
+extern reader_t* reader;
+
 /* Lexer functions */
-lexer_t* lexer_create(const char* filename, reader_t* reader);
+lexer_t* lexer_create(const char* filename);
 void lexer_destroy(lexer_t* lexer);
-token_t* lexer_next_token(lexer_t* lexer);
+token_t* lexer_next_token(void);
 void token_destroy(token_t* token);
 
 #endif /* LEXER_H */

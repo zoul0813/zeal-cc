@@ -17,11 +17,12 @@ static const char SEM_MSG_FAILED_OPEN_INPUT[] = "Failed to open input file\n";
 
 char g_memory_pool[CC_POOL_SIZE];
 
-static reader_t* reader;
-static ast_reader_t ast;
+reader_t* reader;
+ast_reader_t* ast;
+ast_reader_t ast_ctx;
 
 static void cleanup(void) {
-    ast_reader_destroy(&ast);
+    ast_reader_destroy();
     reader_close(reader);
 }
 
@@ -36,7 +37,8 @@ int main(int argc, char** argv) {
     args_t args;
     cc_error_t result;
 
-    mem_set(&ast, 0, sizeof(ast));
+    ast = &ast_ctx;
+    mem_set(ast, 0, sizeof(ast_ctx));
     cc_init_pool(g_memory_pool, sizeof(g_memory_pool));
 
     args = parse_args(argc, argv, ARG_MODE_IN_ONLY);
@@ -52,16 +54,16 @@ int main(int argc, char** argv) {
     }
 
     ast_read_handler(handle_error, "Failed to read AST\n");
-    if (ast_reader_init(&ast, reader) < 0) {
+    if (ast_reader_init() < 0) {
         log_error(SEM_MSG_FAILED_READ_AST_HEADER);
         goto cleanup;
     }
-    if (ast_reader_load_strings(&ast) < 0) {
+    if (ast_reader_load_strings() < 0) {
         log_error(SEM_MSG_FAILED_READ_AST_STRING_TABLE);
         goto cleanup;
     }
 
-    result = semantic_validate(&ast);
+    result = semantic_validate();
     if (result != CC_OK) {
         log_error(SEM_MSG_FAILED_SEMANTIC);
         goto cleanup;

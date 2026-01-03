@@ -1,119 +1,119 @@
 #include "ast_reader.h"
-
+#include "cc_compat.h"
 #include "ast_format.h"
 #include "ast_io.h"
 
-typedef int8_t (*ast_skip_fn)(ast_reader_t* ast);
+typedef int8_t (*ast_skip_fn)(void);
 
-static int8_t ast_skip_u8(ast_reader_t* ast) {
-    (void)ast_read_u8(ast->reader);
+static int8_t ast_skip_u8(void) {
+    (void)ast_read_u8();
     return 0;
 }
 
-static int8_t ast_skip_u16(ast_reader_t* ast) {
-    (void)ast_read_u16(ast->reader);
+static int8_t ast_skip_u16(void) {
+    (void)ast_read_u16();
     return 0;
 }
 
-static int8_t ast_skip_i16(ast_reader_t* ast) {
-    (void)ast_read_i16(ast->reader);
+static int8_t ast_skip_i16(void) {
+    (void)ast_read_i16();
     return 0;
 }
 
-static int8_t ast_skip_type_info(ast_reader_t* ast) {
+static int8_t ast_skip_type_info(void) {
     uint8_t base = 0;
     uint8_t depth = 0;
     uint16_t array_len = 0;
-    return ast_reader_read_type_info(ast, &base, &depth, &array_len);
+    return ast_reader_read_type_info(&base, &depth, &array_len);
 }
 
-static int8_t ast_skip_nodes(ast_reader_t* ast, uint16_t count) {
+static int8_t ast_skip_nodes(uint16_t count) {
     for (uint16_t i = 0; i < count; i++) {
-        if (ast_reader_skip_node(ast) < 0) return -1;
+        if (ast_reader_skip_node() < 0) return -1;
     }
     return 0;
 }
 
-static int8_t ast_skip_optional(ast_reader_t* ast, uint8_t has_node) {
+static int8_t ast_skip_optional(uint8_t has_node) {
     if (!has_node) return 0;
-    return ast_reader_skip_node(ast);
+    return ast_reader_skip_node();
 }
 
-static int8_t ast_skip_two_nodes(ast_reader_t* ast) {
-    if (ast_reader_skip_node(ast) < 0) return -1;
-    return ast_reader_skip_node(ast);
+static int8_t ast_skip_two_nodes(void) {
+    if (ast_reader_skip_node() < 0) return -1;
+    return ast_reader_skip_node();
 }
 
-static int8_t ast_skip_program(ast_reader_t* ast) {
+static int8_t ast_skip_program(void) {
     uint16_t decl_count = 0;
-    decl_count = ast_read_u16(ast->reader);
-    return ast_skip_nodes(ast, decl_count);
+    decl_count = ast_read_u16();
+    return ast_skip_nodes(decl_count);
 }
 
-static int8_t ast_skip_function(ast_reader_t* ast) {
+static int8_t ast_skip_function(void) {
     uint8_t param_count = 0;
-    if (ast_skip_u16(ast) < 0) return -1;
-    if (ast_skip_type_info(ast) < 0) return -1;
-    param_count = ast_read_u8(ast->reader);
-    if (ast_skip_nodes(ast, param_count) < 0) return -1;
-    return ast_reader_skip_node(ast);
+    if (ast_skip_u16() < 0) return -1;
+    if (ast_skip_type_info() < 0) return -1;
+    param_count = ast_read_u8();
+    if (ast_skip_nodes(param_count) < 0) return -1;
+    return ast_reader_skip_node();
 }
 
-static int8_t ast_skip_var_decl(ast_reader_t* ast) {
+static int8_t ast_skip_var_decl(void) {
     uint8_t has_init = 0;
-    if (ast_skip_u16(ast) < 0) return -1;
-    if (ast_skip_type_info(ast) < 0) return -1;
-    has_init = ast_read_u8(ast->reader);
-    return ast_skip_optional(ast, has_init);
+    if (ast_skip_u16() < 0) return -1;
+    if (ast_skip_type_info() < 0) return -1;
+    has_init = ast_read_u8();
+    return ast_skip_optional(has_init);
 }
 
-static int8_t ast_skip_compound(ast_reader_t* ast) {
+static int8_t ast_skip_compound(void) {
     uint16_t stmt_count = 0;
-    stmt_count = ast_read_u16(ast->reader);
-    return ast_skip_nodes(ast, stmt_count);
+    stmt_count = ast_read_u16();
+    return ast_skip_nodes(stmt_count);
 }
 
-static int8_t ast_skip_return(ast_reader_t* ast) {
+static int8_t ast_skip_return(void) {
     uint8_t has_expr = 0;
-    has_expr = ast_read_u8(ast->reader);
-    return ast_skip_optional(ast, has_expr);
+    has_expr = ast_read_u8();
+    return ast_skip_optional(has_expr);
 }
 
-static int8_t ast_skip_if(ast_reader_t* ast) {
+static int8_t ast_skip_if(void) {
     uint8_t has_else = 0;
-    has_else = ast_read_u8(ast->reader);
-    if (ast_skip_two_nodes(ast) < 0) return -1;
-    return ast_skip_optional(ast, has_else);
+    has_else = ast_read_u8();
+    if (ast_skip_two_nodes() < 0) return -1;
+    return ast_skip_optional(has_else);
 }
 
-static int8_t ast_skip_for(ast_reader_t* ast) {
+static int8_t ast_skip_for(void) {
     uint8_t has_init = 0;
     uint8_t has_cond = 0;
     uint8_t has_inc = 0;
-    has_init = ast_read_u8(ast->reader);
-    has_cond = ast_read_u8(ast->reader);
-    has_inc = ast_read_u8(ast->reader);
-    if (ast_skip_optional(ast, has_init) < 0) return -1;
-    if (ast_skip_optional(ast, has_cond) < 0) return -1;
-    if (ast_skip_optional(ast, has_inc) < 0) return -1;
-    return ast_reader_skip_node(ast);
+    has_init = ast_read_u8();
+    has_cond = ast_read_u8();
+    has_inc = ast_read_u8();
+    if (ast_skip_optional(has_init) < 0) return -1;
+    if (ast_skip_optional(has_cond) < 0) return -1;
+    if (ast_skip_optional(has_inc) < 0) return -1;
+    return ast_reader_skip_node();
 }
 
-static int8_t ast_skip_call(ast_reader_t* ast) {
+static int8_t ast_skip_call(void) {
     uint8_t arg_count = 0;
-    if (ast_skip_u16(ast) < 0) return -1;
-    arg_count = ast_read_u8(ast->reader);
-    return ast_skip_nodes(ast, arg_count);
+    if (ast_skip_u16() < 0) return -1;
+    arg_count = ast_read_u8();
+    return ast_skip_nodes(arg_count);
 }
 
-static int8_t ast_skip_binary(ast_reader_t* ast) {
-    if (ast_skip_u8(ast) < 0) return -1;
-    return ast_skip_two_nodes(ast);
+static int8_t ast_skip_binary(void) {
+    if (ast_skip_u8() < 0) return -1;
+    return ast_skip_two_nodes();
 }
 
-static int8_t ast_skip_unary(ast_reader_t* ast) {
-    if (ast_skip_u8(ast) < 0) return -1;
-    return ast_reader_skip_node(ast);
+static int8_t ast_skip_unary(void) {
+    if (ast_skip_u8() < 0) return -1;
+    return ast_reader_skip_node();
 }
 
 #define AST_TAG_COUNT (AST_TAG_ARRAY_ACCESS + 1)
@@ -142,10 +142,10 @@ static const ast_skip_fn g_ast_skip_handlers[AST_TAG_COUNT] = {
     ast_skip_two_nodes   /* AST_TAG_ARRAY_ACCESS */
 };
 
-int8_t ast_reader_skip_tag(ast_reader_t* ast, uint8_t tag) {
-    if (!ast || !ast->reader) return -1;
+int8_t ast_reader_skip_tag(uint8_t tag) {
+    if (!ast) return -1;
     if (tag >= AST_TAG_COUNT) return -1;
     ast_skip_fn fn = g_ast_skip_handlers[tag];
     if (!fn) return 0;
-    return fn(ast);
+    return fn();
 }

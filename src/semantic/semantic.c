@@ -211,7 +211,6 @@ static uint8_t semantic_type_can_convert(const semantic_type_t* dst,
 }
 
 static int8_t semantic_check_node_with_lvalue(
-    ast_reader_t* ast,
     uint8_t loop_depth,
     semantic_state_t* state,
     semantic_type_t* out_type,
@@ -220,7 +219,6 @@ static int8_t semantic_check_node_with_lvalue(
 );
 
 static int8_t semantic_check_tag_with_lvalue(
-    ast_reader_t* ast,
     uint8_t tag,
     uint8_t loop_depth,
     semantic_state_t* state,
@@ -391,7 +389,6 @@ static int8_t semantic_check_gotos(const semantic_ctx_t* ctx) {
 }
 
 static int8_t semantic_check_tag_with_lvalue(
-    ast_reader_t* ast,
     uint8_t tag,
     uint8_t loop_depth,
     semantic_state_t* state,
@@ -399,7 +396,7 @@ static int8_t semantic_check_tag_with_lvalue(
     uint8_t* out_lvalue,
     uint8_t* out_const_zero
 ) {
-    if (!ast || !ast->reader) return -1;
+    if (!ast || !reader) return -1;
     if (out_lvalue) *out_lvalue = 0;
     if (out_const_zero) *out_const_zero = 0;
     if (out_type) semantic_type_clear(out_type);
@@ -411,8 +408,8 @@ static int8_t semantic_check_tag_with_lvalue(
             uint8_t depth = 0;
             uint16_t array_len = 0;
             semantic_ctx_t local_ctx;
-            uint16_t name_index = ast_read_u16(ast->reader);
-            const char* name = ast_reader_string(ast, name_index);
+            uint16_t name_index = ast_read_u16();
+            const char* name = ast_reader_string(name_index);
             uint8_t prev_in_function = state ? state->in_function : 0;
             semantic_type_t prev_return_type;
             uint8_t prev_return_is_void = state ? state->return_is_void : 0;
@@ -423,8 +420,8 @@ static int8_t semantic_check_tag_with_lvalue(
             } else {
                 semantic_type_clear(&prev_return_type);
             }
-            if (ast_reader_read_type_info(ast, &base, &depth, &array_len) < 0) return -1;
-            param_count = ast_read_u8(ast->reader);
+            if (ast_reader_read_type_info(&base, &depth, &array_len) < 0) return -1;
+            param_count = ast_read_u8();
             if (state && semantic_scope_lookup(state, name) == NULL) {
                 semantic_type_t return_type;
                 return_type = semantic_type_make(base, depth, array_len);
@@ -438,9 +435,9 @@ static int8_t semantic_check_tag_with_lvalue(
                 state->return_is_void = semantic_type_is_void_scalar(&state->return_type);
             }
             for (uint8_t i = 0; i < param_count; i++) {
-                if (semantic_check_node_with_lvalue(ast, 0, state, NULL, NULL, NULL) < 0) return -1;
+                if (semantic_check_node_with_lvalue(0, state, NULL, NULL, NULL) < 0) return -1;
             }
-            if (semantic_check_node_with_lvalue(ast, 0, state, NULL, NULL, NULL) < 0) return -1;
+            if (semantic_check_node_with_lvalue(0, state, NULL, NULL, NULL) < 0) return -1;
             if (state) {
                 semantic_scope_pop(state);
                 state->in_function = prev_in_function;
@@ -455,18 +452,18 @@ static int8_t semantic_check_tag_with_lvalue(
             uint8_t base = 0;
             uint8_t depth = 0;
             uint16_t array_len = 0;
-            uint16_t name_index = ast_read_u16(ast->reader);
-            const char* name = ast_reader_string(ast, name_index);
-            if (ast_reader_read_type_info(ast, &base, &depth, &array_len) < 0) return -1;
+            uint16_t name_index = ast_read_u16();
+            const char* name = ast_reader_string(name_index);
+            if (ast_reader_read_type_info(&base, &depth, &array_len) < 0) return -1;
             semantic_type_t var_type;
             var_type = semantic_type_make(base, depth, array_len);
             if (state && state->in_function) {
                 if (semantic_scope_add_var(state, name, &var_type) < 0) return -1;
             }
-            has_init = ast_read_u8(ast->reader);
+            has_init = ast_read_u8();
             if (has_init) {
                 if (array_len > 0) {
-                    uint8_t init_tag = ast_read_u8(ast->reader);
+                    uint8_t init_tag = ast_read_u8();
                     if (init_tag != AST_TAG_STRING_LITERAL) {
                         log_error(SEM_ERR_VAR_INIT_NO_STRING);
                         return -1;
@@ -475,12 +472,12 @@ static int8_t semantic_check_tag_with_lvalue(
                         log_error(SEM_ERR_TYPE_MISMATCH);
                         return -1;
                     }
-                    ast_read_u16(ast->reader);
+                    ast_read_u16();
                     return 0;
                 }
                 semantic_type_t init_type;
                 uint8_t init_const_zero = 0;
-                if (semantic_check_node_with_lvalue(ast, loop_depth, state,
+                if (semantic_check_node_with_lvalue(loop_depth, state,
                                                     &init_type, NULL, &init_const_zero) < 0) return -1;
                 init_type = semantic_type_decay_array(init_type);
                 if (semantic_type_is_void_scalar(&init_type)) {
@@ -495,10 +492,10 @@ static int8_t semantic_check_tag_with_lvalue(
             return 0;
         }
         case AST_TAG_COMPOUND_STMT: {
-            uint16_t stmt_count = ast_read_u16(ast->reader);
+            uint16_t stmt_count = ast_read_u16();
             if (state && semantic_scope_push(state) < 0) return -1;
             for (uint16_t i = 0; i < stmt_count; i++) {
-                if (semantic_check_node_with_lvalue(ast, loop_depth, state, NULL, NULL, NULL) < 0) {
+                if (semantic_check_node_with_lvalue(loop_depth, state, NULL, NULL, NULL) < 0) {
                     if (state) semantic_scope_pop(state);
                     return -1;
                 }
@@ -507,7 +504,7 @@ static int8_t semantic_check_tag_with_lvalue(
             return 0;
         }
         case AST_TAG_RETURN_STMT: {
-            uint8_t has_expr = ast_read_u8(ast->reader);
+            uint8_t has_expr = ast_read_u8();
             if (state && state->return_is_void && has_expr) {
                 log_error(SEM_ERR_RETURN_VALUE_VOID);
                 return -1;
@@ -519,7 +516,7 @@ static int8_t semantic_check_tag_with_lvalue(
             if (has_expr) {
                 semantic_type_t expr_type;
                 uint8_t expr_const_zero = 0;
-                if (semantic_check_node_with_lvalue(ast, loop_depth, state,
+                if (semantic_check_node_with_lvalue(loop_depth, state,
                                                     &expr_type, NULL, &expr_const_zero) < 0) return -1;
                 expr_type = semantic_type_decay_array(expr_type);
                 if (semantic_type_is_void_scalar(&expr_type)) {
@@ -550,56 +547,56 @@ static int8_t semantic_check_tag_with_lvalue(
         case AST_TAG_GOTO_STMT:
             if (!state || !state->label_ctx) return -1;
             {
-                uint16_t name_index = ast_read_u16(ast->reader);
-                const char* label = ast_reader_string(ast, name_index);
+                uint16_t name_index = ast_read_u16();
+                const char* label = ast_reader_string(name_index);
                 uint8_t depth = state ? state->scope_depth : 0;
                 return semantic_add_goto_scoped(state->label_ctx, label, depth);
             }
         case AST_TAG_LABEL_STMT:
             if (!state || !state->label_ctx) return -1;
             {
-                uint16_t name_index = ast_read_u16(ast->reader);
-                const char* label = ast_reader_string(ast, name_index);
+                uint16_t name_index = ast_read_u16();
+                const char* label = ast_reader_string(name_index);
                 uint8_t depth = state ? state->scope_depth : 0;
                 return semantic_add_label_scoped(state->label_ctx, label, depth);
             }
         case AST_TAG_IF_STMT: {
-            uint8_t has_else = ast_read_u8(ast->reader);
+            uint8_t has_else = ast_read_u8();
             semantic_type_t cond_type;
-            if (semantic_check_node_with_lvalue(ast, loop_depth, state,
+            if (semantic_check_node_with_lvalue(loop_depth, state,
                                                 &cond_type, NULL, NULL) < 0) return -1;
             cond_type = semantic_type_decay_array(cond_type);
             if (!semantic_type_is_scalar(&cond_type)) {
                 log_error(SEM_ERR_INVALID_CONDITION);
                 return -1;
             }
-            if (semantic_check_node_with_lvalue(ast, loop_depth, state, NULL, NULL, NULL) < 0) return -1;
+            if (semantic_check_node_with_lvalue(loop_depth, state, NULL, NULL, NULL) < 0) return -1;
             if (has_else) {
-                return semantic_check_node_with_lvalue(ast, loop_depth, state, NULL, NULL, NULL);
+                return semantic_check_node_with_lvalue(loop_depth, state, NULL, NULL, NULL);
             }
             return 0;
         }
         case AST_TAG_WHILE_STMT: {
             semantic_type_t cond_type;
-            if (semantic_check_node_with_lvalue(ast, loop_depth, state,
+            if (semantic_check_node_with_lvalue(loop_depth, state,
                                                 &cond_type, NULL, NULL) < 0) return -1;
             cond_type = semantic_type_decay_array(cond_type);
             if (!semantic_type_is_scalar(&cond_type)) {
                 log_error(SEM_ERR_INVALID_CONDITION);
                 return -1;
             }
-            return semantic_check_node_with_lvalue(ast, (uint8_t)(loop_depth + 1),
+            return semantic_check_node_with_lvalue((uint8_t)(loop_depth + 1),
                                                    state, NULL, NULL, NULL);
         }
         case AST_TAG_FOR_STMT: {
-            uint8_t has_init = ast_read_u8(ast->reader);
-            uint8_t has_cond = ast_read_u8(ast->reader);
-            uint8_t has_inc = ast_read_u8(ast->reader);
-            if (has_init && semantic_check_node_with_lvalue(ast, loop_depth, state,
+            uint8_t has_init = ast_read_u8();
+            uint8_t has_cond = ast_read_u8();
+            uint8_t has_inc = ast_read_u8();
+            if (has_init && semantic_check_node_with_lvalue(loop_depth, state,
                                                             NULL, NULL, NULL) < 0) return -1;
             if (has_cond) {
                 semantic_type_t cond_type;
-                if (semantic_check_node_with_lvalue(ast, loop_depth, state,
+                if (semantic_check_node_with_lvalue(loop_depth, state,
                                                     &cond_type, NULL, NULL) < 0) return -1;
                 cond_type = semantic_type_decay_array(cond_type);
                 if (!semantic_type_is_scalar(&cond_type)) {
@@ -607,9 +604,9 @@ static int8_t semantic_check_tag_with_lvalue(
                     return -1;
                 }
             }
-            if (has_inc && semantic_check_node_with_lvalue(ast, loop_depth, state,
+            if (has_inc && semantic_check_node_with_lvalue(loop_depth, state,
                                                            NULL, NULL, NULL) < 0) return -1;
-            return semantic_check_node_with_lvalue(ast, (uint8_t)(loop_depth + 1),
+            return semantic_check_node_with_lvalue((uint8_t)(loop_depth + 1),
                                                    state, NULL, NULL, NULL);
         }
         case AST_TAG_ASSIGN: {
@@ -617,7 +614,7 @@ static int8_t semantic_check_tag_with_lvalue(
             semantic_type_t right_type;
             uint8_t is_lvalue = 0;
             uint8_t right_const_zero = 0;
-            if (semantic_check_node_with_lvalue(ast, loop_depth, state,
+            if (semantic_check_node_with_lvalue(loop_depth, state,
                                                 &left_type, &is_lvalue, NULL) < 0) return -1;
             if (!is_lvalue) {
                 log_error(SEM_ERR_EXPECT_LVALUE);
@@ -627,7 +624,7 @@ static int8_t semantic_check_tag_with_lvalue(
                 log_error(SEM_ERR_ASSIGN_TO_ARRAY);
                 return -1;
             }
-            if (semantic_check_node_with_lvalue(ast, loop_depth, state,
+            if (semantic_check_node_with_lvalue(loop_depth, state,
                                                 &right_type, NULL, &right_const_zero) < 0) return -1;
             right_type = semantic_type_decay_array(right_type);
             if (semantic_type_is_void_scalar(&right_type)) {
@@ -643,8 +640,8 @@ static int8_t semantic_check_tag_with_lvalue(
         }
         case AST_TAG_CALL: {
             uint8_t arg_count = 0;
-            uint16_t name_index = ast_read_u16(ast->reader);
-            const char* name = ast_reader_string(ast, name_index);
+            uint16_t name_index = ast_read_u16();
+            const char* name = ast_reader_string(name_index);
             const semantic_symbol_t* sym = state ? semantic_scope_lookup(state, name) : NULL;
             uint8_t is_builtin = semantic_is_builtin_function(name);
             if (state && !sym && !is_builtin) {
@@ -659,7 +656,7 @@ static int8_t semantic_check_tag_with_lvalue(
                 log_error("\n");
                 return -1;
             }
-            arg_count = ast_read_u8(ast->reader);
+            arg_count = ast_read_u8();
             if (sym && sym->param_count != arg_count) {
                 log_error(SEM_ERR_CALL_ARG_COUNT);
                 return -1;
@@ -667,7 +664,7 @@ static int8_t semantic_check_tag_with_lvalue(
             for (uint8_t i = 0; i < arg_count; i++) {
                 semantic_type_t arg_type;
                 uint8_t arg_const_zero = 0;
-                if (semantic_check_node_with_lvalue(ast, loop_depth, state,
+                if (semantic_check_node_with_lvalue(loop_depth, state,
                                                     &arg_type, NULL, &arg_const_zero) < 0) return -1;
                 arg_type = semantic_type_decay_array(arg_type);
                 if (semantic_type_is_void_scalar(&arg_type)) {
@@ -691,14 +688,14 @@ static int8_t semantic_check_tag_with_lvalue(
             return 0;
         }
         case AST_TAG_BINARY_OP: {
-            uint8_t op = ast_read_u8(ast->reader);
+            uint8_t op = ast_read_u8();
             semantic_type_t left_type;
             semantic_type_t right_type;
             uint8_t left_const_zero = 0;
             uint8_t right_const_zero = 0;
-            if (semantic_check_node_with_lvalue(ast, loop_depth, state,
+            if (semantic_check_node_with_lvalue(loop_depth, state,
                                                 &left_type, NULL, &left_const_zero) < 0) return -1;
-            if (semantic_check_node_with_lvalue(ast, loop_depth, state,
+            if (semantic_check_node_with_lvalue(loop_depth, state,
                                                 &right_type, NULL, &right_const_zero) < 0) return -1;
             left_type = semantic_type_decay_array(left_type);
             right_type = semantic_type_decay_array(right_type);
@@ -779,12 +776,12 @@ static int8_t semantic_check_tag_with_lvalue(
             return -1;
         }
         case AST_TAG_UNARY_OP: {
-            uint8_t op = ast_read_u8(ast->reader);
-            uint8_t child_tag = ast_read_u8(ast->reader);
+            uint8_t op = ast_read_u8();
+            uint8_t child_tag = ast_read_u8();
             semantic_type_t child_type;
             semantic_type_t child_raw;
             uint8_t child_lvalue = 0;
-            if (semantic_check_tag_with_lvalue(ast, child_tag, loop_depth, state,
+            if (semantic_check_tag_with_lvalue(child_tag, loop_depth, state,
                                                &child_type, &child_lvalue, NULL) < 0) return -1;
             child_raw = child_type;
             child_type = semantic_type_decay_array(child_type);
@@ -853,8 +850,8 @@ static int8_t semantic_check_tag_with_lvalue(
             return -1;
         }
         case AST_TAG_IDENTIFIER: {
-            uint16_t name_index = ast_read_u16(ast->reader);
-            const char* name = ast_reader_string(ast, name_index);
+            uint16_t name_index = ast_read_u16();
+            const char* name = ast_reader_string(name_index);
             if (state) {
                 const semantic_symbol_t* sym = semantic_scope_lookup(state, name);
                 if (!sym || sym->kind != SEM_SYMBOL_VAR) {
@@ -869,17 +866,17 @@ static int8_t semantic_check_tag_with_lvalue(
             return 0;
         }
         case AST_TAG_CONSTANT: {
-            int16_t value = ast_read_i16(ast->reader);
+            int16_t value = ast_read_i16();
             if (out_type) *out_type = semantic_type_make(AST_BASE_INT, 0, 0);
             if (out_const_zero && value == 0) *out_const_zero = 1;
             return 0;
         }
         case AST_TAG_STRING_LITERAL:
-            ast_read_u16(ast->reader);
+            ast_read_u16();
             if (out_type) *out_type = semantic_type_make(AST_BASE_CHAR, 1, 0);
             return 0;
         case AST_TAG_ARRAY_ACCESS: {
-            uint8_t base_tag = ast_read_u8(ast->reader);
+            uint8_t base_tag = ast_read_u8();
             semantic_type_t base_type;
             semantic_type_t index_type;
             uint8_t index_tag = 0;
@@ -889,15 +886,15 @@ static int8_t semantic_check_tag_with_lvalue(
                 log_error(SEM_ERR_INVALID_ARRAY_BASE);
                 return -1;
             }
-            if (semantic_check_tag_with_lvalue(ast, base_tag, loop_depth, state,
+            if (semantic_check_tag_with_lvalue(base_tag, loop_depth, state,
                                                &base_type, NULL, NULL) < 0) return -1;
-            index_tag = ast_read_u8(ast->reader);
+            index_tag = ast_read_u8();
             if (index_tag == AST_TAG_CONSTANT) {
-                index_value = ast_read_i16(ast->reader);
+                index_value = ast_read_i16();
                 index_is_const = 1;
                 index_type = semantic_type_make(AST_BASE_INT, 0, 0);
             } else {
-                if (semantic_check_tag_with_lvalue(ast, index_tag, loop_depth, state,
+                if (semantic_check_tag_with_lvalue(index_tag, loop_depth, state,
                                                    &index_type, NULL, NULL) < 0) return -1;
             }
             index_type = semantic_type_decay_array(index_type);
@@ -941,7 +938,6 @@ static int8_t semantic_check_tag_with_lvalue(
 }
 
 static int8_t semantic_check_node_with_lvalue(
-    ast_reader_t* ast,
     uint8_t loop_depth,
     semantic_state_t* state,
     semantic_type_t* out_type,
@@ -949,81 +945,81 @@ static int8_t semantic_check_node_with_lvalue(
     uint8_t* out_const_zero
 ) {
     uint8_t tag = 0;
-    if (!ast || !ast->reader) return -1;
-    tag = ast_read_u8(ast->reader);
-    return semantic_check_tag_with_lvalue(ast, tag, loop_depth, state,
+    if (!ast || !reader) return -1;
+    tag = ast_read_u8();
+    return semantic_check_tag_with_lvalue(tag, loop_depth, state,
                                           out_type, out_lvalue, out_const_zero);
 }
 
-static int8_t semantic_check_node(ast_reader_t* ast, uint8_t loop_depth, semantic_state_t* state) {
-    return semantic_check_node_with_lvalue(ast, loop_depth, state, NULL, NULL, NULL);
+static int8_t semantic_check_node(uint8_t loop_depth, semantic_state_t* state) {
+    return semantic_check_node_with_lvalue(loop_depth, state, NULL, NULL, NULL);
 }
 
-cc_error_t semantic_validate(ast_reader_t* ast) {
+cc_error_t semantic_validate(void) {
     uint16_t decl_count = 0;
     if (!ast) return CC_ERROR_INVALID_ARG;
     mem_set(&g_semantic_state, 0, sizeof(g_semantic_state));
     if (semantic_scope_push(&g_semantic_state) < 0) return CC_ERROR_SEMANTIC;
 
-    if (ast_reader_begin_program(ast, &decl_count) < 0) return CC_ERROR_SEMANTIC;
+    if (ast_reader_begin_program(&decl_count) < 0) return CC_ERROR_SEMANTIC;
     for (uint16_t i = 0; i < decl_count; i++) {
-        uint8_t tag = ast_read_u8(ast->reader);
+        uint8_t tag = ast_read_u8();
         if (tag == AST_TAG_FUNCTION) {
-            uint16_t name_index = ast_read_u16(ast->reader);
+            uint16_t name_index = ast_read_u16();
             uint8_t base = 0;
             uint8_t depth = 0;
             uint16_t array_len = 0;
             uint8_t param_count = 0;
-            const char* name = ast_reader_string(ast, name_index);
-            if (ast_reader_read_type_info(ast, &base, &depth, &array_len) < 0) return CC_ERROR_SEMANTIC;
+            const char* name = ast_reader_string(name_index);
+            if (ast_reader_read_type_info(&base, &depth, &array_len) < 0) return CC_ERROR_SEMANTIC;
             semantic_type_t return_type;
             return_type = semantic_type_make(base, depth, array_len);
-            param_count = ast_read_u8(ast->reader);
+            param_count = ast_read_u8();
             semantic_type_t params[SEM_MAX_PARAMS];
             if (param_count > SEM_MAX_PARAMS) {
                 log_error(SEM_ERR_PARAM_OVERFLOW);
                 return CC_ERROR_SEMANTIC;
             }
             for (uint8_t p = 0; p < param_count; p++) {
-                uint8_t ptag = ast_read_u8(ast->reader);
+                uint8_t ptag = ast_read_u8();
                 uint16_t param_name_index = 0;
                 uint8_t param_base = 0;
                 uint8_t param_depth = 0;
                 uint16_t param_array_len = 0;
                 uint8_t param_has_init = 0;
                 if (ptag != AST_TAG_VAR_DECL) return CC_ERROR_SEMANTIC;
-                param_name_index = ast_read_u16(ast->reader);
+                param_name_index = ast_read_u16();
                 (void)param_name_index;
-                if (ast_reader_read_type_info(ast, &param_base, &param_depth,
+                if (ast_reader_read_type_info(&param_base, &param_depth,
                                               &param_array_len) < 0) return CC_ERROR_SEMANTIC;
                 params[p] = semantic_type_make(param_base, param_depth, param_array_len);
-                param_has_init = ast_read_u8(ast->reader);
-                if (param_has_init && ast_reader_skip_node(ast) < 0) return CC_ERROR_SEMANTIC;
+                param_has_init = ast_read_u8();
+                if (param_has_init && ast_reader_skip_node() < 0) return CC_ERROR_SEMANTIC;
             }
             if (semantic_scope_add_func(&g_semantic_state, name, &return_type,
                                         param_count, params) < 0) return CC_ERROR_SEMANTIC;
-            if (ast_reader_skip_node(ast) < 0) return CC_ERROR_SEMANTIC;
+            if (ast_reader_skip_node() < 0) return CC_ERROR_SEMANTIC;
         } else if (tag == AST_TAG_VAR_DECL) {
-            uint16_t name_index = ast_read_u16(ast->reader);
+            uint16_t name_index = ast_read_u16();
             uint8_t base = 0;
             uint8_t depth = 0;
             uint16_t array_len = 0;
             uint8_t has_init = 0;
-            const char* name = ast_reader_string(ast, name_index);
-            if (ast_reader_read_type_info(ast, &base, &depth, &array_len) < 0) return CC_ERROR_SEMANTIC;
+            const char* name = ast_reader_string(name_index);
+            if (ast_reader_read_type_info(&base, &depth, &array_len) < 0) return CC_ERROR_SEMANTIC;
             semantic_type_t var_type;
             var_type = semantic_type_make(base, depth, array_len);
             if (semantic_scope_add_var(&g_semantic_state, name, &var_type) < 0) return CC_ERROR_SEMANTIC;
-            has_init = ast_read_u8(ast->reader);
-            if (has_init && ast_reader_skip_node(ast) < 0) return CC_ERROR_SEMANTIC;
+            has_init = ast_read_u8();
+            if (has_init && ast_reader_skip_node() < 0) return CC_ERROR_SEMANTIC;
         } else {
-            if (ast_reader_skip_tag(ast, tag) < 0) return CC_ERROR_SEMANTIC;
+            if (ast_reader_skip_tag(tag) < 0) return CC_ERROR_SEMANTIC;
         }
     }
 
-    if (ast_reader_begin_program(ast, &decl_count) < 0) return CC_ERROR_SEMANTIC;
+    if (ast_reader_begin_program(&decl_count) < 0) return CC_ERROR_SEMANTIC;
     for (uint16_t i = 0; i < decl_count; i++) {
-        if (semantic_check_node(ast, 0, &g_semantic_state) < 0) return CC_ERROR_SEMANTIC;
+        if (semantic_check_node(0, &g_semantic_state) < 0) return CC_ERROR_SEMANTIC;
     }
     return CC_OK;
 }

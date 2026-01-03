@@ -2,8 +2,7 @@
 
 #include "common.h"
 
-void ast_reader_destroy(ast_reader_t* ast) {
-    if (!ast) return;
+void ast_reader_destroy(void) {
     if (ast->strings) {
         for (uint16_t i = 0; i < ast->string_count; i++) {
             cc_free(ast->strings[i]);
