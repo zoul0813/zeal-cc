@@ -6,12 +6,6 @@
 #include "target.h"
 #include "cc_compat.h"
 
-#ifndef CC_POOL_SIZE
-#define CC_POOL_SIZE 1024 /* 1 KB pool to avoid file_buffer overlap */
-#endif
-
-char g_memory_pool[CC_POOL_SIZE];
-
 reader_t* reader;
 ast_reader_t* ast;
 ast_reader_t ast_ctx;
@@ -37,8 +31,7 @@ int main(int argc, char** argv) {
 
     ast = &ast_ctx;
     mem_set(ast, 0, sizeof(ast_ctx));
-    cc_init_pool(g_memory_pool, sizeof(g_memory_pool));
-
+    cc_init_pool_default();
 
     args = parse_args(argc, argv, ARG_MODE_IN_OUT);
     if (args.error) {

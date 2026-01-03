@@ -1,6 +1,16 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+/* If defined, codegen assumes semantic validation already ran. */
+#ifndef CC_TRUST_SEMANTIC
+#define CC_TRUST_SEMANTIC 1
+#endif
+
+/* If set, cc_init_pool() will print "pool size = XXXX" */
+#ifndef CC_DEBUG_POOL
+#define CC_DEBUG_POOL 0
+#endif
+
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -41,11 +51,6 @@ typedef enum {
     CC_ERROR_INVALID_ARG
 } cc_error_t;
 
-/* If defined, codegen assumes semantic validation already ran. */
-#ifndef CC_TRUST_SEMANTIC
-#define CC_TRUST_SEMANTIC 1
-#endif
-
 #define DIM(a) (sizeof(a) / sizeof(a[0]))
 
 /* Forward declarations */
@@ -69,7 +74,8 @@ void* cc_malloc(size_t size);
 void cc_free(void* ptr);
 char* cc_strdup(const char* str);
 void cc_reset_pool(void);
-void cc_init_pool(void* pool, size_t size);
+uint16_t cc_init_pool(void* pool, size_t size);
+uint16_t cc_init_pool_default(void);
 extern size_t g_pool_offset;
 extern size_t g_pool_max;
 

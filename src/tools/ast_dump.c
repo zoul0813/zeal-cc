@@ -6,11 +6,6 @@
 #include "symbol.h"
 #include "target.h"
 
-#ifndef CC_POOL_SIZE
-#define CC_POOL_SIZE 2048 /* 2 KB pool */
-#endif
-
-char g_memory_pool[CC_POOL_SIZE];
 reader_t* reader;
 ast_reader_t* ast;
 ast_reader_t ast_ctx;
@@ -340,14 +335,14 @@ void handle_error(char* msg) {
 }
 
 int main(int argc, char** argv) {
+    cc_init_pool_default();
+
     int8_t err = 1;
     const char* input = parse_input_arg((int16_t)argc, argv);
     if (!input) {
         log_error("Usage: ast_dump <input.ast>\n");
         return 1;
     }
-
-    cc_init_pool(g_memory_pool, sizeof(g_memory_pool));
 
     reader = reader_open(input);
     if (!reader) return 1;

@@ -1,23 +1,14 @@
 #include "common.h"
-
-#ifdef __SDCC
-#include <zos_sys.h>
-#include <zos_vfs.h>
-#include <core.h>
-#endif
+#include "cc_compat.h"
 
 /* Global compiler context */
 compiler_ctx_t g_ctx = {0};
 
 void cc_error(const char* msg) {
     g_ctx.error_count++;
-#ifdef __SDCC
     put_s("ERROR: ");
     put_s(msg);
     put_c('\n');
-#else
-    fprintf(stderr, "ERROR: %s\n", msg);
-#endif
 }
 
 typedef struct cc_block_header {
@@ -95,13 +86,47 @@ void* cc_malloc(size_t size) {
     exit(1);
 }
 
-void cc_init_pool(void* pool, size_t size) {
+#ifdef __SDCC
+static uintptr_t heap_start = 0;
+static uintptr_t heap_end = ((uintptr_t)0xC300);
+uint16_t cc_init_pool_default(void) {
+    __asm__(
+        "  ld  hl, #s__HEAP     ; HL = start of heap\n"
+        "  ld  (_heap_start), hl     ; store HL into `start`\n"
+    );
+
+    if(heap_end <= heap_start) {
+        return cc_init_pool((void*)heap_start, 0);
+        return;
+    }
+    return cc_init_pool((void*)heap_start, (size_t)(heap_end - heap_start));
+}
+#else
+#ifndef CC_POOL_SIZE
+#define CC_POOL_SIZE (32 * 1024)
+#endif
+char memory_pool[CC_POOL_SIZE];
+uint16_t cc_init_pool_default(void) {
+    return cc_init_pool(memory_pool, sizeof(memory_pool));
+}
+#endif
+
+uint16_t cc_init_pool(void* pool, size_t size) {
+
     g_memory_pool = (char*)pool;
     g_pool_size = size;
     g_pool_head = NULL;
     g_pool_offset = 0;
     g_pool_max = 0;
     cc_reset_pool();
+
+    #if CC_DEBUG_POOL
+    put_s("pool size = ");
+    put_hex(g_pool_size);
+    put_s("\n");
+    #endif
+
+    return size;
 }
 
 void cc_free(void* ptr) {
