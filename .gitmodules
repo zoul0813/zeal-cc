@@ -7,6 +7,3 @@
 [submodule "examples/zshell"]
 	path = examples/zshell
 	url = https://github.com/zoul0813/zeal-zshell.git
-[submodule "examples/modem"]
-    path = examples/modem
-    url = https://github.com/zoul0813/zeal-modem.git

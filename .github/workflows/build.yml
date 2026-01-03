@@ -1,0 +1,80 @@
+name: build
+on:
+  push:
+    branches:
+      - main
+      - workflow
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+          fetch-depth: 0
+
+      - name: Setup ZDE
+        uses: zoul0813/zeal-dev-environment/github/setup-zde@main
+
+      - name: Initialize mounts
+        run: |
+          mkdir -p $ZDE_PATH/mnt/romdisk
+          mkdir -p $ZDE_PATH/mnt/eeprom
+          mkdir -p $ZDE_PATH/mnt/roms
+
+      - name: Build coreutils
+        run: |
+          cd $ZDE_PATH/home/zeal-coreutils && zde cmake && zde romdisk add bin
+
+      - name: Install ZShell
+        run: |
+          zde romdisk add ${{ github.workspace }}/.deploy/romdisk/zshell
+
+      - name: Build Zealasm
+        run: |
+          cd ${{ github.workspace }}/examples/Zealasm \
+          && zde make \
+          && mv bin/zealasm.bin bin/zealasm \
+          && zde romdisk add bin/zealasm
+
+      - name: Build with ZDE
+        run: |
+          zde cmake \
+          && mkdir -p ${{ github.workspace }}/.deploy/hostfs/bin \
+          && mkdir -p ${{ github.workspace }}/.deploy/hostfs/runtime \
+          && cp bin/* ${{ github.workspace }}/.deploy/hostfs/bin \
+          && cp runtime/* ${{ github.workspace }}/.deploy/hostfs/runtime
+
+      - name: Create eeprom.img
+        run: |
+          cp ${{ github.workspace }}/.deploy/eeprom/* $ZDE_PATH/mnt/eeprom/
+          zde image eeprom 64 # custom eeprom image
+          cp $ZDE_PATH/mnt/eeprom.img ${{ github.workspace }}/.deploy/eeprom.img
+
+      - name: Build Kernel/Romdisk
+        env:
+          ZDE_USER_PATH: ${{ github.workspace }}/.deploy
+        run: |
+          zde kernel user
+          cp $ZDE_PATH/home/Zeal-8-bit-OS/build/os_with_romdisk.img bin/default.img
+          cp $ZDE_PATH/home/Zeal-8-bit-OS/build/os_with_romdisk.img .deploy/default.img
+
+      - name: Deploy
+        uses: ./.github/actions/deploy-pages
+
+      # - name: Upload binaries
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: zshell-binaries
+      #     path: |
+      #       bin/zshell
+      #       bin/default.img

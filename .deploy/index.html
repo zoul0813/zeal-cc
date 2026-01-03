@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZShell - Zeal 8-bit Computer</title>
+    <link rel="icon" href="/zeal-zshell/favicon.ico">
+    <link rel="stylesheet" href="index.css" />
+    <script src="https://zoul0813.github.io/Zeal-NativeEmulator/zeal.elf.js"></script>
+</head>
+<body>
+    <header>
+        <h1>ZShell + coreutils</h1>
+        <nav>
+        <button id="btn-reset">Reset</button>
+        <button id="btn-unmute">Unmute</button>
+        <button id="btn-toggle-fps">Toggle FPS</button>
+        <button id="btn-clear">Clear Data</button>
+        <button id="btn-save">Save Data</button>
+        </nav>
+    </header>
+    <main id="viewport" class="viewport">
+        <h1>Loading ...</h1>
+        <canvas id="canvas" class="smooth" tabindex="0" width="640" height="480"></canvas>
+        <p class="message">Click to focus on Terminal</p>
+    </main>
+    <footer>
+        <h2>Help</h2>
+        <div class="help">
+            <div>
+                <span>Reset</span>
+                <p>Reset/Reload the emulator</p>
+            </div>
+            <div>
+                <span>Unmute</span>
+                <p>Restart/unmute audio - may be needed after initial loading in some cases</p>
+            </div>
+            <div>
+                <span>Toggle FPS</span>
+                <p>Show the FPS</p>
+            </div>
+            <div>
+                <span>Clear Data</span>
+                <p>Delete local eeprom/tf images</p>
+            </div>
+            <div>
+                <span>Save Data</span>
+                <p>Save current eeprom/tf images locally</p>
+            </div>
+        </div>
+    </footer>
+    <script src="index.js"></script>
+</body>
+</html>
