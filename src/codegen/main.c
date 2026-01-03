@@ -14,7 +14,7 @@ char g_memory_pool[CC_POOL_SIZE];
 
 static reader_t* reader;
 static ast_reader_t ast;
-static codegen_t* codegen;
+codegen_t* codegen;
 
 void cleanup(void) {
     codegen_destroy(codegen);
@@ -61,7 +61,7 @@ int main(int argc, char** argv) {
         goto cleanup;
     }
 
-    result = codegen_generate_stream(codegen, &ast);
+    result = codegen_generate_stream(&ast);
     if (result != CC_OK) {
         log_error(CG_MSG_CODEGEN_FAILED);
         goto cleanup;

@@ -73,10 +73,10 @@ typedef struct {
 /* Code generator functions */
 codegen_t* codegen_create(const char* output_file);
 void codegen_destroy(codegen_t* gen);
-cc_error_t codegen_generate_stream(codegen_t* gen, ast_reader_t* ast);
+cc_error_t codegen_generate_stream(ast_reader_t* ast);
 
 /* Helper functions */
-void codegen_emit(codegen_t* gen, const char* fmt);
-char* codegen_new_label(codegen_t* gen);
-char* codegen_new_string_label(codegen_t* gen);
+void codegen_emit(const char* fmt);
+char* codegen_new_label(void);
+char* codegen_new_string_label(void);
 #endif /* CODEGEN_H */
