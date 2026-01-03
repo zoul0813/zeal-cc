@@ -51,8 +51,26 @@ jobs:
           zde cmake \
           && mkdir -p ${{ github.workspace }}/.deploy/hostfs/bin \
           && mkdir -p ${{ github.workspace }}/.deploy/hostfs/runtime \
+          && mkdir -p ${{ github.workspace }}/.deploy/hostfs/tests \
           && cp bin/* ${{ github.workspace }}/.deploy/hostfs/bin \
-          && cp runtime/* ${{ github.workspace }}/.deploy/hostfs/runtime
+          && cp tests/* ${{ github.workspace }}/.deploy/hostfs/tests \
+          && cp runtime/* ${{ github.workspace }}/.deploy/hostfs/runtime \
+          && python3 - <<'PY'
+          import json
+          import os
+          root = os.path.join(os.environ["GITHUB_WORKSPACE"], ".deploy", "hostfs")
+          paths = []
+          for dirpath, _, files in os.walk(root):
+              for filename in files:
+                  if filename == "index.json":
+                      continue
+                  full_path = os.path.join(dirpath, filename)
+                  rel_path = os.path.relpath(full_path, root).replace(os.sep, "/")
+                  paths.append(rel_path)
+          paths.sort()
+          with open(os.path.join(root, "index.json"), "w") as handle:
+              json.dump(paths, handle)
+          PY
 
       - name: Create eeprom.img
         run: |

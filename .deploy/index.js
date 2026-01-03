@@ -2,9 +2,10 @@ const DB_NAME = "ZealStorage";
 const DB_VERSION = 1;
 const STORE_NAME = "images";
 
-const EEPROM_NAME="eeprom.img"
-const ROMDISK_NAME="default.img"
-const TF_NAME="tf.img"
+const EEPROM_NAME="eeprom.img";
+const ROMDISK_NAME="default.img";
+const TF_NAME="tf.img";
+const HOSTFS_NAME="hostfs";
 
 function openDB() {
     return new Promise((resolve, reject) => {
@@ -124,6 +125,34 @@ async function fetchImage(name, options = {}) {
         });
 }
 
+async function fetchHostFS(name, options = {}) {
+    const { indexName = "index.json" } = options;
+    if (!name) throw new Error("fetchHostFS called without a folder name");
+
+    const indexUrl = `${name}/${indexName}`;
+    const indexResponse = await fetch(indexUrl);
+    if (!indexResponse.ok) {
+        throw new Error(`Failed to fetch ${indexUrl}`);
+    }
+    const fileList = await indexResponse.json();
+    if (!Array.isArray(fileList)) {
+        throw new Error(`Invalid hostfs index at ${indexUrl}`);
+    }
+
+    const files = await Promise.all(
+        fileList.map(async (path) => {
+            const fileUrl = `${name}/${path}`;
+            const response = await fetch(fileUrl);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch ${fileUrl}`);
+            }
+            const buffer = await response.arrayBuffer();
+            return { path, buffer: new Uint8Array(buffer) };
+        })
+    );
+    return files;
+}
+
 function dispatchKeyCode(e, name, key, code, keyCode) {
     e.preventDefault();
     e.stopPropagation();
@@ -150,7 +179,7 @@ function attachButton(selector, handler) {
     });
 
     let moduleInstance = null;
-    function loadModule(romdiskImage, eepromImage, tfImage) {
+    function loadModule(romdiskImage, eepromImage, tfImage, hostFiles) {
         const defaultModule = {
             arguments: [
                 "-r",
@@ -181,6 +210,20 @@ function attachButton(selector, handler) {
                 this.FS.writeFile("/roms/default.img", romdiskImage);
                 this.FS.writeFile("/roms/eeprom.img", eepromImage);
                 this.FS.writeFile("/roms/tf.img", tfImage);
+                if (Array.isArray(hostFiles)) {
+                    hostFiles.forEach((file) => {
+                        const target = `/hostfs/${file.path}`;
+                        const parts = target.split("/").slice(1, -1);
+                        let current = "";
+                        parts.forEach((part) => {
+                            current += `/${part}`;
+                            if (!this.FS.analyzePath(current).exists) {
+                                this.FS.mkdir(current);
+                            }
+                        });
+                        this.FS.writeFile(target, file.buffer);
+                    });
+                }
                 canvas.setAttribute("tabindex", "0");
                 canvas.focus();
             },
@@ -189,10 +232,11 @@ function attachButton(selector, handler) {
     }
 
     async function load() {
-        [romdiskImage, eepromImage, tfImage] = await Promise.all([
+        [romdiskImage, eepromImage, tfImage, hostFiles] = await Promise.all([
             fetchImage(ROMDISK_NAME),
             fetchImage(EEPROM_NAME),
             fetchImage(TF_NAME),
+            fetchHostFS(HOSTFS_NAME),
         ]).catch((err) => console.error(err));
         dbUsage().then((size) => {
             console.log(
@@ -202,7 +246,7 @@ function attachButton(selector, handler) {
                 `${(size / 1024 / 1024).toFixed(2)}M`
             );
         });
-        loadModule(romdiskImage, eepromImage, tfImage);
+        loadModule(romdiskImage, eepromImage, tfImage, hostFiles);
     }
 
     async function reset() {
