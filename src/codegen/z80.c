@@ -4,10 +4,14 @@
 #include "common.h"
 
 static uint8_t pp_ld[]  = "  ld R,R\n";
+static uint8_t pp_ld_r_n[] = "  ld R,0x00\n";
 static uint8_t pp_add[] = "  add R\n";
+static uint8_t pp_add_hl_rr[] = "  add hl, RR\n";
 static uint8_t pp_sbc[] = "  sbc R\n";
 static uint8_t pp_and[] = "  and R\n";
 static uint8_t pp_or[]  = "  or R\n";
+static uint8_t pp_push[] = "  push RR\n";
+static uint8_t pp_pop[] = "  pop RR\n";
 static uint8_t pp_ld_r_mem[] = "  ld R,(RR)\n";
 static uint8_t pp_ld_mem_r[] = "  ld (RR),R\n";
 static uint8_t pp_ld_r_memi[] = "  ld R,(0x0000)\n";
@@ -36,6 +40,10 @@ static void z80_write_rr(uint8_t* out, uint8_t rr) {
         case REG_SP:
             out[0] = 's';
             out[1] = 'p';
+            break;
+        case REG_AF:
+            out[0] = 'a';
+            out[1] = 'f';
             break;
         case REG_IX:
             out[0] = 'i';
@@ -136,6 +144,10 @@ void codegen_emit_z80(uint8_t len, const z80_instr_t* instrs)
                     pp_ld[5] = instrs->args.r8_r8.dst;
                     pp_ld[7] = instrs->args.r8_r8.src;
                     str = pp_ld;
+                } else if (mode == Z80_AM_R8_N) {
+                    pp_ld_r_n[5] = instrs->args.r8_n.r;
+                    z80_write_hex8(&pp_ld_r_n[9], instrs->args.r8_n.imm);
+                    str = pp_ld_r_n;
                 } else if (mode == Z80_AM_R8_MEM) {
                     if (z80_write_mem_rr(&pp_ld_r_mem[8], instrs->args.r8_mem.mem)) {
                         pp_ld_r_mem[5] = instrs->args.r8_mem.r;
@@ -165,8 +177,13 @@ void codegen_emit_z80(uint8_t len, const z80_instr_t* instrs)
                 }
                 break;
             case I_ADD:
-                pp_add[6] = instrs->args.r8.r;
-                str = pp_add;
+                if (mode == Z80_AM_R8) {
+                    pp_add[6] = instrs->args.r8.r;
+                    str = pp_add;
+                } else if (mode == Z80_AM_R16_R16 && instrs->args.r16_r16.dst == REG_HL) {
+                    z80_write_rr(&pp_add_hl_rr[10], instrs->args.r16_r16.src);
+                    str = pp_add_hl_rr;
+                }
                 break;
             case I_SBC:
                 pp_sbc[6] = instrs->args.r8.r;
@@ -224,6 +241,18 @@ void codegen_emit_z80(uint8_t len, const z80_instr_t* instrs)
                 if (mode == Z80_AM_R16) {
                     z80_write_rr(&pp_dec16[6], instrs->args.r16.rr);
                     str = pp_dec16;
+                }
+                break;
+            case I_PUSH:
+                if (mode == Z80_AM_R16) {
+                    z80_write_rr(&pp_push[7], instrs->args.r16.rr);
+                    str = pp_push;
+                }
+                break;
+            case I_POP:
+                if (mode == Z80_AM_R16) {
+                    z80_write_rr(&pp_pop[6], instrs->args.r16.rr);
+                    str = pp_pop;
                 }
                 break;
             default:
