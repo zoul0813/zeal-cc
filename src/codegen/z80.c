@@ -5,9 +5,9 @@
 
 static uint8_t pp_ld[]  = "  ld R,R\n";
 static uint8_t pp_ld_r_n[] = "  ld R,0x00\n";
-static uint8_t pp_add[] = "  add R\n";
+static uint8_t pp_add[] = "  add a, R\n";
 static uint8_t pp_add_hl_rr[] = "  add hl, RR\n";
-static uint8_t pp_sbc[] = "  sbc R\n";
+static uint8_t pp_sbc[] = "  sbc a, R\n";
 static uint8_t pp_and[] = "  and R\n";
 static uint8_t pp_or[]  = "  or R\n";
 static uint8_t pp_push[] = "  push RR\n";
@@ -140,70 +140,76 @@ void codegen_emit_z80(uint8_t len, const z80_instr_t* instrs)
         z80_addr_mode_t mode = (z80_addr_mode_t)instrs->mode;
         switch (op) {
             case I_LD:
-                if (mode == Z80_AM_R8_R8) {
-                    pp_ld[5] = instrs->args.r8_r8.dst;
-                    pp_ld[7] = instrs->args.r8_r8.src;
+                if (mode == M_R_R) {
+                    pp_ld[5] = instrs->args.r_r.dst;
+                    pp_ld[7] = instrs->args.r_r.src;
                     str = pp_ld;
-                } else if (mode == Z80_AM_R8_N) {
-                    pp_ld_r_n[5] = instrs->args.r8_n.r;
-                    z80_write_hex8(&pp_ld_r_n[9], instrs->args.r8_n.imm);
+                } else if (mode == M_R_N) {
+                    pp_ld_r_n[5] = instrs->args.r_n.r;
+                    z80_write_hex8(&pp_ld_r_n[9], instrs->args.r_n.imm);
                     str = pp_ld_r_n;
-                } else if (mode == Z80_AM_R8_MEM) {
-                    if (z80_write_mem_rr(&pp_ld_r_mem[8], instrs->args.r8_mem.mem)) {
-                        pp_ld_r_mem[5] = instrs->args.r8_mem.r;
+                } else if (mode == M_R_MEM) {
+                    if (z80_write_mem_rr(&pp_ld_r_mem[8], instrs->args.r_mem.mem)) {
+                        pp_ld_r_mem[5] = instrs->args.r_mem.r;
                         str = pp_ld_r_mem;
                     }
-                } else if (mode == Z80_AM_MEM_R8) {
-                    if (z80_write_mem_rr(&pp_ld_mem_r[6], instrs->args.mem_r8.mem)) {
-                        pp_ld_mem_r[10] = instrs->args.mem_r8.r;
+                } else if (mode == M_MEM_R) {
+                    if (z80_write_mem_rr(&pp_ld_mem_r[6], instrs->args.mem_r.mem)) {
+                        pp_ld_mem_r[10] = instrs->args.mem_r.r;
                         str = pp_ld_mem_r;
                     }
-                } else if (mode == Z80_AM_R8_MEMI) {
-                    pp_ld_r_memi[5] = instrs->args.r8_memi.r;
-                    z80_write_hex16(&pp_ld_r_memi[10], instrs->args.r8_memi.addr);
+                } else if (mode == M_R_MEMI) {
+                    pp_ld_r_memi[5] = instrs->args.r_memi.r;
+                    z80_write_hex16(&pp_ld_r_memi[10], instrs->args.r_memi.addr);
                     str = pp_ld_r_memi;
-                } else if (mode == Z80_AM_MEMI_R8) {
+                } else if (mode == M_MEMI_R) {
                     pp_ld_memi_r[14] = instrs->args.memi_r.r;
                     z80_write_hex16(&pp_ld_memi_r[8], instrs->args.memi_r.addr);
                     str = pp_ld_memi_r;
-                } else if (mode == Z80_AM_R8_MEMO) {
-                    pp_ld_r_memo[5] = instrs->args.r8_memo.r;
-                    z80_write_idx_disp(&pp_ld_r_memo[8], instrs->args.r8_memo.idx, instrs->args.r8_memo.disp);
+                } else if (mode == M_R_MEMO) {
+                    pp_ld_r_memo[5] = instrs->args.r_memo.r;
+                    z80_write_idx_disp(&pp_ld_r_memo[8], instrs->args.r_memo.idx, instrs->args.r_memo.disp);
                     str = pp_ld_r_memo;
-                } else if (mode == Z80_AM_MEMO_R8) {
-                    pp_ld_memo_r[15] = instrs->args.memo_r8.r;
-                    z80_write_idx_disp(&pp_ld_memo_r[6], instrs->args.memo_r8.idx, instrs->args.memo_r8.disp);
+                } else if (mode == M_MEMO_R) {
+                    pp_ld_memo_r[15] = instrs->args.memo_r.r;
+                    z80_write_idx_disp(&pp_ld_memo_r[6], instrs->args.memo_r.idx, instrs->args.memo_r.disp);
                     str = pp_ld_memo_r;
                 }
                 break;
             case I_ADD:
-                if (mode == Z80_AM_R8) {
-                    pp_add[6] = instrs->args.r8.r;
+                if (mode == M_R_R) {
+                    pp_add[9] = instrs->args.r_r.dst;
                     str = pp_add;
-                } else if (mode == Z80_AM_R16_R16 && instrs->args.r16_r16.dst == REG_HL) {
-                    z80_write_rr(&pp_add_hl_rr[10], instrs->args.r16_r16.src);
+                } else if (mode == M_RR_RR && instrs->args.rr_rr.dst == REG_HL) {
+                    z80_write_rr(&pp_add_hl_rr[10], instrs->args.rr_rr.src);
                     str = pp_add_hl_rr;
                 }
                 break;
             case I_SBC:
-                pp_sbc[6] = instrs->args.r8.r;
-                str = pp_sbc;
+                if (mode == M_R_R) {
+                    pp_sbc[9] = instrs->args.r_r.dst;
+                    str = pp_sbc;
+                }
                 break;
             case I_AND:
-                pp_and[6] = instrs->args.r8.r;
-                str = pp_and;
+                if (mode == M_R_R) {
+                    pp_and[6] = instrs->args.r_r.dst;
+                    str = pp_and;
+                }
                 break;
             case I_OR:
-                pp_or[5] = instrs->args.r8.r;
-                str = pp_or;
+                if (mode == M_R_R) {
+                    pp_or[5] = instrs->args.r_r.dst;
+                    str = pp_or;
+                }
                 break;
             case I_CPL:
                 str = pp_cpl;
                 break;
             case I_EX:
-                if (mode == Z80_AM_R16_R16) {
-                    uint8_t dst = instrs->args.r16_r16.dst;
-                    uint8_t src = instrs->args.r16_r16.src;
+                if (mode == M_RR_RR) {
+                    uint8_t dst = instrs->args.rr_rr.dst;
+                    uint8_t src = instrs->args.rr_rr.src;
                     char op_buf[5];
                     codegen_emit("  ex ");
                     z80_format_ex_operand(op_buf, dst, false);
@@ -213,13 +219,13 @@ void codegen_emit_z80(uint8_t len, const z80_instr_t* instrs)
                     codegen_emit(op_buf);
                     codegen_emit("\n");
                     str = NULL;
-                } else if (mode == Z80_AM_MEM_R16 && instrs->args.mem_r16.mem == MEM_SP) {
+                } else if (mode == M_MEM_RR && instrs->args.mem_rr.mem == MEM_SP) {
                     char op_buf[5];
                     codegen_emit("  ex ");
                     z80_format_ex_operand(op_buf, REG_SP, true);
                     codegen_emit(op_buf);
                     codegen_emit(", ");
-                    z80_format_ex_operand(op_buf, instrs->args.mem_r16.rr, false);
+                    z80_format_ex_operand(op_buf, instrs->args.mem_rr.rr, false);
                     codegen_emit(op_buf);
                     codegen_emit("\n");
                     str = NULL;
@@ -229,29 +235,29 @@ void codegen_emit_z80(uint8_t len, const z80_instr_t* instrs)
                 str = pp_rra;
                 break;
             case I_INC:
-                if (mode == Z80_AM_R16) {
-                    z80_write_rr(&pp_inc16[6], instrs->args.r16.rr);
+                if (mode == M_RR_RR) {
+                    z80_write_rr(&pp_inc16[6], instrs->args.rr_rr.dst);
                 } else {
-                    pp_inc16[6] = instrs->args.r8.r;
+                    pp_inc16[6] = instrs->args.r_r.dst;
                     pp_inc16[7] = ' ';
                 }
                 str = pp_inc16;
                 break;
             case I_DEC:
-                if (mode == Z80_AM_R16) {
-                    z80_write_rr(&pp_dec16[6], instrs->args.r16.rr);
+                if (mode == M_RR_RR) {
+                    z80_write_rr(&pp_dec16[6], instrs->args.rr_rr.dst);
                     str = pp_dec16;
                 }
                 break;
             case I_PUSH:
-                if (mode == Z80_AM_R16) {
-                    z80_write_rr(&pp_push[7], instrs->args.r16.rr);
+                if (mode == M_RR_RR) {
+                    z80_write_rr(&pp_push[7], instrs->args.rr_rr.dst);
                     str = pp_push;
                 }
                 break;
             case I_POP:
-                if (mode == Z80_AM_R16) {
-                    z80_write_rr(&pp_pop[6], instrs->args.r16.rr);
+                if (mode == M_RR_RR) {
+                    z80_write_rr(&pp_pop[6], instrs->args.rr_rr.dst);
                     str = pp_pop;
                 }
                 break;

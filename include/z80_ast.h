@@ -142,48 +142,44 @@ typedef enum {
 } z80_mem_t;
 
 typedef enum {
-    Z80_AM_NONE = 0,
-    Z80_AM_R8,
-    Z80_AM_R16,
-    Z80_AM_R8_R8,
-    Z80_AM_R16_R16,
-    Z80_AM_R8_N,
-    Z80_AM_R16_NN,
-    Z80_AM_R8_MEM,
-    Z80_AM_MEM_R8,
-    Z80_AM_MEM_R16,
-    Z80_AM_R8_MEMI,
-    Z80_AM_MEMI_R8,
-    Z80_AM_R8_MEMO,
-    Z80_AM_MEMO_R8,
-    Z80_AM_BIT_R8,
-    Z80_AM_BIT_MEMO,
-    Z80_AM_COND_REL,
-    Z80_AM_COND_ABS,
-    Z80_AM_REL,
-    Z80_AM_ABS,
-    Z80_AM_RST,
-    Z80_AM_IM,
+    M_NONE = 0,
+    M_R_R,
+    M_RR_RR,
+    M_R_N,
+    M_RR_NN,
+    M_R_MEM,
+    M_MEM_R,
+    M_MEM_RR,
+    M_R_MEMI,
+    M_MEMI_R,
+    M_R_MEMO,
+    M_MEMO_R,
+    M_BIT_R,
+    M_BIT_MEMO,
+    M_COND_REL,
+    M_COND_ABS,
+    M_REL,
+    M_ABS,
+    M_RST,
+    M_IM,
 } z80_addr_mode_t;
 
 typedef struct {
     uint8_t op;   /* z80_op_t */
     uint8_t mode; /* z80_addr_mode_t */
     union {
-        struct { uint8_t r; } r8;
-        struct { uint8_t rr; } r16;
-        struct { uint8_t dst; uint8_t src; } r8_r8;
-        struct { uint8_t dst; uint8_t src; } r16_r16;
-        struct { uint8_t r; uint8_t imm; } r8_n;
-        struct { uint8_t rr; uint16_t imm; } r16_nn;
-        struct { uint8_t r; uint8_t mem; } r8_mem;
-        struct { uint8_t mem; uint8_t r; } mem_r8;
-        struct { uint8_t mem; uint8_t rr; } mem_r16;
-        struct { uint8_t r; uint16_t addr; } r8_memi;
+        struct { uint8_t dst; uint8_t src; } r_r;
+        struct { uint8_t dst; uint8_t src; } rr_rr;
+        struct { uint8_t r; uint8_t imm; } r_n;
+        struct { uint8_t rr; uint16_t imm; } rr_nn;
+        struct { uint8_t r; uint8_t mem; } r_mem;
+        struct { uint8_t mem; uint8_t r; } mem_r;
+        struct { uint8_t mem; uint8_t rr; } mem_rr;
+        struct { uint8_t r; uint16_t addr; } r_memi;
         struct { uint16_t addr; uint8_t r; } memi_r;
-        struct { uint8_t r; uint8_t idx; int8_t disp; } r8_memo;
-        struct { uint8_t idx; int8_t disp; uint8_t r; } memo_r8;
-        struct { uint8_t bit; uint8_t r; } bit_r8;
+        struct { uint8_t r; uint8_t idx; int8_t disp; } r_memo;
+        struct { uint8_t idx; int8_t disp; uint8_t r; } memo_r;
+        struct { uint8_t bit; uint8_t r; } bit_r;
         struct { uint8_t bit; uint8_t idx; int8_t disp; } bit_memo;
         struct { uint8_t cond; int8_t disp; } cond_rel;
         struct { uint8_t cond; uint16_t addr; } cond_abs;
