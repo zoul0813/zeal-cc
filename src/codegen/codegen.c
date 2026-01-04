@@ -103,7 +103,12 @@ static void codegen_result_to_a(void) {
     if (!g_result_in_hl) {
         return;
     }
-    codegen_emit(CG_STR_LD_A_L);
+    {
+        static const z80_instr_t z80[] = {
+            { .op = I_LD_R_R, .args.a8_8 = { REG_A, REG_L } },
+        };
+        codegen_emit_z80(DIM(z80), z80);
+    }
     g_result_in_hl = false;
 }
 
@@ -735,7 +740,10 @@ static cc_error_t codegen_emit_array_address(uint8_t* out_elem_size, bool* out_e
     if (err != CC_OK) return err;
     codegen_result_to_a();
     if (elem_size == 2) {
-        codegen_emit("  add a, a\n");
+        static const z80_instr_t z80[] = {
+            { .op = I_ADD_A, .args.r8 = { REG_A } },
+        };
+        codegen_emit_z80(DIM(z80), z80);
     }
     codegen_emit(
         "  ld e, a\n"
@@ -1239,21 +1247,36 @@ static cc_error_t codegen_emit_binary_op_a(uint8_t op, uint8_t left_tag) {
         //     "  ld a, b\n"
         //     "  or a\n");
         codegen_emit_jump(CG_STR_JR_Z, zero_label);
-        codegen_emit("  ld a, c\n");
+        {
+            static const z80_instr_t z80[] = {
+                { .op = I_LD_R_R, .args.a8_8 = { REG_A, REG_C } },
+            };
+            codegen_emit_z80(DIM(z80), z80);
+        }
         codegen_emit_label(loop_label);
         if (op == OP_SHL) {
-            codegen_emit("  add a, a\n");
+            static const z80_instr_t z80[] = {
+                { .op = I_ADD_A, .args.r8 = { REG_A } },
+            };
+            codegen_emit_z80(DIM(z80), z80);
         } else {
-            codegen_emit(
-                "  or a\n"
-                "  rra\n");
+            static const z80_instr_t z80[] = {
+                { .op = I_OR,  .args.r8 = { REG_A } },
+                { .op = I_RRA                        },
+            };
+            codegen_emit_z80(DIM(z80), z80);
         }
         codegen_emit("  djnz ");
         codegen_emit_label_name(loop_label);
         codegen_emit(CG_STR_NL);
         codegen_emit_jump(CG_STR_JR, end_label);
         codegen_emit_label(zero_label);
-        codegen_emit("  ld a, c\n");
+        {
+            static const z80_instr_t z80[] = {
+                { .op = I_LD_R_R, .args.a8_8 = { REG_A, REG_C } },
+            };
+            codegen_emit_z80(DIM(z80), z80);
+        }
         codegen_emit_label(end_label);
         g_result_in_hl = false;
         return CC_OK;
@@ -1749,7 +1772,12 @@ static cc_error_t codegen_stream_expression_tag(uint8_t tag) {
                 if (codegen_name_is_array(name)) {
                     cc_error_t err = codegen_emit_address_of_identifier(name);
                     if (err != CC_OK) return err;
-                    codegen_emit(CG_STR_LD_A_L);
+                    {
+                        static const z80_instr_t z80[] = {
+                            { .op = I_LD_R_R, .args.a8_8 = { REG_A, REG_L } },
+                        };
+                        codegen_emit_z80(DIM(z80), z80);
+                    }
                     g_result_in_hl = true;
                     return CC_OK;
                 }
@@ -1758,7 +1786,12 @@ static cc_error_t codegen_stream_expression_tag(uint8_t tag) {
                 if (is_16bit) {
                     cc_error_t err = codegen_load_pointer_to_hl(name);
                     if (err != CC_OK) return err;
-                    codegen_emit(CG_STR_LD_A_L);
+                    {
+                        static const z80_instr_t z80[] = {
+                            { .op = I_LD_R_R, .args.a8_8 = { REG_A, REG_L } },
+                        };
+                        codegen_emit_z80(DIM(z80), z80);
+                    }
                     g_result_in_hl = true;
                     return CC_OK;
                 }
@@ -1978,15 +2011,20 @@ static cc_error_t codegen_stream_expression_tag(uint8_t tag) {
                 }
                 if (op == OP_NOT) {
                     if (g_result_in_hl) {
-                        codegen_emit(
-                            "  ld a, h\n"
-                            "  cpl\n"
-                            "  ld h, a\n"
-                            "  ld a, l\n"
-                            "  cpl\n"
-                            "  ld l, a\n");
+                        static const z80_instr_t z80[] = {
+                            { .op = I_LD_R_R, .args.a8_8 = { REG_A, REG_H } },
+                            { .op = I_CPL                              },
+                            { .op = I_LD_R_R, .args.a8_8 = { REG_H, REG_A } },
+                            { .op = I_LD_R_R, .args.a8_8 = { REG_A, REG_L } },
+                            { .op = I_CPL                              },
+                            { .op = I_LD_R_R, .args.a8_8 = { REG_L, REG_A } },
+                        };
+                        codegen_emit_z80(DIM(z80), z80);
                     } else {
-                        codegen_emit("  cpl\n");
+                        static const z80_instr_t z80[] = {
+                            { .op = I_CPL },
+                        };
+                        codegen_emit_z80(DIM(z80), z80);
                     }
                     if (g_expect_result_in_hl && !g_result_in_hl) {
                         codegen_result_to_hl();
@@ -1996,11 +2034,16 @@ static cc_error_t codegen_stream_expression_tag(uint8_t tag) {
                     return CC_OK;
                 }
                 if (g_result_in_hl) {
-                    codegen_emit(
-                        "  ld a, h\n"
-                        "  or l\n");
+                    static const z80_instr_t z80[] = {
+                        { .op = I_LD_R_R, .args.a8_8 = { REG_A, REG_H } },
+                        { .op = I_OR,     .args.r8   = { REG_L        } },
+                    };
+                    codegen_emit_z80(DIM(z80), z80);
                 } else {
-                    codegen_emit(CG_STR_OR_A);
+                    static const z80_instr_t z80[] = {
+                        { .op = I_OR, .args.r8 = { REG_A } },
+                    };
+                    codegen_emit_z80(DIM(z80), z80);
                 }
                 codegen_emit_compare(CG_STR_JR_Z, NULL, g_expect_result_in_hl, true);
                 g_result_in_hl = g_expect_result_in_hl;
@@ -2026,9 +2069,13 @@ static cc_error_t codegen_stream_expression_tag(uint8_t tag) {
                 }
                 err = codegen_stream_expression_expect(left_tag, true);
                 if (err != CC_OK) goto logical_cleanup;
-                codegen_emit(
-                    "  ld a, h\n"
-                    "  or l\n");
+                {
+                    static const z80_instr_t z80[] = {
+                        { .op = I_LD_R_R, .args.a8_8 = { REG_A, REG_H } },
+                        { .op = I_OR,     .args.r8   = { REG_L        } },
+                    };
+                    codegen_emit_z80(DIM(z80), z80);
+                }
                 if (op == OP_LAND) {
                     codegen_emit_jump(CG_STR_JR_Z, short_label);
                 } else {
@@ -2040,9 +2087,13 @@ static cc_error_t codegen_stream_expression_tag(uint8_t tag) {
                     err = codegen_stream_expression_expect(right_tag, true);
                     if (err != CC_OK) goto logical_cleanup;
                 }
-                codegen_emit(
-                    "  ld a, h\n"
-                    "  or l\n");
+                {
+                    static const z80_instr_t z80[] = {
+                        { .op = I_LD_R_R, .args.a8_8 = { REG_A, REG_H } },
+                        { .op = I_OR,     .args.r8   = { REG_L        } },
+                    };
+                    codegen_emit_z80(DIM(z80), z80);
+                }
                 codegen_emit_compare(CG_STR_JR_NZ, NULL, output_in_hl, true);
                 codegen_emit_jump(CG_STR_JR, end_label);
                 codegen_emit_label(short_label);
@@ -2142,7 +2193,12 @@ logical_cleanup:
                     "  inc hl\n"
                     "  ld h, (hl)\n"
                     "  ld l, a\n");
-                codegen_emit(CG_STR_LD_A_L);
+                {
+                    static const z80_instr_t z80[] = {
+                        { .op = I_LD_R_R, .args.a8_8 = { REG_A, REG_L } },
+                    };
+                    codegen_emit_z80(DIM(z80), z80);
+                }
                 g_result_in_hl = true;
             } else {
                 codegen_emit(CG_STR_LD_A_HL);
@@ -2497,15 +2553,19 @@ static cc_error_t codegen_stream_function(void) {
         bool preserve_hl = gen->function_return_is_16;
         codegen_emit_label(gen->function_end_label);
         if (preserve_hl) {
-            codegen_emit(
-                "  ld b, h\n"
-                "  ld c, l\n");
+            static const z80_instr_t z80[] = {
+                { .op = I_LD_R_R, .args.a8_8 = { REG_B, REG_H } },
+                { .op = I_LD_R_R, .args.a8_8 = { REG_C, REG_L } },
+            };
+            codegen_emit_z80(DIM(z80), z80);
         }
         codegen_emit_stack_adjust(gen->stack_offset, false);
         if (preserve_hl) {
-            codegen_emit(
-                "  ld h, b\n"
-                "  ld l, c\n");
+            static const z80_instr_t z80[] = {
+                { .op = I_LD_R_R, .args.a8_8 = { REG_H, REG_B } },
+                { .op = I_LD_R_R, .args.a8_8 = { REG_L, REG_C } },
+            };
+            codegen_emit_z80(DIM(z80), z80);
         }
         codegen_emit(CG_STR_POP_IX_RET);
     }

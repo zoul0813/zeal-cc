@@ -2,18 +2,15 @@
 #define CODEGEN_STRINGS_H
 
 extern const char CG_STR_NL[];
-extern const char CG_STR_OR_A[];
 extern const char CG_STR_LD_A[];
 extern const char CG_STR_LD_A_ZERO[];
 extern const char CG_STR_LD_A_ONE[];
 extern const char CG_STR_LD_HL[];
 extern const char CG_STR_LD_HL_ZERO[];
 extern const char CG_STR_ADD_HL_DE[];
-extern const char CG_STR_LD_L_A[];
 extern const char CG_STR_LD_L_A_H_ZERO[];
 extern const char CG_STR_LD_LPAREN[];
 extern const char CG_STR_LD_A_LPAREN[];
-extern const char CG_STR_LD_A_L[];
 extern const char CG_STR_RPAREN_A[];
 extern const char CG_STR_PUSH_IX_POP_HL[];
 extern const char CG_STR_LD_HL_PAREN[];
