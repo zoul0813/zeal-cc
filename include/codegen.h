@@ -44,7 +44,7 @@ typedef struct {
 /* Code generator structure */
 typedef struct {
     output_t output_handle;
-    
+
     uint16_t label_counter;
 
     const char* current_function_name;

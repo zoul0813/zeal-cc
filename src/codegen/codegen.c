@@ -7,10 +7,13 @@
 #include "codegen_strings.h"
 #include "target.h"
 #include "cc_compat.h"
+#include "z80_ast.h"
 
 #define INITIAL_OUTPUT_CAPACITY 1024
 #define CODEGEN_LABEL_MAX 15 /* Zealasm docs say 16, but 15 avoids edge-case failures. */
 #define CODEGEN_LABEL_HASH_LEN 4
+
+void codegen_emit_z80(uint8_t len, const z80_instr_t* instrs);
 
 typedef struct {
     uint8_t op;
@@ -81,11 +84,18 @@ static void codegen_result_sign_extend_to_hl(void) {
     if (g_result_in_hl) {
         return;
     }
-    codegen_emit(
-        "  ld l, a\n"
-        "  add a, a\n"
-        "  sbc a, a\n"
-        "  ld h, a\n");
+    static const z80_instr_t z80[] = {
+        { .op = I_LD_R_R, .args.a8_8 = { .l = REG_L, .r = REG_A } },
+        { .op = I_ADD_A,  .args.r8   = { .l = REG_A             } },
+        { .op = I_SBC_A,  .args.r8   = { .l = REG_A             } },
+        { .op = I_LD_R_R, .args.a8_8 = { .l = REG_H, .r = REG_A } },
+    };
+    codegen_emit_z80(DIM(z80), z80);
+    // codegen_emit(
+    //     "  ld l, a\n"
+        // // "  add a, a\n"
+        // // "  sbc a, a\n"
+        // "  ld h, a\n");
     g_result_in_hl = true;
 }
 
@@ -831,6 +841,73 @@ void codegen_emit(const char* fmt) {
     }
 }
 
+static char pp_ld[]  = "  ld r,r\n";
+static char pp_add[] = "  add r\n";
+static char pp_sbc[] = "  sbc r\n";
+static char pp_and[] = "  and r\n";
+static char pp_or[]  = "  or r\n";
+static char pp_cpl[] = "  cpl\n";
+static char pp_rra[] = "  rra\n";
+static char pp_ex_de_hl[] = "  ex de, hl\n";
+static char pp_inc8[]  = "  inc r\n";
+static char pp_inc16[] = "  inc rr\n";
+
+void codegen_emit_z80(uint8_t len, const z80_instr_t* instrs)
+{
+    char* str = NULL;
+
+    while (len--) {
+        register const uint8_t l = instrs->args.a8_8.l;
+        register const uint8_t r = instrs->args.a8_8.r;
+        switch (instrs->op) {
+            case I_LD_R_R: {
+                pp_ld[5] = l;
+                pp_ld[7] = r;
+                str = pp_ld;
+                break;
+            }
+            case I_ADD_A: {
+                pp_add[6] = r;
+                str = pp_add;
+                break;
+            }
+            case I_SBC_A:
+                pp_sbc[6] = r;
+                str = pp_sbc;
+                break;
+            case I_AND:
+                pp_and[6] = r;
+                str = pp_and;
+                break;
+            case I_OR:
+                pp_or[4] = r;
+                str = pp_or;
+                break;
+            case I_CPL:
+                str = pp_cpl;
+                break;
+            case I_EX_DE_HL:
+                str = pp_ex_de_hl;
+                break;
+            case I_RRA:
+                str = pp_rra;
+                break;
+            case I_INC8:
+                pp_inc8[6] = l;
+                str = pp_inc8;
+                break;
+            case I_INC16:
+                pp_inc16[6] = l;
+                pp_inc16[7] = r;
+                str = pp_inc16;
+                break;
+            default:
+                break;
+        }
+    }
+    codegen_emit(str);
+}
+
 char* codegen_new_label(void) {
     static char labels[8][16];
     static uint8_t slot = 0;
@@ -941,39 +1018,76 @@ static cc_error_t codegen_emit_binary_op_hl(uint8_t op, uint8_t left_tag, bool o
     }
     if (op == OP_AND || op == OP_OR || op == OP_XOR) {
         if (op == OP_AND) {
-            codegen_emit(
-                "  ld a, h\n"
-                "  and d\n"
-                "  ld h, a\n"
-                "  ld a, l\n"
-                "  and e\n"
-                "  ld l, a\n");
+            static const z80_instr_t z80[] = {
+                { .op = I_LD_R_R, .args.a8_8 = { REG_A, REG_H } },
+                { .op = I_AND,    .args.a8_8 = { REG_D        } },
+                { .op = I_LD_R_R, .args.a8_8 = { REG_H, REG_A } },
+                { .op = I_LD_R_R, .args.a8_8 = { REG_A, REG_L } },
+                { .op = I_AND,    .args.a8_8 = { REG_E        } },
+                { .op = I_LD_R_R, .args.a8_8 = { REG_L, REG_A } },
+            };
+            codegen_emit_z80(DIM(z80), z80);
+            // codegen_emit(
+            //     "  ld a, h\n"
+            //     "  and d\n"
+            //     "  ld h, a\n"
+            //     "  ld a, l\n"
+            //     "  and e\n"
+            //     "  ld l, a\n");
         } else if (op == OP_OR) {
-            codegen_emit(
-                "  ld a, h\n"
-                "  or d\n"
-                "  ld h, a\n"
-                "  ld a, l\n"
-                "  or e\n"
-                "  ld l, a\n");
+            static const z80_instr_t z80[] = {
+                { .op = I_LD_R_R, .args.a8_8 = { REG_A, REG_H } },
+                { .op = I_OR,     .args.a8_8 = { REG_D        } },
+                { .op = I_LD_R_R, .args.a8_8 = { REG_H, REG_A } },
+                { .op = I_LD_R_R, .args.a8_8 = { REG_A, REG_L } },
+                { .op = I_OR,     .args.a8_8 = { REG_E        } },
+                { .op = I_LD_R_R, .args.a8_8 = { REG_L, REG_A } },
+            };
+            codegen_emit_z80(DIM(z80), z80);
+            // codegen_emit(
+            //     "  ld a, h\n"
+            //     "  or d\n"
+            //     "  ld h, a\n"
+            //     "  ld a, l\n"
+            //     "  or e\n"
+            //     "  ld l, a\n");
         } else {
-            codegen_emit(
-                "  ld a, h\n"
-                "  or d\n"
-                "  ld b, a\n"
-                "  ld a, h\n"
-                "  and d\n"
-                "  cpl\n"
-                "  and b\n"
-                "  ld h, a\n"
-                "  ld a, l\n"
-                "  or e\n"
-                "  ld b, a\n"
-                "  ld a, l\n"
-                "  and e\n"
-                "  cpl\n"
-                "  and b\n"
-                "  ld l, a\n");
+            static const z80_instr_t z80[] = {
+                { .op = I_LD_R_R, .args.a8_8 = { REG_A, REG_H } },
+                { .op = I_OR,     .args.a8_8 = { REG_D        } },
+                { .op = I_LD_R_R, .args.a8_8 = { REG_B, REG_A } },
+                { .op = I_LD_R_R, .args.a8_8 = { REG_A, REG_H } },
+                { .op = I_AND,    .args.a8_8 = { REG_D        } },
+                { .op = I_CPL                              },
+                { .op = I_AND,    .args.a8_8 = { REG_B        } },
+                { .op = I_LD_R_R, .args.a8_8 = { REG_H, REG_A } },
+                { .op = I_LD_R_R, .args.a8_8 = { REG_A, REG_L } },
+                { .op = I_OR,     .args.a8_8 = { REG_E        } },
+                { .op = I_LD_R_R, .args.a8_8 = { REG_B, REG_A } },
+                { .op = I_LD_R_R, .args.a8_8 = { REG_A, REG_L } },
+                { .op = I_AND,    .args.a8_8 = { REG_E        } },
+                { .op = I_CPL                              },
+                { .op = I_AND,    .args.a8_8 = { REG_B        } },
+                { .op = I_LD_R_R, .args.a8_8 = { REG_L, REG_A } },
+            };
+            codegen_emit_z80(DIM(z80), z80);
+            // codegen_emit(
+            //     "  ld a, h\n"
+            //     "  or d\n"
+            //     "  ld b, a\n"
+            //     "  ld a, h\n"
+            //     "  and d\n"
+            //     "  cpl\n"
+            //     "  and b\n"
+            //     "  ld h, a\n"
+            //     "  ld a, l\n"
+            //     "  or e\n"
+            //     "  ld b, a\n"
+            //     "  ld a, l\n"
+            //     "  and e\n"
+            //     "  cpl\n"
+            //     "  and b\n"
+            //     "  ld l, a\n");
         }
         g_result_in_hl = true;
         return CC_OK;
@@ -981,24 +1095,43 @@ static cc_error_t codegen_emit_binary_op_hl(uint8_t op, uint8_t left_tag, bool o
     if (op == OP_SHL || op == OP_SHR) {
         char* loop_label = codegen_new_label();
         char* end_label = codegen_new_label();
-        codegen_emit("  ex de, hl\n");
-        codegen_emit(
-            "  ld b, e\n"
-            "  ld a, b\n"
-            "  or a\n");
+        /* Same as above, convert these strings into z80 isntructions */
+        static const z80_instr_t z80[] = {
+            { .op = I_EX_DE_HL                       },
+            { .op = I_LD_R_R, .args.a8_8 = { REG_B, REG_E } },
+            { .op = I_LD_R_R, .args.a8_8 = { REG_A, REG_B } },
+            { .op = I_OR,     .args.a8_8 = { REG_A        } },
+        };
+        codegen_emit_z80(DIM(z80), z80);
+        // codegen_emit("  ex de, hl\n");
+        // codegen_emit(
+        //     "  ld b, e\n"
+        //     "  ld a, b\n"
+        //     "  or a\n");
         codegen_emit_jump(CG_STR_JR_Z, end_label);
         codegen_emit_label(loop_label);
         if (op == OP_SHL) {
             codegen_emit("  add hl, hl\n");
         } else {
-            codegen_emit(
-                "  ld a, h\n"
-                "  or a\n"
-                "  rra\n"
-                "  ld h, a\n"
-                "  ld a, l\n"
-                "  rra\n"
-                "  ld l, a\n");
+            // Same as above
+            static const z80_instr_t z80[] = {
+                { .op = I_LD_R_R, .args.a8_8 = { REG_A, REG_H } },
+                { .op = I_OR,     .args.a8_8 = { REG_A        } },
+                { .op = I_RRA                           },
+                { .op = I_LD_R_R, .args.a8_8 = { REG_H, REG_A } },
+                { .op = I_LD_R_R, .args.a8_8 = { REG_A, REG_L } },
+                { .op = I_RRA                           },
+                { .op = I_LD_R_R, .args.a8_8 = { REG_L, REG_A } },
+            };
+            codegen_emit_z80(DIM(z80), z80);
+            // codegen_emit(
+            //     "  ld a, h\n"
+            //     "  or a\n"
+            //     "  rra\n"
+            //     "  ld h, a\n"
+            //     "  ld a, l\n"
+            //     "  rra\n"
+            //     "  ld l, a\n");
         }
         codegen_emit("  djnz ");
         codegen_emit_label_name(loop_label);
@@ -1063,18 +1196,35 @@ static cc_error_t codegen_emit_binary_op_a(uint8_t op, uint8_t left_tag) {
     }
     if (op == OP_AND || op == OP_OR || op == OP_XOR) {
         if (op == OP_AND) {
-            codegen_emit("  and l\n");
+            static const z80_instr_t z80[] = {
+                { .op = I_AND, .args.a8_8 = { REG_L } },
+            };
+            codegen_emit_z80(DIM(z80), z80);
+            // codegen_emit("  and l\n");
         } else if (op == OP_OR) {
-            codegen_emit("  or l\n");
+            static const z80_instr_t z80[] = {
+                { .op = I_OR, .args.a8_8 = { REG_L } },
+            };
+            codegen_emit_z80(DIM(z80), z80);
         } else {
-            codegen_emit(
-                "  ld b, a\n"
-                "  or l\n"
-                "  ld c, a\n"
-                "  ld a, b\n"
-                "  and l\n"
-                "  cpl\n"
-                "  and c\n");
+            static const z80_instr_t z80[] = {
+                { .op = I_LD_R_R, .args.a8_8 = { REG_B, REG_A } },
+                { .op = I_OR,     .args.a8_8 = { REG_L        } },
+                { .op = I_LD_R_R, .args.a8_8 = { REG_C, REG_A } },
+                { .op = I_LD_R_R, .args.a8_8 = { REG_A, REG_B } },
+                { .op = I_AND,    .args.a8_8 = { REG_L        } },
+                { .op = I_CPL                              },
+                { .op = I_AND,    .args.a8_8 = { REG_C        } },
+            };
+            codegen_emit_z80(DIM(z80), z80);
+            // codegen_emit(
+            //     "  ld b, a\n"
+            //     "  or l\n"
+            //     "  ld c, a\n"
+            //     "  ld a, b\n"
+            //     "  and l\n"
+            //     "  cpl\n"
+            //     "  and c\n");
         }
         g_result_in_hl = false;
         return CC_OK;
@@ -1083,11 +1233,18 @@ static cc_error_t codegen_emit_binary_op_a(uint8_t op, uint8_t left_tag) {
         char* loop_label = codegen_new_label();
         char* zero_label = codegen_new_label();
         char* end_label = codegen_new_label();
-        codegen_emit(
-            "  ld b, l\n"
-            "  ld c, a\n"
-            "  ld a, b\n"
-            "  or a\n");
+        static const z80_instr_t z80[] = {
+            { .op = I_LD_R_R, .args.a8_8 = { REG_B, REG_L } },
+            { .op = I_LD_R_R, .args.a8_8 = { REG_C, REG_A } },
+            { .op = I_LD_R_R, .args.a8_8 = { REG_A, REG_B } },
+            { .op = I_OR,     .args.a8_8 = { REG_A        } },
+        };
+        codegen_emit_z80(DIM(z80), z80);
+        // codegen_emit(
+        //     "  ld b, l\n"
+        //     "  ld c, a\n"
+        //     "  ld a, b\n"
+        //     "  or a\n");
         codegen_emit_jump(CG_STR_JR_Z, zero_label);
         codegen_emit("  ld a, c\n");
         codegen_emit_label(loop_label);
@@ -1731,6 +1888,16 @@ static cc_error_t codegen_stream_expression_tag(uint8_t tag) {
                     cc_error_t err = codegen_emit_array_address(&elem_size, &elem_signed);
                     if (err != CC_OK) return err;
                     if (elem_size == 2) {
+                        // static const z80_instr_t z80[] = {
+                        //     { .op = I_LD_R_R, .args.a8_8 = { REG_D, REG_H } },
+                        //     { .op = I_LD_R_R, .args.a8_8 = { REG_E, REG_L } },
+                        //     { .op = I_LD_A_IND_RR, .a16 = { REG_DE } },
+                        //     { .op = I_INC,    .a16 = { REG_DE } },
+                        //     { .op = I_LD_R_R, .args.a8_8 = { REG_H, REG_A } },
+                        //     { .op = I_LD_A_IND_RR, .a16 = { REG_DE } },
+                        //     { .op = I_DEC_RR, .a16 = { REG_DE } },
+                        // };
+                        // codegen_emit_z80(DIM(z80), z80);
                         codegen_emit(
                             "  ld d, h\n"
                             "  ld e, l\n"
@@ -1788,14 +1955,24 @@ static cc_error_t codegen_stream_expression_tag(uint8_t tag) {
                 if (err != CC_OK) return err;
                 if (op == OP_NEG) {
                     if (g_result_in_hl) {
-                        codegen_emit(
-                            "  ld a, h\n"
-                            "  cpl\n"
-                            "  ld h, a\n"
-                            "  ld a, l\n"
-                            "  cpl\n"
-                            "  ld l, a\n"
-                            "  inc hl\n");
+                        static const z80_instr_t z80[] = {
+                            { .op = I_LD_R_R, .args.a8_8 = { REG_A, REG_H } },
+                            { .op = I_CPL,                             },
+                            { .op = I_LD_R_R, .args.a8_8 = { REG_H, REG_A } },
+                            { .op = I_LD_R_R, .args.a8_8 = { REG_A, REG_L } },
+                            { .op = I_CPL,                             },
+                            { .op = I_LD_R_R, .args.a8_8 = { REG_L, REG_A } },
+                            { .op = I_INC16,  .args.r16  = { REG_H, REG_L } },
+                        };
+                        codegen_emit_z80(DIM(z80), z80);
+                        // codegen_emit(
+                        //     "  ld a, h\n"
+                        //     "  cpl\n"
+                        //     "  ld h, a\n"
+                        //     "  ld a, l\n"
+                        //     "  cpl\n"
+                        //     "  ld l, a\n"
+                        //     "  inc hl\n");
                     } else {
                         codegen_emit("  neg\n");
                     }
