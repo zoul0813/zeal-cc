@@ -8,9 +8,12 @@ static uint8_t pp_add[] = "  add R\n";
 static uint8_t pp_sbc[] = "  sbc R\n";
 static uint8_t pp_and[] = "  and R\n";
 static uint8_t pp_or[]  = "  or R\n";
+static uint8_t pp_ld_r_mem[] = "  ld R,(RR)\n";
+static uint8_t pp_ld_mem_r[] = "  ld (RR),R\n";
 static uint8_t pp_cpl[] = "  cpl\n";
 static uint8_t pp_rra[] = "  rra\n";
 static uint8_t pp_inc16[] = "  inc RR\n";
+static uint8_t pp_dec16[] = "  dec RR\n";
 
 static void z80_write_rr(uint8_t* out, uint8_t rr) {
     switch ((z80_reg16_t)rr) {
@@ -45,6 +48,26 @@ static void z80_write_rr(uint8_t* out, uint8_t rr) {
     }
 }
 
+static bool z80_write_mem_rr(uint8_t* out, uint8_t mem) {
+    switch ((z80_mem_t)mem) {
+        case MEM_BC:
+            z80_write_rr(out, REG_BC);
+            return true;
+        case MEM_DE:
+            z80_write_rr(out, REG_DE);
+            return true;
+        case MEM_HL:
+            z80_write_rr(out, REG_HL);
+            return true;
+        case MEM_SP:
+            z80_write_rr(out, REG_SP);
+            return true;
+        default:
+            break;
+    }
+    return false;
+}
+
 static uint8_t z80_format_ex_operand(char* out, uint8_t rr, bool mem_sp) {
     if (mem_sp) {
         out[0] = '(';
@@ -77,16 +100,26 @@ void codegen_emit_z80(uint8_t len, const z80_instr_t* instrs)
 {
     uint8_t* str = NULL;
 
-    CC_ASSERT(sizeof(z80_instr_t) <= Z80_INSTR_SIZE, "z80_instr_t must stay compact (sdcc)");
-
     while (len--) {
         z80_op_t op = (z80_op_t)instrs->op;
         z80_addr_mode_t mode = (z80_addr_mode_t)instrs->mode;
         switch (op) {
             case I_LD:
-                pp_ld[5] = instrs->args.r8_r8.dst;
-                pp_ld[7] = instrs->args.r8_r8.src;
-                str = pp_ld;
+                if (mode == Z80_AM_R8_R8) {
+                    pp_ld[5] = instrs->args.r8_r8.dst;
+                    pp_ld[7] = instrs->args.r8_r8.src;
+                    str = pp_ld;
+                } else if (mode == Z80_AM_R8_MEM) {
+                    if (z80_write_mem_rr(&pp_ld_r_mem[8], instrs->args.r8_mem.mem)) {
+                        pp_ld_r_mem[5] = instrs->args.r8_mem.r;
+                        str = pp_ld_r_mem;
+                    }
+                } else if (mode == Z80_AM_MEM_R8) {
+                    if (z80_write_mem_rr(&pp_ld_mem_r[6], instrs->args.mem_r8.mem)) {
+                        pp_ld_mem_r[10] = instrs->args.mem_r8.r;
+                        str = pp_ld_mem_r;
+                    }
+                }
                 break;
             case I_ADD:
                 pp_add[6] = instrs->args.r8.r;
@@ -143,6 +176,12 @@ void codegen_emit_z80(uint8_t len, const z80_instr_t* instrs)
                     pp_inc16[7] = ' ';
                 }
                 str = pp_inc16;
+                break;
+            case I_DEC:
+                if (mode == Z80_AM_R16) {
+                    z80_write_rr(&pp_dec16[6], instrs->args.r16.rr);
+                    str = pp_dec16;
+                }
                 break;
             default:
                 break;
