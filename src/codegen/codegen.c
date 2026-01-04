@@ -154,8 +154,42 @@ static void codegen_emit_label_name(const char* name) {
     }
 }
 
-static void codegen_emit_mangled_var(const char* name) {
-    if (!name) return;
+static const char* codegen_normalized_label(const char* name) {
+    if (!name) return NULL;
+    uint16_t i = 0;
+    uint16_t hash = 0x811c;
+    bool need_hash = false;
+    while (name[i]) {
+        char c = name[i];
+        if (c >= 'A' && c <= 'Z') {
+            c = (char)(c + ('a' - 'A'));
+        }
+        if (i < CODEGEN_LABEL_MAX) {
+            g_emit_buf[i] = c;
+        } else {
+            need_hash = true;
+        }
+        hash = (uint16_t)((hash * 33u) ^ (uint8_t)c);
+        i++;
+    }
+    if (!need_hash) {
+        g_emit_buf[i] = '\0';
+        return g_emit_buf;
+    }
+    {
+        uint16_t keep = CODEGEN_LABEL_MAX - 1 - CODEGEN_LABEL_HASH_LEN;
+        uint16_t out = keep;
+        g_emit_buf[out++] = '_';
+        for (int shift = 12; shift >= 0; shift -= 4) {
+            g_emit_buf[out++] = g_hex_digits[(hash >> shift) & 0xF];
+        }
+        g_emit_buf[out] = '\0';
+        return g_emit_buf;
+    }
+}
+
+static const char* codegen_mangled_var(const char* name) {
+    if (!name) return NULL;
     char* out = g_emit_buf;
     uint16_t i = 0;
     uint16_t hash = 0x811c;
@@ -182,18 +216,17 @@ static void codegen_emit_mangled_var(const char* name) {
     }
     if (!need_hash) {
         *out = '\0';
-        codegen_emit(g_emit_buf);
-        return;
+        return g_emit_buf;
     }
     {
         uint16_t keep = CODEGEN_LABEL_MAX - 1 - CODEGEN_LABEL_HASH_LEN;
-        uint16_t out = keep;
-        g_emit_buf[out++] = '_';
+        uint16_t out_pos = keep;
+        g_emit_buf[out_pos++] = '_';
         for (int shift = 12; shift >= 0; shift -= 4) {
-            g_emit_buf[out++] = g_hex_digits[(hash >> shift) & 0xF];
+            g_emit_buf[out_pos++] = g_hex_digits[(hash >> shift) & 0xF];
         }
-        g_emit_buf[out] = '\0';
-        codegen_emit(g_emit_buf);
+        g_emit_buf[out_pos] = '\0';
+        return g_emit_buf;
     }
 }
 
@@ -241,13 +274,23 @@ static void codegen_emit_stack_adjust(int16_t offset, bool subtract) {
     codegen_emit_hex((uint16_t)offset);
     codegen_emit(CG_STR_NL);
     codegen_emit(subtract ? CG_STR_OR_A_SBC_HL_DE : CG_STR_ADD_HL_DE);
-    codegen_emit("  ld sp, hl\n");
+    {
+        static const z80_instr_t z80[] = {
+            { I_LD, M_RR_RR, { .rr_rr = { REG_SP, REG_HL } } },
+        };
+        codegen_emit_z80(DIM(z80), z80);
+    }
 }
 
 static void codegen_emit_label(const char* label) {
     if (!label) return;
-    codegen_emit_label_name(label);
-    codegen_emit(CG_STR_COLON);
+    {
+        const char* norm = codegen_normalized_label(label);
+        z80_instr_t z80[] = {
+            { I_LABEL, M_LABEL, { .label = { norm } } },
+        };
+        codegen_emit_z80(DIM(z80), z80);
+    }
 }
 
 static void codegen_emit_jump(const char* prefix, const char* label) {
@@ -598,18 +641,24 @@ static cc_error_t codegen_emit_address_of_identifier(const char* name) {
             codegen_emit_z80(DIM(z80), z80);
         }
         if (offset != 0) {
-            codegen_emit("  ld bc, ");
-            codegen_emit_hex((uint16_t)offset);
-            codegen_emit(
-                "\n"
-                "  add hl, bc\n");
+            {
+                z80_instr_t z80[] = {
+                    { I_LD,  M_RR_NN, { .rr_nn = { REG_BC, (uint16_t)offset } } },
+                    { I_ADD, M_RR_RR, { .rr_rr = { REG_HL, REG_BC } } },
+                };
+                codegen_emit_z80(DIM(z80), z80);
+            }
         }
         return CC_OK;
     }
 
-    codegen_emit(CG_STR_LD_HL);
-    codegen_emit_mangled_var(name);
-    codegen_emit(CG_STR_NL);
+    {
+        const char* label = codegen_mangled_var(name);
+        z80_instr_t z80[] = {
+            { I_LD, M_RR_LABEL, { .rr_label = { REG_HL, label } } },
+        };
+        codegen_emit_z80(DIM(z80), z80);
+    }
     return CC_OK;
 }
 
@@ -624,9 +673,13 @@ static cc_error_t codegen_load_pointer_to_hl(const char* name) {
         return CC_OK;
     }
 
-    codegen_emit(CG_STR_LD_HL_PAREN);
-    codegen_emit_mangled_var(name);
-    codegen_emit(CG_STR_RPAREN_NL);
+    {
+        const char* label = codegen_mangled_var(name);
+        z80_instr_t z80[] = {
+            { I_LD, M_RR_MEM_LABEL, { .rr_label = { REG_HL, label } } },
+        };
+        codegen_emit_z80(DIM(z80), z80);
+    }
     return CC_OK;
 }
 
@@ -641,9 +694,13 @@ static cc_error_t codegen_store_pointer_from_hl(const char* name) {
         return CC_OK;
     }
 
-    codegen_emit(CG_STR_LD_LPAREN);
-    codegen_emit_mangled_var(name);
-    codegen_emit(CG_STR_RPAREN_HL);
+    {
+        const char* label = codegen_mangled_var(name);
+        z80_instr_t z80[] = {
+            { I_LD, M_LABEL_RR, { .label_rr = { label, REG_HL } } },
+        };
+        codegen_emit_z80(DIM(z80), z80);
+    }
     return CC_OK;
 }
 
@@ -656,9 +713,13 @@ static cc_error_t codegen_store_a_to_identifier(const char* name) {
         codegen_emit_z80(DIM(z80), z80);
         return CC_OK;
     }
-    codegen_emit(CG_STR_LD_LPAREN);
-    codegen_emit_mangled_var(name);
-    codegen_emit(CG_STR_RPAREN_A);
+    {
+        const char* label = codegen_mangled_var(name);
+        z80_instr_t z80[] = {
+            { I_LD, M_LABEL_R, { .label_r = { label, REG_A } } },
+        };
+        codegen_emit_z80(DIM(z80), z80);
+    }
     return CC_OK;
 }
 
@@ -666,9 +727,12 @@ static cc_error_t codegen_load_array_base_to_hl(const char* base_string, const c
     if (base_string) {
         const char* label = codegen_get_string_label(base_string);
         if (!label) return CC_ERROR_CODEGEN;
-        codegen_emit(CG_STR_LD_HL);
-        codegen_emit(label);
-        codegen_emit(CG_STR_NL);
+        {
+            z80_instr_t z80[] = {
+                { I_LD, M_RR_LABEL, { .rr_label = { REG_HL, label } } },
+            };
+            codegen_emit_z80(DIM(z80), z80);
+        }
         return CC_OK;
     }
     if (base_name) {
@@ -1325,9 +1389,12 @@ static cc_error_t codegen_statement_var_decl(uint8_t tag) {
                 if (codegen_stream_read_name(&init_str) < 0) return CC_ERROR_CODEGEN;
                 const char* label = codegen_get_string_label(init_str);
                 if (!label) return CC_ERROR_CODEGEN;
-                codegen_emit(CG_STR_LD_HL);
-                codegen_emit(label);
-                codegen_emit(CG_STR_NL);
+                {
+                    z80_instr_t z80[] = {
+                        { I_LD, M_RR_LABEL, { .rr_label = { REG_HL, label } } },
+                    };
+                    codegen_emit_z80(DIM(z80), z80);
+                }
                 return codegen_store_pointer_from_hl(name);
             }
             if (init_tag == AST_TAG_UNARY_OP) {
@@ -1653,11 +1720,14 @@ static cc_error_t codegen_stream_expression_tag(uint8_t tag) {
             value = ast_read_i16();
             g_result_in_hl = g_expect_result_in_hl;
             if (g_expect_result_in_hl) {
-                codegen_emit(CG_STR_LD_HL);
-            } else {
-                codegen_emit(CG_STR_LD_A);
-                value = (uint8_t)value;
+                z80_instr_t z80[] = {
+                    { I_LD, M_RR_NN, { .rr_nn = { REG_HL, (uint16_t)value } } },
+                };
+                codegen_emit_z80(DIM(z80), z80);
+                return CC_OK;
             }
+            codegen_emit(CG_STR_LD_A);
+            value = (uint8_t)value;
             codegen_emit_hex(value);
             codegen_emit(CG_STR_NL);
             return CC_OK;
@@ -1701,9 +1771,13 @@ static cc_error_t codegen_stream_expression_tag(uint8_t tag) {
                     };
                     codegen_emit_z80(DIM(z80), z80);
                 } else {
-                    codegen_emit(CG_STR_LD_A_LPAREN);
-                    codegen_emit_mangled_var(name);
-                    codegen_emit(CG_STR_RPAREN_NL);
+                    {
+                        const char* label = codegen_mangled_var(name);
+                        z80_instr_t z80[] = {
+                            { I_LD, M_R_LABEL, { .r_label = { REG_A, label } } },
+                        };
+                        codegen_emit_z80(DIM(z80), z80);
+                    }
                 }
                 if (g_expect_result_in_hl) {
                     if (is_signed) {
@@ -1811,9 +1885,13 @@ static cc_error_t codegen_stream_expression_tag(uint8_t tag) {
                             };
                             codegen_emit_z80(DIM(z80), z80);
                         } else {
-                            codegen_emit(CG_STR_LD_A_LPAREN);
-                            codegen_emit_mangled_var(name);
-                            codegen_emit(CG_STR_RPAREN_NL);
+                            {
+                                const char* label = codegen_mangled_var(name);
+                                z80_instr_t z80[] = {
+                                    { I_LD, M_R_LABEL, { .r_label = { REG_A, label } } },
+                                };
+                                codegen_emit_z80(DIM(z80), z80);
+                            }
                         }
                         g_result_in_hl = false;
                         if (is_post) {
@@ -2139,9 +2217,13 @@ logical_cleanup:
                 if (reader_seek(reader, end_pos) < 0) return CC_ERROR_CODEGEN;
             }
 
-            codegen_emit(CG_STR_CALL);
-            codegen_emit_label_name(name);
-            codegen_emit(CG_STR_NL);
+            {
+                const char* norm = codegen_normalized_label(name);
+                z80_instr_t z80[] = {
+                    { I_CALL, M_LABEL, { .label = { norm } } },
+                };
+                codegen_emit_z80(DIM(z80), z80);
+            }
             if (arg_count > 0) {
                 for (uint8_t i = 0; i < arg_count; i++) {
                     {
@@ -2311,9 +2393,12 @@ logical_cleanup:
                     if (codegen_stream_read_name(&rvalue_string) < 0) return CC_ERROR_CODEGEN;
                     const char* label = codegen_get_string_label(rvalue_string);
                     if (!label) return CC_ERROR_CODEGEN;
-                    codegen_emit(CG_STR_LD_HL);
-                    codegen_emit(label);
-                    codegen_emit(CG_STR_NL);
+                    {
+                        z80_instr_t z80[] = {
+                            { I_LD, M_RR_LABEL, { .rr_label = { REG_HL, label } } },
+                        };
+                        codegen_emit_z80(DIM(z80), z80);
+                    }
                     return codegen_store_pointer_from_hl(lvalue_name);
                 }
             }
@@ -2612,13 +2697,17 @@ static cc_error_t codegen_stream_global_var(void) {
     bool is_array = array_len > 0;
     bool is_pointer = (!is_array && depth > 0);
     uint8_t base_kind = codegen_base_type(base);
-    (void)name;
-    codegen_emit_mangled_var(name);
+    {
+        const char* label = codegen_mangled_var(name);
+        z80_instr_t z80[] = {
+            { I_LABEL, M_LABEL, { .label = { label } } },
+        };
+        codegen_emit_z80(DIM(z80), z80);
+    }
 
     if (is_array) {
         uint8_t elem_size = codegen_type_size(base, depth);
         uint16_t total_size = (uint16_t)(elem_size * array_len);
-        codegen_emit(CG_STR_COLON);
         if (elem_size == 0) {
 #if !CC_TRUST_SEMANTIC
             cc_error("Unsupported array element type");
@@ -2667,7 +2756,6 @@ static cc_error_t codegen_stream_global_var(void) {
                 if (codegen_stream_read_name(&init_str) < 0) return CC_ERROR_CODEGEN;
                 const char* label = codegen_get_string_label(init_str);
                 if (!label) return CC_ERROR_CODEGEN;
-                codegen_emit(CG_STR_COLON);
                 codegen_emit(CG_STR_DW);
                 codegen_emit(label);
                 codegen_emit(CG_STR_NL);
@@ -2681,9 +2769,8 @@ static cc_error_t codegen_stream_global_var(void) {
                 if (op == OP_ADDR && operand_tag == AST_TAG_IDENTIFIER) {
                     const char* ident = NULL;
                     if (codegen_stream_read_name(&ident) < 0) return CC_ERROR_CODEGEN;
-                    codegen_emit(CG_STR_COLON);
                     codegen_emit(CG_STR_DW);
-                    codegen_emit_mangled_var(ident);
+                    codegen_emit(codegen_mangled_var(ident));
                     codegen_emit(CG_STR_NL);
                     return CC_OK;
                 }
@@ -2695,7 +2782,6 @@ static cc_error_t codegen_stream_global_var(void) {
                 ast_reader_skip_tag(tag);
             }
         }
-        codegen_emit(CG_STR_COLON);
         codegen_emit(CG_STR_DW);
         codegen_emit_hex(0);
         return CC_OK;
@@ -2708,7 +2794,6 @@ static cc_error_t codegen_stream_global_var(void) {
         if (tag == AST_TAG_CONSTANT) {
             int16_t value = 0;
             value = ast_read_i16();
-            codegen_emit(CG_STR_COLON);
             codegen_emit(is_16bit ? CG_STR_DW : CG_STR_DB);
             {
                 uint16_t emit_value = is_16bit ? (uint16_t)value : (uint8_t)value;
@@ -2719,7 +2804,6 @@ static cc_error_t codegen_stream_global_var(void) {
         }
         ast_reader_skip_tag(tag);
     }
-    codegen_emit(CG_STR_COLON);
     codegen_emit(is_16bit ? CG_STR_DW : CG_STR_DB);
     codegen_emit_hex(0);
     return CC_OK;

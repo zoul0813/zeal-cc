@@ -156,6 +156,12 @@ typedef enum {
     M_MEMO_R,
     M_BIT_R,
     M_BIT_MEMO,
+    M_R_LABEL,
+    M_LABEL_R,
+    M_RR_LABEL,
+    M_LABEL_RR,
+    M_RR_MEM_LABEL,
+    M_LABEL,
     M_COND_REL,
     M_COND_ABS,
     M_REL,
@@ -181,6 +187,11 @@ typedef struct {
         struct { uint8_t idx; int8_t disp; uint8_t r; } memo_r;
         struct { uint8_t bit; uint8_t r; } bit_r;
         struct { uint8_t bit; uint8_t idx; int8_t disp; } bit_memo;
+        struct { uint8_t r; const char* label; } r_label;
+        struct { const char* label; uint8_t r; } label_r;
+        struct { uint8_t rr; const char* label; } rr_label;
+        struct { const char* label; uint8_t rr; } label_rr;
+        struct { const char* label; } label;
         struct { uint8_t cond; int8_t disp; } cond_rel;
         struct { uint8_t cond; uint16_t addr; } cond_abs;
         struct { uint16_t addr; } abs;
