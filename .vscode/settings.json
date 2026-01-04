@@ -21,6 +21,8 @@
   "editor.tabSize": 4,
   "editor.insertSpaces": true,
   "editor.detectIndentation": false,
+  "editor.rulers": [80, 120],
+  "workbench.colorCustomizations": { "editorRuler.foreground": "#3337" },
   "files.associations": {
     "*.asm": "z80-macroasm"
   }

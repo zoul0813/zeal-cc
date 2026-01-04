@@ -107,8 +107,7 @@ static void codegen_result_to_a(void) {
     g_result_in_hl = false;
 }
 
-static char* codegen_format_label(char labels[8][16], uint8_t* slot,
-                                  char prefix, uint16_t n) {
+static char* codegen_format_label(char labels[8][16], uint8_t* slot, char prefix, uint16_t n) {
     char* label = labels[(*slot)++ & 7];
     char* out = label;
     *out++ = '_';
@@ -410,8 +409,7 @@ static uint8_t codegen_local_offset(const char* name, int16_t* out_offset) {
     return 1;
 }
 
-static uint8_t codegen_local_or_param_offset(const char* name,
-                                             int16_t* out_offset) {
+static uint8_t codegen_local_or_param_offset(const char* name, int16_t* out_offset) {
     return codegen_local_offset(name, out_offset) ||
            codegen_param_offset(name, out_offset);
 }
@@ -663,8 +661,7 @@ static cc_error_t codegen_store_a_to_identifier(const char* name) {
     return CC_OK;
 }
 
-static cc_error_t codegen_load_array_base_to_hl(const char* base_string,
-                                                const char* base_name) {
+static cc_error_t codegen_load_array_base_to_hl(const char* base_string, const char* base_name) {
     if (base_string) {
         const char* label = codegen_get_string_label(base_string);
         if (!label) return CC_ERROR_CODEGEN;
@@ -691,8 +688,7 @@ static cc_error_t codegen_load_array_base_to_hl(const char* base_string,
     return CC_ERROR_CODEGEN;
 }
 
-static cc_error_t codegen_emit_array_address(uint8_t* out_elem_size,
-                                             bool* out_elem_signed) {
+static cc_error_t codegen_emit_array_address(uint8_t* out_elem_size, bool* out_elem_signed) {
     uint8_t base_tag = 0;
     uint8_t index_tag = 0;
     const char* base_name = NULL;
@@ -841,46 +837,44 @@ void codegen_emit(const char* fmt) {
     }
 }
 
-static char pp_ld[]  = "  ld r,r\n";
-static char pp_add[] = "  add r\n";
-static char pp_sbc[] = "  sbc r\n";
-static char pp_and[] = "  and r\n";
-static char pp_or[]  = "  or r\n";
+static char pp_ld[]  = "  ld R,R\n";
+static char pp_add[] = "  add R\n";
+static char pp_sbc[] = "  sbc R\n";
+static char pp_and[] = "  and R\n";
+static char pp_or[]  = "  or R\n";
 static char pp_cpl[] = "  cpl\n";
 static char pp_rra[] = "  rra\n";
 static char pp_ex_de_hl[] = "  ex de, hl\n";
-static char pp_inc8[]  = "  inc r\n";
-static char pp_inc16[] = "  inc rr\n";
+// static char pp_inc8[]  = "  inc R\n";
+static char pp_inc16[] = "  inc RR\n";
 
 void codegen_emit_z80(uint8_t len, const z80_instr_t* instrs)
 {
     char* str = NULL;
 
     while (len--) {
-        register const uint8_t l = instrs->args.a8_8.l;
-        register const uint8_t r = instrs->args.a8_8.r;
         switch (instrs->op) {
             case I_LD_R_R: {
-                pp_ld[5] = l;
-                pp_ld[7] = r;
+                pp_ld[5] = instrs->args.a8_8.l;
+                pp_ld[7] = instrs->args.a8_8.r;
                 str = pp_ld;
                 break;
             }
             case I_ADD_A: {
-                pp_add[6] = r;
+                pp_add[6] = instrs->args.r8.l;
                 str = pp_add;
                 break;
             }
             case I_SBC_A:
-                pp_sbc[6] = r;
+                pp_sbc[6] = instrs->args.r8.l;
                 str = pp_sbc;
                 break;
             case I_AND:
-                pp_and[6] = r;
+                pp_and[6] = instrs->args.r8.l;
                 str = pp_and;
                 break;
             case I_OR:
-                pp_or[4] = r;
+                pp_or[5] = instrs->args.r8.l;
                 str = pp_or;
                 break;
             case I_CPL:
@@ -893,19 +887,24 @@ void codegen_emit_z80(uint8_t len, const z80_instr_t* instrs)
                 str = pp_rra;
                 break;
             case I_INC8:
-                pp_inc8[6] = l;
-                str = pp_inc8;
+                pp_inc16[6] = instrs->args.r8.l;
+                pp_inc16[7] = ' ';
+                str = pp_inc16;
                 break;
             case I_INC16:
-                pp_inc16[6] = l;
-                pp_inc16[7] = r;
+                pp_inc16[6] = instrs->args.r16.l;
+                pp_inc16[7] = instrs->args.r16.r;
                 str = pp_inc16;
                 break;
             default:
                 break;
         }
+        if (str) {
+            codegen_emit(str);
+            str = NULL;
+        }
+        instrs++;
     }
-    codegen_emit(str);
 }
 
 char* codegen_new_label(void) {
@@ -927,8 +926,7 @@ static bool codegen_op_is_compare(uint8_t op) {
            op == OP_GT || op == OP_LE || op == OP_GE;
 }
 
-static void codegen_emit_compare(const char* jump1, const char* jump2,
-                                 bool output_in_hl, bool use_set_label) {
+static void codegen_emit_compare(const char* jump1, const char* jump2, bool output_in_hl, bool use_set_label) {
     char* end = codegen_new_label();
     codegen_emit(output_in_hl ? CG_STR_LD_HL_ZERO : CG_STR_LD_A_ZERO);
     if (use_set_label) {
@@ -953,12 +951,9 @@ static void codegen_emit_compare(const char* jump1, const char* jump2,
     codegen_emit_label(end);
 }
 
-static bool codegen_emit_compare_table(uint8_t op,
-                                       const compare_entry_t* table, uint8_t count,
-                                       bool output_in_hl);
+static bool codegen_emit_compare_table(uint8_t op, const compare_entry_t* table, uint8_t count, bool output_in_hl);
 
-static bool codegen_emit_op_table(uint8_t op,
-                                  const op_emit_entry_t* table, uint8_t count) {
+static bool codegen_emit_op_table(uint8_t op, const op_emit_entry_t* table, uint8_t count) {
     for (uint8_t i = 0; i < count; i++) {
         if (table[i].op != op) {
             continue;
@@ -969,9 +964,7 @@ static bool codegen_emit_op_table(uint8_t op,
     return false;
 }
 
-static bool codegen_emit_compare_table(uint8_t op,
-                                       const compare_entry_t* table, uint8_t count,
-                                       bool output_in_hl) {
+static bool codegen_emit_compare_table(uint8_t op, const compare_entry_t* table, uint8_t count, bool output_in_hl) {
     for (uint8_t i = 0; i < count; i++) {
         if (table[i].op != op) {
             continue;
