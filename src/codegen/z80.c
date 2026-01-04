@@ -16,6 +16,7 @@ static uint8_t pp_ld_label_rr[] = "  ld (";
 static uint8_t pp_call[] = "  call ";
 static uint8_t pp_add[] = "  add a, R\n";
 static uint8_t pp_add_hl_rr[] = "  add hl, RR\n";
+static uint8_t pp_sub[] = "  sub R\n";
 static uint8_t pp_sbc[] = "  sbc a, R\n";
 static uint8_t pp_and[] = "  and R\n";
 static uint8_t pp_or[]  = "  or R\n";
@@ -28,7 +29,10 @@ static uint8_t pp_ld_memi_r[] = "  ld (0x0000),R\n";
 static uint8_t pp_ld_r_memo[] = "  ld R,(IX+0x00)\n";
 static uint8_t pp_ld_memo_r[] = "  ld (IX+0x00),R\n";
 static uint8_t pp_cpl[] = "  cpl\n";
+static uint8_t pp_neg[] = "  neg\n";
 static uint8_t pp_rra[] = "  rra\n";
+static uint8_t pp_ret[] = "  ret\n";
+static uint8_t pp_djnz[] = "  djnz ";
 static uint8_t pp_inc16[] = "  inc RR\n";
 static uint8_t pp_dec16[] = "  dec RR\n";
 
@@ -246,6 +250,12 @@ void codegen_emit_z80(uint8_t len, const z80_instr_t* instrs)
                     str = pp_add_hl_rr;
                 }
                 break;
+            case I_SUB:
+                if (mode == M_R_R) {
+                    pp_sub[6] = instrs->args.r_r.dst;
+                    str = pp_sub;
+                }
+                break;
             case I_SBC:
                 if (mode == M_R_R) {
                     pp_sbc[9] = instrs->args.r_r.dst;
@@ -266,6 +276,9 @@ void codegen_emit_z80(uint8_t len, const z80_instr_t* instrs)
                 break;
             case I_CPL:
                 str = pp_cpl;
+                break;
+            case I_NEG:
+                str = pp_neg;
                 break;
             case I_EX:
                 if (mode == M_RR_RR) {
@@ -300,6 +313,14 @@ void codegen_emit_z80(uint8_t len, const z80_instr_t* instrs)
                     str = NULL;
                 }
                 break;
+            case I_DJNZ:
+                if (mode == M_LABEL) {
+                    codegen_emit((const char*)pp_djnz);
+                    codegen_emit(instrs->args.label.label);
+                    codegen_emit("\n");
+                    str = NULL;
+                }
+                break;
             case I_RRA:
                 str = pp_rra;
                 break;
@@ -329,6 +350,9 @@ void codegen_emit_z80(uint8_t len, const z80_instr_t* instrs)
                     z80_write_rr(&pp_pop[6], instrs->args.rr_rr.dst);
                     str = pp_pop;
                 }
+                break;
+            case I_RET:
+                str = pp_ret;
                 break;
             case I_LABEL:
                 if (mode == M_LABEL) {

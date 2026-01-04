@@ -33,7 +33,6 @@ static cc_error_t codegen_stream_statement_tag(uint8_t tag);
 static int8_t codegen_stream_collect_locals(void);
 static cc_error_t codegen_stream_function(void);
 static cc_error_t codegen_stream_global_var(void);
-static void codegen_emit_ix_offset(int16_t offset);
 static void codegen_emit_hex(uint16_t value);
 static bool codegen_stream_type_is_16bit(uint8_t base, uint8_t depth);
 static void codegen_emit_string_literal(const char* value);
@@ -633,22 +632,14 @@ static uint8_t codegen_peek_array_elem_size(void) {
 static cc_error_t codegen_emit_address_of_identifier(const char* name) {
     int16_t offset = 0;
     if (codegen_local_or_param_offset(name, &offset)) {
-        {
-            static const z80_instr_t z80[] = {
-                { I_PUSH, M_RR_RR, { .rr_rr = { REG_IX } } },
-                { I_POP, M_RR_RR, { .rr_rr = { REG_HL } } },
-            };
-            codegen_emit_z80(DIM(z80), z80);
-        }
-        if (offset != 0) {
-            {
-                z80_instr_t z80[] = {
-                    { I_LD,  M_RR_NN, { .rr_nn = { REG_BC, (uint16_t)offset } } },
-                    { I_ADD, M_RR_RR, { .rr_rr = { REG_HL, REG_BC } } },
-                };
-                codegen_emit_z80(DIM(z80), z80);
-            }
-        }
+        z80_instr_t z80[] = {
+            { I_PUSH, M_RR_RR, { .rr_rr = { REG_IX } } },
+            { I_POP,  M_RR_RR, { .rr_rr = { REG_HL } } },
+            { I_LD,   M_RR_NN, { .rr_nn = { REG_BC, (uint16_t)offset } } },
+            { I_ADD,  M_RR_RR, { .rr_rr = { REG_HL, REG_BC } } },
+        };
+        uint8_t len = (offset != 0) ? 4 : 2;
+        codegen_emit_z80(len, z80);
         return CC_OK;
     }
 
@@ -802,17 +793,13 @@ static cc_error_t codegen_emit_array_address(uint8_t* out_elem_size, bool* out_e
     if (elem_size == 2) {
         static const z80_instr_t z80[] = {
             { I_ADD, M_R_R, { .r_r = { REG_A } } },
-            { I_LD, M_R_R, { .r_r = { REG_E, REG_A } } },
+            { I_LD,  M_R_R, { .r_r = { REG_E, REG_A } } },
+            { I_LD,  M_R_N, { .r_n = { REG_D, 0 } } },
         };
         codegen_emit_z80(DIM(z80), z80);
     } else {
         static const z80_instr_t z80[] = {
             { I_LD, M_R_R, { .r_r = { REG_E, REG_A } } },
-        };
-        codegen_emit_z80(DIM(z80), z80);
-    }
-    {
-        static const z80_instr_t z80[] = {
             { I_LD, M_R_N, { .r_n = { REG_D, 0 } } },
         };
         codegen_emit_z80(DIM(z80), z80);
@@ -834,16 +821,6 @@ static cc_error_t codegen_emit_array_address(uint8_t* out_elem_size, bool* out_e
         *out_elem_signed = elem_signed;
     }
     return CC_OK;
-}
-
-static void codegen_emit_ix_offset(int16_t offset) {
-    if (offset < 0) {
-        codegen_emit("-");
-        codegen_emit_hex((uint8_t)(-offset));
-        return;
-    }
-    codegen_emit("+");
-    codegen_emit_hex((uint8_t)offset);
 }
 
 static char* codegen_new_label_persist(void) {
@@ -1107,9 +1084,13 @@ static cc_error_t codegen_emit_binary_op_hl(uint8_t op, uint8_t left_tag, bool o
             };
             codegen_emit_z80(DIM(z80), z80);
         }
-        codegen_emit("  djnz ");
-        codegen_emit_label_name(loop_label);
-        codegen_emit(CG_STR_NL);
+        {
+            const char* norm = codegen_normalized_label(loop_label);
+            z80_instr_t z80[] = {
+                { I_DJNZ, M_LABEL, { .label = { norm } } },
+            };
+            codegen_emit_z80(DIM(z80), z80);
+        }
         codegen_emit_label(end_label);
         g_result_in_hl = true;
         return CC_OK;
@@ -1166,7 +1147,10 @@ static cc_error_t codegen_emit_binary_op_a(uint8_t op, uint8_t left_tag) {
             return CC_OK;
         }
         if (op == OP_GT) {
-            codegen_emit("  sub l\n");
+            static const z80_instr_t z80[] = {
+                { I_SUB, M_R_R, { .r_r = { REG_L } } },
+            };
+            codegen_emit_z80(DIM(z80), z80);
             codegen_emit_compare(CG_STR_JR_Z, CG_STR_JR_C, false, false);
             g_result_in_hl = false;
             return CC_OK;
@@ -1230,9 +1214,13 @@ static cc_error_t codegen_emit_binary_op_a(uint8_t op, uint8_t left_tag) {
             };
             codegen_emit_z80(DIM(z80), z80);
         }
-        codegen_emit("  djnz ");
-        codegen_emit_label_name(loop_label);
-        codegen_emit(CG_STR_NL);
+        {
+            const char* norm = codegen_normalized_label(loop_label);
+            z80_instr_t z80[] = {
+                { I_DJNZ, M_LABEL, { .label = { norm } } },
+            };
+            codegen_emit_z80(DIM(z80), z80);
+        }
         codegen_emit_jump(CG_STR_JR, end_label);
         codegen_emit_label(zero_label);
         {
@@ -2043,7 +2031,10 @@ static cc_error_t codegen_stream_expression_tag(uint8_t tag) {
                         };
                         codegen_emit_z80(DIM(z80), z80);
                     } else {
-                        codegen_emit("  neg\n");
+                        static const z80_instr_t z80[] = {
+                            { I_NEG, M_NONE },
+                        };
+                        codegen_emit_z80(DIM(z80), z80);
                     }
                     if (g_expect_result_in_hl && !g_result_in_hl) {
                         codegen_result_to_hl();
@@ -2670,7 +2661,12 @@ static cc_error_t codegen_stream_function(void) {
             };
             codegen_emit_z80(DIM(z80), z80);
         }
-        codegen_emit("  ret\n");
+        {
+            static const z80_instr_t z80[] = {
+                { I_RET, M_NONE },
+            };
+            codegen_emit_z80(DIM(z80), z80);
+        }
     }
 
     if (gen->function_end_label) {
