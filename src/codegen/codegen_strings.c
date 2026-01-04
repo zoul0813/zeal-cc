@@ -15,12 +15,6 @@ const char CG_STR_DS[] = "  .ds ";
 const char CG_STR_OR_A_SBC_HL_DE[] = "  or a\n  sbc hl, de\n";
 const char CG_STR_EX_DE_HL_OR_A_SBC_HL_DE[] = "  ex de, hl\n  or a\n  sbc hl, de\n";
 const char CG_STR_IX_FRAME_SET[] = "  ld ix, 0\n  add ix, sp\n";
-const char CG_STR_JP[] = "  jp ";
-const char CG_STR_JR[] = "  jr ";
-const char CG_STR_JR_Z[] = "  jr z, ";
-const char CG_STR_JR_NZ[] = "  jr nz, ";
-const char CG_STR_JR_C[] = "  jr c, ";
-const char CG_STR_JR_NC[] = "  jr nc, ";
 const char CG_STR_OR_A_JP_Z[] = "  or a\n  jp z, ";
 
 const char CG_MSG_FAILED_READ_AST_HEADER[] = "Failed to read AST header\n";

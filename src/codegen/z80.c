@@ -36,59 +36,50 @@ static uint8_t pp_djnz[] = "  djnz ";
 static uint8_t pp_inc16[] = "  inc RR\n";
 static uint8_t pp_dec16[] = "  dec RR\n";
 
+static const char* const z80_cond_strings[] = {
+    "nz",
+    "z",
+    "nc",
+    "c",
+    "po",
+    "pe",
+    "p",
+    "m",
+};
+
+static const char* const z80_rr_strings[] = {
+    "bc",
+    "de",
+    "hl",
+    "sp",
+    "ix",
+    "iy",
+    "af",
+    "??",
+};
+
+static const uint8_t z80_mem_rr[] = {
+    REG_BC,
+    REG_DE,
+    REG_HL,
+    REG_SP,
+};
+
 static void z80_write_rr(uint8_t* out, uint8_t rr) {
-    switch ((z80_reg16_t)rr) {
-        case REG_BC:
-            out[0] = 'b';
-            out[1] = 'c';
-            break;
-        case REG_DE:
-            out[0] = 'd';
-            out[1] = 'e';
-            break;
-        case REG_HL:
-            out[0] = 'h';
-            out[1] = 'l';
-            break;
-        case REG_SP:
-            out[0] = 's';
-            out[1] = 'p';
-            break;
-        case REG_AF:
-            out[0] = 'a';
-            out[1] = 'f';
-            break;
-        case REG_IX:
-            out[0] = 'i';
-            out[1] = 'x';
-            break;
-        case REG_IY:
-            out[0] = 'i';
-            out[1] = 'y';
-            break;
-        default:
-            out[0] = '?';
-            out[1] = '?';
-            break;
+    if (rr < (uint8_t)DIM(z80_rr_strings)) {
+        const char* name = z80_rr_strings[rr];
+        out[0] = (uint8_t)name[0];
+        out[1] = (uint8_t)name[1];
+        return;
     }
+    out[0] = '?';
+    out[1] = '?';
 }
 
 static bool z80_write_mem_rr(uint8_t* out, uint8_t mem) {
-    switch ((z80_mem_t)mem) {
-        case MEM_BC:
-            z80_write_rr(out, REG_BC);
-            return true;
-        case MEM_DE:
-            z80_write_rr(out, REG_DE);
-            return true;
-        case MEM_HL:
-            z80_write_rr(out, REG_HL);
-            return true;
-        case MEM_SP:
-            z80_write_rr(out, REG_SP);
-            return true;
-        default:
-            break;
+    if (mem < (uint8_t)DIM(z80_mem_rr)) {
+        z80_write_rr(out, z80_mem_rr[mem]);
+        return true;
     }
     return false;
 }
@@ -121,6 +112,14 @@ static void z80_emit_reg8(uint8_t r) {
     buf[0] = (char)r;
     buf[1] = '\0';
     codegen_emit(buf);
+}
+
+static void z80_emit_cond(uint8_t cond) {
+    if (cond < (uint8_t)DIM(z80_cond_strings)) {
+        codegen_emit(z80_cond_strings[cond]);
+        return;
+    }
+    codegen_emit("?");
 }
 
 static uint8_t z80_format_ex_operand(char* out, uint8_t rr, bool mem_sp) {
@@ -309,6 +308,29 @@ void codegen_emit_z80(uint8_t len, const z80_instr_t* instrs)
                 if (mode == M_LABEL) {
                     codegen_emit((const char*)pp_call);
                     codegen_emit(instrs->args.label.label);
+                    codegen_emit("\n");
+                    str = NULL;
+                }
+                break;
+            case I_JP:
+                if (mode == M_LABEL) {
+                    codegen_emit("  jp ");
+                    codegen_emit(instrs->args.label.label);
+                    codegen_emit("\n");
+                    str = NULL;
+                }
+                break;
+            case I_JR:
+                if (mode == M_LABEL) {
+                    codegen_emit("  jr ");
+                    codegen_emit(instrs->args.label.label);
+                    codegen_emit("\n");
+                    str = NULL;
+                } else if (mode == M_COND_LABEL) {
+                    codegen_emit("  jr ");
+                    z80_emit_cond(instrs->args.cond_label.cond);
+                    codegen_emit(", ");
+                    codegen_emit(instrs->args.cond_label.label);
                     codegen_emit("\n");
                     str = NULL;
                 }

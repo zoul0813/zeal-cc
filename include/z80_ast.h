@@ -130,6 +130,7 @@ typedef enum {
     COND_PE,
     COND_P,
     COND_M,
+    COND_NONE,
 } z80_cond_t;
 
 typedef enum {
@@ -162,6 +163,7 @@ typedef enum {
     M_LABEL_RR,
     M_RR_MEM_LABEL,
     M_LABEL,
+    M_COND_LABEL,
     M_COND_REL,
     M_COND_ABS,
     M_REL,
@@ -192,6 +194,7 @@ typedef struct {
         struct { uint8_t rr; const char* label; } rr_label;
         struct { const char* label; uint8_t rr; } label_rr;
         struct { const char* label; } label;
+        struct { uint8_t cond; const char* label; } cond_label;
         struct { uint8_t cond; int8_t disp; } cond_rel;
         struct { uint8_t cond; uint16_t addr; } cond_abs;
         struct { uint16_t addr; } abs;

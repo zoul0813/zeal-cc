@@ -16,12 +16,6 @@ extern const char CG_STR_LD_IX_PREFIX[];
 extern const char CG_STR_OR_A_SBC_HL_DE[];
 extern const char CG_STR_EX_DE_HL_OR_A_SBC_HL_DE[];
 extern const char CG_STR_IX_FRAME_SET[];
-extern const char CG_STR_JP[];
-extern const char CG_STR_JR[];
-extern const char CG_STR_JR_Z[];
-extern const char CG_STR_JR_NZ[];
-extern const char CG_STR_JR_C[];
-extern const char CG_STR_JR_NC[];
 extern const char CG_STR_OR_A_JP_Z[];
 
 extern const char CG_MSG_FAILED_READ_AST_HEADER[];
