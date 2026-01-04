@@ -2,14 +2,11 @@
 #define CODEGEN_STRINGS_H
 
 extern const char CG_STR_NL[];
-extern const char CG_STR_LD_A[];
 extern const char CG_STR_LD_A_ZERO[];
 extern const char CG_STR_LD_A_ONE[];
 extern const char CG_STR_LD_HL_ZERO[];
 extern const char CG_STR_ADD_HL_DE[];
-extern const char CG_STR_LD_L_A_H_ZERO[];
 extern const char CG_STR_RPAREN_NL[];
-extern const char CG_STR_LD_L_A_POP_AF[];
 extern const char CG_STR_DB[];
 extern const char CG_STR_DW[];
 extern const char CG_STR_DM[];

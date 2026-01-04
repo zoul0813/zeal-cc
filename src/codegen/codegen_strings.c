@@ -1,12 +1,9 @@
 #include "codegen_strings.h"
 
 const char CG_STR_NL[] = "\n";
-const char CG_STR_LD_A[] = "  ld a, ";
 const char CG_STR_LD_A_ZERO[] = "  ld a, 0\n";
 const char CG_STR_LD_A_ONE[] = "  ld a, 1\n";
 const char CG_STR_LD_HL_ZERO[] = "  ld hl, 0\n";
-const char CG_STR_LD_L_A_H_ZERO[] = "  ld l, a\n  ld h, 0\n";
-const char CG_STR_LD_L_A_POP_AF[] = "  ld l, a\n  pop af\n";
 const char CG_STR_LD_A_IX_PREFIX[] = "  ld a, (ix";
 const char CG_STR_LD_IX_PREFIX[] = "  ld (ix";
 const char CG_STR_ADD_HL_DE[] = "  add hl, de\n";

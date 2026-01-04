@@ -72,7 +72,13 @@ static void codegen_result_to_hl(void) {
     if (g_result_in_hl) {
         return;
     }
-    codegen_emit(CG_STR_LD_L_A_H_ZERO);
+    {
+        static const z80_instr_t z80[] = {
+            { I_LD, M_R_R, { .r_r = { REG_L, REG_A } } },
+            { I_LD, M_R_N, { .r_n = { REG_H, 0 } } },
+        };
+        codegen_emit_z80(DIM(z80), z80);
+    }
     g_result_in_hl = true;
 }
 
@@ -1133,7 +1139,13 @@ static cc_error_t codegen_emit_binary_op_a(uint8_t op, uint8_t left_tag) {
     right_tag = ast_read_u8();
     err = codegen_stream_expression_tag(right_tag);
     if (err != CC_OK) return err;
-    codegen_emit(CG_STR_LD_L_A_POP_AF);
+    {
+        static const z80_instr_t z80[] = {
+            { I_LD,  M_R_R,   { .r_r = { REG_L, REG_A } } },
+            { I_POP, M_RR_RR, { .rr_rr = { REG_AF } } },
+        };
+        codegen_emit_z80(DIM(z80), z80);
+    }
     if (codegen_op_is_compare(op)) {
         static const compare_entry_t compare8_table[] = {
             { OP_EQ, "  cp l\n", CG_STR_JR_Z,  NULL },
@@ -1414,7 +1426,10 @@ static cc_error_t codegen_statement_var_decl(uint8_t tag) {
                 int16_t val = 0;
                 val = ast_read_i16();
                 if (val == 0) {
-                    codegen_emit(CG_STR_LD_HL_ZERO);
+                    static const z80_instr_t z80[] = {
+                        { I_LD, M_RR_NN, { .rr_nn = { REG_HL, 0 } } },
+                    };
+                    codegen_emit_z80(DIM(z80), z80);
                     return codegen_store_pointer_from_hl(name);
                 }
                 return CC_ERROR_CODEGEN;
@@ -1714,10 +1729,12 @@ static cc_error_t codegen_stream_expression_tag(uint8_t tag) {
                 codegen_emit_z80(DIM(z80), z80);
                 return CC_OK;
             }
-            codegen_emit(CG_STR_LD_A);
-            value = (uint8_t)value;
-            codegen_emit_hex(value);
-            codegen_emit(CG_STR_NL);
+            {
+                z80_instr_t z80[] = {
+                    { I_LD, M_R_N, { .r_n = { REG_A, (uint8_t)value } } },
+                };
+                codegen_emit_z80(DIM(z80), z80);
+            }
             return CC_OK;
         }
         case AST_TAG_IDENTIFIER: {
@@ -1771,7 +1788,7 @@ static cc_error_t codegen_stream_expression_tag(uint8_t tag) {
                     if (is_signed) {
                         codegen_result_sign_extend_to_hl();
                     } else {
-                        codegen_emit(CG_STR_LD_L_A_H_ZERO);
+                        codegen_result_to_hl();
                     }
                 }
                 /* result stays in A when not widened */
