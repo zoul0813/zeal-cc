@@ -7,13 +7,10 @@
 #include "codegen_strings.h"
 #include "target.h"
 #include "cc_compat.h"
-#include "z80_ast.h"
 
 #define INITIAL_OUTPUT_CAPACITY 1024
 #define CODEGEN_LABEL_MAX 15 /* Zealasm docs say 16, but 15 avoids edge-case failures. */
 #define CODEGEN_LABEL_HASH_LEN 4
-
-void codegen_emit_z80(uint8_t len, const z80_instr_t* instrs);
 
 typedef struct {
     uint8_t op;
@@ -91,11 +88,6 @@ static void codegen_result_sign_extend_to_hl(void) {
         { .op = I_LD,  .mode = Z80_AM_R8_R8, .args.r8_r8 = { REG_H, REG_A } },
     };
     codegen_emit_z80(DIM(z80), z80);
-    // codegen_emit(
-    //     "  ld l, a\n"
-        // // "  add a, a\n"
-        // // "  sbc a, a\n"
-        // "  ld h, a\n");
     g_result_in_hl = true;
 }
 
@@ -849,157 +841,6 @@ void codegen_emit(const char* fmt) {
     }
 }
 
-static uint8_t pp_ld[]  = "  ld R,R\n";
-static uint8_t pp_add[] = "  add R\n";
-static uint8_t pp_sbc[] = "  sbc R\n";
-static uint8_t pp_and[] = "  and R\n";
-static uint8_t pp_or[]  = "  or R\n";
-static uint8_t pp_cpl[] = "  cpl\n";
-static uint8_t pp_rra[] = "  rra\n";
-static uint8_t pp_inc16[] = "  inc RR\n";
-
-static void z80_write_rr(uint8_t* out, uint8_t rr) {
-    switch ((z80_reg16_t)rr) {
-        case REG_BC:
-            out[0] = 'b';
-            out[1] = 'c';
-            break;
-        case REG_DE:
-            out[0] = 'd';
-            out[1] = 'e';
-            break;
-        case REG_HL:
-            out[0] = 'h';
-            out[1] = 'l';
-            break;
-        case REG_SP:
-            out[0] = 's';
-            out[1] = 'p';
-            break;
-        case REG_IX:
-            out[0] = 'i';
-            out[1] = 'x';
-            break;
-        case REG_IY:
-            out[0] = 'i';
-            out[1] = 'y';
-            break;
-        default:
-            out[0] = '?';
-            out[1] = '?';
-            break;
-    }
-}
-
-static uint8_t z80_format_ex_operand(char* out, uint8_t rr, bool mem_sp) {
-    if (mem_sp) {
-        out[0] = '(';
-        out[1] = 's';
-        out[2] = 'p';
-        out[3] = ')';
-        out[4] = '\0';
-        return 4;
-    }
-    if (rr == REG_AF) {
-        out[0] = 'a';
-        out[1] = 'f';
-        out[2] = '\0';
-        return 2;
-    }
-    if (rr == REG_AF_ALT) {
-        out[0] = 'a';
-        out[1] = 'f';
-        out[2] = '\'';
-        out[3] = '\0';
-        return 3;
-    }
-
-    z80_write_rr((uint8_t*)out, rr);
-    out[2] = '\0';
-    return 2;
-}
-
-void codegen_emit_z80(uint8_t len, const z80_instr_t* instrs)
-{
-    uint8_t* str = NULL;
-
-    CC_ASSERT(sizeof(z80_instr_t) <= 6, "z80_instr_t must stay compact");
-    while (len--) {
-        z80_op_t op = (z80_op_t)instrs->op;
-        z80_addr_mode_t mode = (z80_addr_mode_t)instrs->mode;
-        switch (op) {
-            case I_LD:
-                pp_ld[5] = instrs->args.r8_r8.dst;
-                pp_ld[7] = instrs->args.r8_r8.src;
-                str = pp_ld;
-                break;
-            case I_ADD:
-                pp_add[6] = instrs->args.r8.r;
-                str = pp_add;
-                break;
-            case I_SBC:
-                pp_sbc[6] = instrs->args.r8.r;
-                str = pp_sbc;
-                break;
-            case I_AND:
-                pp_and[6] = instrs->args.r8.r;
-                str = pp_and;
-                break;
-            case I_OR:
-                pp_or[5] = instrs->args.r8.r;
-                str = pp_or;
-                break;
-            case I_CPL:
-                str = pp_cpl;
-                break;
-            case I_EX:
-                if (mode == Z80_AM_R16_R16) {
-                    uint8_t dst = instrs->args.r16_r16.dst;
-                    uint8_t src = instrs->args.r16_r16.src;
-                    char op_buf[5];
-                    codegen_emit("  ex ");
-                    z80_format_ex_operand(op_buf, dst, false);
-                    codegen_emit(op_buf);
-                    codegen_emit(", ");
-                    z80_format_ex_operand(op_buf, src, false);
-                    codegen_emit(op_buf);
-                    codegen_emit("\n");
-                    str = NULL;
-                } else if (mode == Z80_AM_MEM_R16 && instrs->args.mem_r16.mem == MEM_SP) {
-                    char op_buf[5];
-                    codegen_emit("  ex ");
-                    z80_format_ex_operand(op_buf, REG_SP, true);
-                    codegen_emit(op_buf);
-                    codegen_emit(", ");
-                    z80_format_ex_operand(op_buf, instrs->args.mem_r16.rr, false);
-                    codegen_emit(op_buf);
-                    codegen_emit("\n");
-                    str = NULL;
-                }
-                break;
-            case I_RRA:
-                str = pp_rra;
-                break;
-            case I_INC:
-                if (mode == Z80_AM_R16) {
-                    z80_write_rr(&pp_inc16[6], instrs->args.r16.rr);
-                } else {
-                    pp_inc16[6] = instrs->args.r8.r;
-                    pp_inc16[7] = ' ';
-                }
-                str = pp_inc16;
-                break;
-            default:
-                break;
-        }
-        if (str) {
-            codegen_emit((const char*)str);
-            str = NULL;
-        }
-        instrs++;
-    }
-}
-
 char* codegen_new_label(void) {
     static char labels[8][16];
     static uint8_t slot = 0;
@@ -1113,13 +954,6 @@ static cc_error_t codegen_emit_binary_op_hl(uint8_t op, uint8_t left_tag, bool o
                 { .op = I_LD,  .mode = Z80_AM_R8_R8, .args.r8_r8 = { REG_L, REG_A } },
             };
             codegen_emit_z80(DIM(z80), z80);
-            // codegen_emit(
-            //     "  ld a, h\n"
-            //     "  and d\n"
-            //     "  ld h, a\n"
-            //     "  ld a, l\n"
-            //     "  and e\n"
-            //     "  ld l, a\n");
         } else if (op == OP_OR) {
             static const z80_instr_t z80[] = {
                 { .op = I_LD, .mode = Z80_AM_R8_R8, .args.r8_r8 = { REG_A, REG_H } },
@@ -1130,13 +964,6 @@ static cc_error_t codegen_emit_binary_op_hl(uint8_t op, uint8_t left_tag, bool o
                 { .op = I_LD, .mode = Z80_AM_R8_R8, .args.r8_r8 = { REG_L, REG_A } },
             };
             codegen_emit_z80(DIM(z80), z80);
-            // codegen_emit(
-            //     "  ld a, h\n"
-            //     "  or d\n"
-            //     "  ld h, a\n"
-            //     "  ld a, l\n"
-            //     "  or e\n"
-            //     "  ld l, a\n");
         } else {
             static const z80_instr_t z80[] = {
                 { .op = I_LD,  .mode = Z80_AM_R8_R8, .args.r8_r8 = { REG_A, REG_H } },
@@ -1157,23 +984,6 @@ static cc_error_t codegen_emit_binary_op_hl(uint8_t op, uint8_t left_tag, bool o
                 { .op = I_LD,  .mode = Z80_AM_R8_R8, .args.r8_r8 = { REG_L, REG_A } },
             };
             codegen_emit_z80(DIM(z80), z80);
-            // codegen_emit(
-            //     "  ld a, h\n"
-            //     "  or d\n"
-            //     "  ld b, a\n"
-            //     "  ld a, h\n"
-            //     "  and d\n"
-            //     "  cpl\n"
-            //     "  and b\n"
-            //     "  ld h, a\n"
-            //     "  ld a, l\n"
-            //     "  or e\n"
-            //     "  ld b, a\n"
-            //     "  ld a, l\n"
-            //     "  and e\n"
-            //     "  cpl\n"
-            //     "  and b\n"
-            //     "  ld l, a\n");
         }
         g_result_in_hl = true;
         return CC_OK;
@@ -1181,7 +991,6 @@ static cc_error_t codegen_emit_binary_op_hl(uint8_t op, uint8_t left_tag, bool o
     if (op == OP_SHL || op == OP_SHR) {
         char* loop_label = codegen_new_label();
         char* end_label = codegen_new_label();
-        /* Same as above, convert these strings into z80 isntructions */
         static const z80_instr_t z80[] = {
             { .op = I_EX, .mode = Z80_AM_R16_R16, .args.r16_r16 = { REG_DE, REG_HL } },
             { .op = I_LD, .mode = Z80_AM_R8_R8,   .args.r8_r8   = { REG_B, REG_E } },
@@ -1189,17 +998,11 @@ static cc_error_t codegen_emit_binary_op_hl(uint8_t op, uint8_t left_tag, bool o
             { .op = I_OR, .mode = Z80_AM_R8,      .args.r8      = { REG_A } },
         };
         codegen_emit_z80(DIM(z80), z80);
-        // codegen_emit("  ex de, hl\n");
-        // codegen_emit(
-        //     "  ld b, e\n"
-        //     "  ld a, b\n"
-        //     "  or a\n");
         codegen_emit_jump(CG_STR_JR_Z, end_label);
         codegen_emit_label(loop_label);
         if (op == OP_SHL) {
             codegen_emit("  add hl, hl\n");
         } else {
-            // Same as above
             static const z80_instr_t z80[] = {
                 { .op = I_LD,  .mode = Z80_AM_R8_R8, .args.r8_r8 = { REG_A, REG_H } },
                 { .op = I_OR,  .mode = Z80_AM_R8,    .args.r8    = { REG_A } },
@@ -1210,14 +1013,6 @@ static cc_error_t codegen_emit_binary_op_hl(uint8_t op, uint8_t left_tag, bool o
                 { .op = I_LD,  .mode = Z80_AM_R8_R8, .args.r8_r8 = { REG_L, REG_A } },
             };
             codegen_emit_z80(DIM(z80), z80);
-            // codegen_emit(
-            //     "  ld a, h\n"
-            //     "  or a\n"
-            //     "  rra\n"
-            //     "  ld h, a\n"
-            //     "  ld a, l\n"
-            //     "  rra\n"
-            //     "  ld l, a\n");
         }
         codegen_emit("  djnz ");
         codegen_emit_label_name(loop_label);
@@ -1286,7 +1081,6 @@ static cc_error_t codegen_emit_binary_op_a(uint8_t op, uint8_t left_tag) {
                 { .op = I_AND, .mode = Z80_AM_R8, .args.r8 = { REG_L } },
             };
             codegen_emit_z80(DIM(z80), z80);
-            // codegen_emit("  and l\n");
         } else if (op == OP_OR) {
             static const z80_instr_t z80[] = {
                 { .op = I_OR, .mode = Z80_AM_R8, .args.r8 = { REG_L } },
@@ -1303,14 +1097,6 @@ static cc_error_t codegen_emit_binary_op_a(uint8_t op, uint8_t left_tag) {
                 { .op = I_AND, .mode = Z80_AM_R8,    .args.r8    = { REG_C } },
             };
             codegen_emit_z80(DIM(z80), z80);
-            // codegen_emit(
-            //     "  ld b, a\n"
-            //     "  or l\n"
-            //     "  ld c, a\n"
-            //     "  ld a, b\n"
-            //     "  and l\n"
-            //     "  cpl\n"
-            //     "  and c\n");
         }
         g_result_in_hl = false;
         return CC_OK;
@@ -1326,11 +1112,6 @@ static cc_error_t codegen_emit_binary_op_a(uint8_t op, uint8_t left_tag) {
             { .op = I_OR, .mode = Z80_AM_R8,    .args.r8    = { REG_A } },
         };
         codegen_emit_z80(DIM(z80), z80);
-        // codegen_emit(
-        //     "  ld b, l\n"
-        //     "  ld c, a\n"
-        //     "  ld a, b\n"
-        //     "  or a\n");
         codegen_emit_jump(CG_STR_JR_Z, zero_label);
         {
             static const z80_instr_t z80[] = {
@@ -2086,14 +1867,6 @@ static cc_error_t codegen_stream_expression_tag(uint8_t tag) {
                             { .op = I_INC, .mode = Z80_AM_R16,   .args.r16   = { REG_HL } },
                         };
                         codegen_emit_z80(DIM(z80), z80);
-                        // codegen_emit(
-                        //     "  ld a, h\n"
-                        //     "  cpl\n"
-                        //     "  ld h, a\n"
-                        //     "  ld a, l\n"
-                        //     "  cpl\n"
-                        //     "  ld l, a\n"
-                        //     "  inc hl\n");
                     } else {
                         codegen_emit("  neg\n");
                     }

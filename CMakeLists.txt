@@ -93,6 +93,7 @@ add_program(cc_parse
 add_program(cc_codegen
     "src/codegen/main.c"
     "src/codegen/codegen.c"
+    "src/codegen/z80.c"
     "src/codegen/codegen_strings.c"
     "src/common/common.c"
     "src/common/ast_read.c"

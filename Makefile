@@ -29,7 +29,7 @@ PARSE_SRCS = src/parser/main.c src/parser/lexer.c src/parser/parser.c src/common
 PARSE_OBJS = $(PARSE_SRCS:.c=.o)
 PARSE_TARGET = bin/cc_parse_$(ARCH)
 
-CODEGEN_SRCS = src/codegen/main.c src/codegen/codegen.c src/codegen/codegen_strings.c src/common/common.c src/common/ast_read.c \
+CODEGEN_SRCS = src/codegen/main.c src/codegen/codegen.c src/codegen/z80.c src/codegen/codegen_strings.c src/common/common.c src/common/ast_read.c \
                src/common/ast_reader/ast_reader_init.c src/common/ast_reader/ast_reader_load_strings.c src/common/ast_reader/ast_reader_string.c src/common/ast_reader/ast_reader_read_type_info.c \
                src/common/ast_reader/ast_reader_begin_program.c src/common/ast_reader/ast_reader_skip_tag.c src/common/ast_reader/ast_reader_skip_node.c src/common/ast_reader/ast_reader_destroy.c \
                src/target/modern/target_args.c src/target/modern/target_io.c

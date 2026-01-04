@@ -18,7 +18,9 @@ typedef void unused;
 #define put_s(str) printf("%s", str)
 #define put_hex(i) printf("%04x", i)
 #ifndef CC_ASSERT
-#define CC_ASSERT(expr, msg) typedef char cc_static_assert_##__LINE__[(expr) ? 1 : -1]
+#define CC_ASSERT(expr, msg) \
+    typedef char cc_static_assert_##__LINE__[(expr) ? 1 : -1]; \
+    enum { cc_static_assert_##__LINE__##_value = sizeof(cc_static_assert_##__LINE__) }
 #endif
 #endif
 

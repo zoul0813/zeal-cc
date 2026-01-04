@@ -5,6 +5,7 @@
 #include "ast_reader.h"
 #include "symbol.h"
 #include "target.h"
+#include "z80_ast.h"
 
 /* Keep codegen counters consistent across host/ZOS to expose limits early. */
 typedef uint8_t codegen_local_count_t;
@@ -77,6 +78,7 @@ cc_error_t codegen_generate_stream(void);
 
 /* Helper functions */
 void codegen_emit(const char* fmt);
+void codegen_emit_z80(uint8_t len, const z80_instr_t* instrs);
 char* codegen_new_label(void);
 char* codegen_new_string_label(void);
 #endif /* CODEGEN_H */
