@@ -152,6 +152,8 @@ typedef enum {
     Z80_AM_R8_MEM,
     Z80_AM_MEM_R8,
     Z80_AM_MEM_R16,
+    Z80_AM_R8_MEMI,
+    Z80_AM_MEMI_R8,
     Z80_AM_R8_MEMO,
     Z80_AM_MEMO_R8,
     Z80_AM_BIT_R8,
@@ -177,6 +179,8 @@ typedef struct {
         struct { uint8_t r; uint8_t mem; } r8_mem;
         struct { uint8_t mem; uint8_t r; } mem_r8;
         struct { uint8_t mem; uint8_t rr; } mem_r16;
+        struct { uint8_t r; uint16_t addr; } r8_memi;
+        struct { uint16_t addr; uint8_t r; } memi_r;
         struct { uint8_t r; uint8_t idx; int8_t disp; } r8_memo;
         struct { uint8_t idx; int8_t disp; uint8_t r; } memo_r8;
         struct { uint8_t bit; uint8_t r; } bit_r8;

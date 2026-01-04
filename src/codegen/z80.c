@@ -10,6 +10,10 @@ static uint8_t pp_and[] = "  and R\n";
 static uint8_t pp_or[]  = "  or R\n";
 static uint8_t pp_ld_r_mem[] = "  ld R,(RR)\n";
 static uint8_t pp_ld_mem_r[] = "  ld (RR),R\n";
+static uint8_t pp_ld_r_memi[] = "  ld R,(0x0000)\n";
+static uint8_t pp_ld_memi_r[] = "  ld (0x0000),R\n";
+static uint8_t pp_ld_r_memo[] = "  ld R,(IX+0x00)\n";
+static uint8_t pp_ld_memo_r[] = "  ld (IX+0x00),R\n";
 static uint8_t pp_cpl[] = "  cpl\n";
 static uint8_t pp_rra[] = "  rra\n";
 static uint8_t pp_inc16[] = "  inc RR\n";
@@ -68,6 +72,29 @@ static bool z80_write_mem_rr(uint8_t* out, uint8_t mem) {
     return false;
 }
 
+static void z80_write_hex8(uint8_t* out, uint8_t value) {
+    static const char hex[] = "0123456789abcdef";
+    out[0] = hex[(value >> 4) & 0xF];
+    out[1] = hex[value & 0xF];
+}
+
+static void z80_write_hex16(uint8_t* out, uint16_t value) {
+    static const char hex[] = "0123456789abcdef";
+    out[0] = hex[(value >> 12) & 0xF];
+    out[1] = hex[(value >> 8) & 0xF];
+    out[2] = hex[(value >> 4) & 0xF];
+    out[3] = hex[value & 0xF];
+}
+
+static void z80_write_idx_disp(uint8_t* out, uint8_t idx, int8_t disp) {
+    out[0] = 'i';
+    out[1] = (idx == IDX_IY) ? 'y' : 'x';
+    out[2] = '+';
+    out[3] = '0';
+    out[4] = 'x';
+    z80_write_hex8(out + 5, (uint8_t)disp);
+}
+
 static uint8_t z80_format_ex_operand(char* out, uint8_t rr, bool mem_sp) {
     if (mem_sp) {
         out[0] = '(';
@@ -119,6 +146,22 @@ void codegen_emit_z80(uint8_t len, const z80_instr_t* instrs)
                         pp_ld_mem_r[10] = instrs->args.mem_r8.r;
                         str = pp_ld_mem_r;
                     }
+                } else if (mode == Z80_AM_R8_MEMI) {
+                    pp_ld_r_memi[5] = instrs->args.r8_memi.r;
+                    z80_write_hex16(&pp_ld_r_memi[10], instrs->args.r8_memi.addr);
+                    str = pp_ld_r_memi;
+                } else if (mode == Z80_AM_MEMI_R8) {
+                    pp_ld_memi_r[14] = instrs->args.memi_r.r;
+                    z80_write_hex16(&pp_ld_memi_r[8], instrs->args.memi_r.addr);
+                    str = pp_ld_memi_r;
+                } else if (mode == Z80_AM_R8_MEMO) {
+                    pp_ld_r_memo[5] = instrs->args.r8_memo.r;
+                    z80_write_idx_disp(&pp_ld_r_memo[8], instrs->args.r8_memo.idx, instrs->args.r8_memo.disp);
+                    str = pp_ld_r_memo;
+                } else if (mode == Z80_AM_MEMO_R8) {
+                    pp_ld_memo_r[15] = instrs->args.memo_r8.r;
+                    z80_write_idx_disp(&pp_ld_memo_r[6], instrs->args.memo_r8.idx, instrs->args.memo_r8.disp);
+                    str = pp_ld_memo_r;
                 }
                 break;
             case I_ADD:

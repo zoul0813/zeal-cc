@@ -610,13 +610,13 @@ static cc_error_t codegen_emit_address_of_identifier(const char* name) {
 static cc_error_t codegen_load_pointer_to_hl(const char* name) {
     int16_t offset = 0;
     if (codegen_local_or_param_offset(name, &offset)) {
-        codegen_emit("  ld l, (ix");
-        codegen_emit_ix_offset(offset);
-        codegen_emit(
-            ")\n"
-            "  ld h, (ix");
-        codegen_emit_ix_offset(offset + 1);
-        codegen_emit(")\n");
+        z80_instr_t z80[] = {
+            { .op = I_LD, .mode = Z80_AM_R8_MEMO,
+              .args.r8_memo = { REG_L, IDX_IX, (int8_t)offset } },
+            { .op = I_LD, .mode = Z80_AM_R8_MEMO,
+              .args.r8_memo = { REG_H, IDX_IX, (int8_t)(offset + 1) } },
+        };
+        codegen_emit_z80(DIM(z80), z80);
         return CC_OK;
     }
 
@@ -629,12 +629,13 @@ static cc_error_t codegen_load_pointer_to_hl(const char* name) {
 static cc_error_t codegen_store_pointer_from_hl(const char* name) {
     int16_t offset = 0;
     if (codegen_local_or_param_offset(name, &offset)) {
-        codegen_emit(CG_STR_LD_IX_PREFIX);
-        codegen_emit_ix_offset(offset);
-        codegen_emit(CG_STR_RPAREN_L);
-        codegen_emit(CG_STR_LD_IX_PREFIX);
-        codegen_emit_ix_offset(offset + 1);
-        codegen_emit(CG_STR_RPAREN_H);
+        z80_instr_t z80[] = {
+            { .op = I_LD, .mode = Z80_AM_MEMO_R8,
+              .args.memo_r8 = { IDX_IX, (int8_t)offset, REG_L } },
+            { .op = I_LD, .mode = Z80_AM_MEMO_R8,
+              .args.memo_r8 = { IDX_IX, (int8_t)(offset + 1), REG_H } },
+        };
+        codegen_emit_z80(DIM(z80), z80);
         return CC_OK;
     }
 
@@ -647,9 +648,11 @@ static cc_error_t codegen_store_pointer_from_hl(const char* name) {
 static cc_error_t codegen_store_a_to_identifier(const char* name) {
     int16_t offset = 0;
     if (codegen_local_or_param_offset(name, &offset)) {
-        codegen_emit(CG_STR_LD_IX_PREFIX);
-        codegen_emit_ix_offset(offset);
-        codegen_emit(CG_STR_RPAREN_A);
+        z80_instr_t z80[] = {
+            { .op = I_LD, .mode = Z80_AM_MEMO_R8,
+              .args.memo_r8 = { IDX_IX, (int8_t)offset, REG_A } },
+        };
+        codegen_emit_z80(DIM(z80), z80);
         return CC_OK;
     }
     codegen_emit(CG_STR_LD_LPAREN);
@@ -1662,9 +1665,11 @@ static cc_error_t codegen_stream_expression_tag(uint8_t tag) {
                     return CC_OK;
                 }
                 if (codegen_local_or_param_offset(name, &offset)) {
-                    codegen_emit(CG_STR_LD_A_IX_PREFIX);
-                    codegen_emit_ix_offset(offset);
-                    codegen_emit(CG_STR_RPAREN_NL);
+                    z80_instr_t z80[] = {
+                        { .op = I_LD, .mode = Z80_AM_R8_MEMO,
+                          .args.r8_memo = { REG_A, IDX_IX, (int8_t)offset } },
+                    };
+                    codegen_emit_z80(DIM(z80), z80);
                 } else {
                     codegen_emit(CG_STR_LD_A_LPAREN);
                     codegen_emit_mangled_var(name);
@@ -1693,7 +1698,12 @@ static cc_error_t codegen_stream_expression_tag(uint8_t tag) {
                     if (codegen_stream_read_name(&name) < 0) return CC_ERROR_CODEGEN;
                     cc_error_t err = codegen_load_pointer_to_hl(name);
                     if (err != CC_OK) return err;
-                    codegen_emit(CG_STR_LD_A_HL);
+                    {
+                        static const z80_instr_t z80[] = {
+                            { .op = I_LD, .mode = Z80_AM_R8_MEM, .args.r8_mem = { REG_A, MEM_HL } },
+                        };
+                        codegen_emit_z80(DIM(z80), z80);
+                    }
                     g_result_in_hl = false;
                     return CC_OK;
                 }
@@ -1756,9 +1766,11 @@ static cc_error_t codegen_stream_expression_tag(uint8_t tag) {
                     {
                         int16_t offset = 0;
                         if (codegen_local_or_param_offset(name, &offset)) {
-                            codegen_emit(CG_STR_LD_A_IX_PREFIX);
-                            codegen_emit_ix_offset(offset);
-                            codegen_emit(CG_STR_RPAREN_NL);
+                            z80_instr_t z80[] = {
+                                { .op = I_LD, .mode = Z80_AM_R8_MEMO,
+                                  .args.r8_memo = { REG_A, IDX_IX, (int8_t)offset } },
+                            };
+                            codegen_emit_z80(DIM(z80), z80);
                         } else {
                             codegen_emit(CG_STR_LD_A_LPAREN);
                             codegen_emit_mangled_var(name);
@@ -1833,7 +1845,12 @@ static cc_error_t codegen_stream_expression_tag(uint8_t tag) {
                         }
                         return CC_OK;
                     }
-                    codegen_emit(CG_STR_LD_A_HL);
+                    {
+                        static const z80_instr_t z80[] = {
+                            { .op = I_LD, .mode = Z80_AM_R8_MEM, .args.r8_mem = { REG_A, MEM_HL } },
+                        };
+                        codegen_emit_z80(DIM(z80), z80);
+                    }
                     g_result_in_hl = false;
                     if (is_post) {
                         codegen_emit(CG_STR_PUSH_AF);
@@ -2077,7 +2094,12 @@ logical_cleanup:
                 codegen_emit_z80(DIM(z80), z80);
                 g_result_in_hl = true;
             } else {
-                codegen_emit(CG_STR_LD_A_HL);
+                {
+                    static const z80_instr_t z80[] = {
+                        { .op = I_LD, .mode = Z80_AM_R8_MEM, .args.r8_mem = { REG_A, MEM_HL } },
+                    };
+                    codegen_emit_z80(DIM(z80), z80);
+                }
                 g_result_in_hl = false;
                 if (g_expect_result_in_hl) {
                     if (elem_signed) {
@@ -2178,7 +2200,12 @@ logical_cleanup:
                 if (err != CC_OK) return err;
                 err = codegen_load_pointer_to_hl(lvalue_name);
                 if (err != CC_OK) return err;
-                codegen_emit(CG_STR_LD_HL_A);
+                {
+                    static const z80_instr_t z80[] = {
+                        { .op = I_LD, .mode = Z80_AM_MEM_R8, .args.mem_r8 = { MEM_HL, REG_A } },
+                    };
+                    codegen_emit_z80(DIM(z80), z80);
+                }
                 return CC_OK;
             }
 
