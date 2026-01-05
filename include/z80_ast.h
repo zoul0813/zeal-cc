@@ -9,6 +9,13 @@
  * z80_instr_t stays 4-6 bytes by using 8-bit op/mode fields and a
  * small union for operands. The enums below describe the legal ranges.
  */
+#if __linux____ || __APPLE__ || __GNUC__ || __clang__
+#define Z80_ATTR    static
+#else
+#define Z80_ATTR    static const
+#endif
+
+#define Z80_WRITE(struct_addr)  ((z80_instr_t*) (struct_addr))
 
 typedef enum {
     I_NOP = 0,
@@ -203,5 +210,10 @@ typedef struct {
         struct { uint8_t mode; } im;
     } args;
 } z80_instr_t;
+
+/* Common instructions */
+extern z80_instr_t z80_push_hl;
+extern z80_instr_t z80_pop_hl;
+extern z80_instr_t z80_ld_hl_lab;
 
 #endif

@@ -3,6 +3,12 @@
 
 #include "common.h"
 
+/* Common instructions */
+z80_instr_t z80_push_hl   = { I_PUSH, M_RR_RR,  { .rr_rr = { REG_HL } } };
+z80_instr_t z80_pop_hl    = { I_POP, M_RR_RR,   { .rr_rr = { REG_HL } } };
+z80_instr_t z80_ld_hl_lab = { I_LD, M_RR_LABEL, { .rr_label = { REG_HL, 0 } } };
+
+
 static uint8_t pp_ld[]  = "  ld R,R\n";
 static uint8_t pp_ld_r_n[] = "  ld R,0x00\n";
 static uint8_t pp_ld_rr_nn[] = "  ld RR,0x0000\n";
