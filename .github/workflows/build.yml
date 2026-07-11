@@ -19,32 +19,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          submodules: 'recursive'
+          submodules: "recursive"
           fetch-depth: 0
 
       - name: Setup ZDE
         uses: zoul0813/zeal-dev-environment/github/setup-zde@main
+        with:
+          deps: coreutils zshell zealasm
 
-      - name: Initialize mounts
+      - name: Stage coreutils
         run: |
-          mkdir -p $ZDE_PATH/mnt/romdisk
-          mkdir -p $ZDE_PATH/mnt/eeprom
-          mkdir -p $ZDE_PATH/mnt/roms
+          zde deps stage romdisk coreutils
 
-      - name: Build coreutils
+      - name: Stage ZShell
         run: |
-          cd $ZDE_PATH/home/zeal-coreutils && zde cmake && zde romdisk add bin
+          zde deps stage romdisk zshell
 
-      - name: Install ZShell
+      - name: Stage Zealasm
         run: |
-          zde romdisk add ${{ github.workspace }}/.deploy/romdisk/zshell
-
-      - name: Build Zealasm
-        run: |
-          cd ${{ github.workspace }}/examples/Zealasm \
-          && zde make \
-          && mv bin/zealasm.bin bin/zealasm \
-          && zde romdisk add bin/zealasm
+          zde deps stage romdisk zealasm
 
       - name: Build with ZDE
         run: |
@@ -74,8 +67,8 @@ jobs:
 
       - name: Create eeprom.img
         run: |
-          cp ${{ github.workspace }}/.deploy/eeprom/* $ZDE_PATH/mnt/eeprom/
-          zde image eeprom 64 # custom eeprom image
+          zde image eeprom add .deploy/eeprom
+          zde image eeprom create 64 # custom eeprom image
           cp $ZDE_PATH/mnt/eeprom.img ${{ github.workspace }}/.deploy/eeprom.img
 
       - name: Build Kernel/Romdisk

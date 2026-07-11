@@ -57,9 +57,6 @@ function(add_program target_name)
     add_custom_command(TARGET ${target_name}_bin POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/debug
         COMMAND ${CMAKE_COMMAND} -E rename
-            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${target_name}.cdb
-            ${CMAKE_SOURCE_DIR}/debug/${target_name}.cdb
-        COMMAND ${CMAKE_COMMAND} -E rename
             ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${target_name}.map
             ${CMAKE_SOURCE_DIR}/debug/${target_name}.map
         COMMAND ${CMAKE_COMMAND} -E rename
