@@ -1,4 +1,5 @@
 default.img
 eeprom.img
+libnative/
 zeal.elf.*
 hostfs/*

@@ -37,14 +37,7 @@ jobs:
 
       - name: Build with ZDE
         run: |
-          zde cmake \
-          && mkdir -p ${{ github.workspace }}/.deploy/hostfs/bin \
-          && mkdir -p ${{ github.workspace }}/.deploy/hostfs/runtime \
-          && mkdir -p ${{ github.workspace }}/.deploy/hostfs/tests \
-          && cp bin/* ${{ github.workspace }}/.deploy/hostfs/bin \
-          && cp tests/* ${{ github.workspace }}/.deploy/hostfs/tests \
-          && cp runtime/* ${{ github.workspace }}/.deploy/hostfs/runtime \
-          && python3 stage.py
+          zde cmake && python3 stage.py
 
       - name: Create eeprom.img
         run: |
