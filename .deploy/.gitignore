@@ -1,2 +1,4 @@
 default.img
 eeprom.img
+zeal.elf.*
+hostfs/*
