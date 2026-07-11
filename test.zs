@@ -28,4 +28,4 @@ h:/tests/semantic.zs
 
 echo !!! Complete !!!
 
-; reset
+reset

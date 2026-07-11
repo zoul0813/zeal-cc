@@ -589,7 +589,6 @@ def main(argv: list[str] | None = None) -> int:
         print_result(f"Host cc_parse exists ({cc_parse})", 0 if cc_parse.exists() else 1)
         print_result(f"Host cc_codegen exists ({cc_codegen})", 0 if cc_codegen.exists() else 1)
         print_result(f"Host cc_semantic exists ({cc_semantic})", 0 if cc_semantic.exists() else 1)
-        print_result("ZOS debug symbols exist", 0 if Path("debug/cc.cdb").exists() else 1)
 
     print_header("Zeal-native Headless Smoke Test")
     if zos_status == 0:

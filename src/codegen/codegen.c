@@ -301,27 +301,41 @@ static char* codegen_loop_continue_label(void) {
 
 static void codegen_emit_string_literal(const char* value) {
     if (!value) return;
-    codegen_emit(CG_STR_DM);
-    codegen_emit("\"");
-    for (const char* p = value; *p; ++p) {
-        char c = *p;
-        if (c == '"') {
-            codegen_emit("\\\"");
-            continue;
-        }
-        if (c == '\\') {
-            codegen_emit("\\\\");
-            continue;
-        }
-        if (c == '\n') {
+    codegen_emit("  ; string: \"");
+    for (const unsigned char* p = (const unsigned char*)value; *p; ++p) {
+        if (*p == '\n') {
             codegen_emit("\\n");
-            continue;
+        } else if (*p == '\r') {
+            codegen_emit("\\r");
+        } else if (*p == '\t') {
+            codegen_emit("\\t");
+        } else if (*p == '"') {
+            codegen_emit("\\\"");
+        } else if (*p == '\\') {
+            codegen_emit("\\\\");
+        } else if (*p >= 0x20 && *p <= 0x7e) {
+            g_emit_buf[0] = (char)*p;
+            g_emit_buf[1] = '\0';
+            codegen_emit(g_emit_buf);
+        } else {
+            codegen_emit("\\x");
+            g_emit_buf[0] = g_hex_digits[(*p >> 4) & 0x0f];
+            g_emit_buf[1] = g_hex_digits[*p & 0x0f];
+            g_emit_buf[2] = '\0';
+            codegen_emit(g_emit_buf);
         }
-        g_emit_buf[0] = c;
-        g_emit_buf[1] = '\0';
-        codegen_emit(g_emit_buf);
     }
     codegen_emit("\"\n");
+    /*
+     * Zealasm detects labels and comments before parsing .dm strings, so ':'
+     * and ';' inside quotes are interpreted as syntax. Emit numeric bytes to
+     * preserve arbitrary C string contents across Zealasm versions.
+     */
+    for (const unsigned char* p = (const unsigned char*)value; *p; ++p) {
+        codegen_emit(CG_STR_DB);
+        codegen_emit_hex(*p);
+        codegen_emit(CG_STR_NL);
+    }
 }
 
 static int8_t codegen_stream_read_name( const char** value) {
