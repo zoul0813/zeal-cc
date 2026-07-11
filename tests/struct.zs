@@ -1,11 +1,11 @@
-echo TEST: tests/struct.c
-cc_parse tests/struct.c tests/struct.ast
-: echo Failed to parse tests/struct.c
-? cc_semantic tests/struct.ast
-: echo Failed to validate tests/struct.ast
-? cc_codegen tests/struct.ast tests/struct.asm
-: echo Failed to codegen tests/struct.ast
-? zealasm tests/struct.asm tests/struct.bin
-? return tests/struct.bin
-: echo Failed to assemble tests/struct.asm
-: echo Failed to compile tests/struct.c
+echo TEST: h:/tests/struct.c
+cc_parse h:/tests/struct.c h:/tests/struct.ast
+: echo Failed to parse h:/tests/struct.c
+? cc_semantic h:/tests/struct.ast
+: echo Failed to validate h:/tests/struct.ast
+? cc_codegen h:/tests/struct.ast h:/tests/struct.asm
+: echo Failed to codegen h:/tests/struct.ast
+? zealasm h:/tests/struct.asm h:/tests/struct.bin
+? return h:/tests/struct.bin
+: echo Failed to assemble h:/tests/struct.asm
+: echo Failed to compile h:/tests/struct.c

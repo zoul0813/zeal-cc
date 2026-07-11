@@ -1,11 +1,11 @@
-echo TEST: tests/break.c
-cc_parse tests/break.c tests/break.ast
-: echo Failed to parse tests/break.c
-? cc_semantic tests/break.ast
-: echo Failed to validate tests/break.ast
-? cc_codegen tests/break.ast tests/break.asm
-: echo Failed to codegen tests/break.ast
-? zealasm tests/break.asm tests/break.bin
-? return tests/break.bin
-: echo Failed to assemble tests/break.asm
-: echo Failed to compile tests/break.c
+echo TEST: h:/tests/break.c
+cc_parse h:/tests/break.c h:/tests/break.ast
+: echo Failed to parse h:/tests/break.c
+? cc_semantic h:/tests/break.ast
+: echo Failed to validate h:/tests/break.ast
+? cc_codegen h:/tests/break.ast h:/tests/break.asm
+: echo Failed to codegen h:/tests/break.ast
+? zealasm h:/tests/break.asm h:/tests/break.bin
+? return h:/tests/break.bin
+: echo Failed to assemble h:/tests/break.asm
+: echo Failed to compile h:/tests/break.c
