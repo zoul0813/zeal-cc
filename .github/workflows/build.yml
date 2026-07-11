@@ -25,7 +25,7 @@ jobs:
       - name: Setup ZDE
         uses: zoul0813/zeal-dev-environment/github/setup-zde@main
         with:
-          deps: zealfs coreutils zshell zealasm
+          deps: zealfs coreutils zshell
 
       - name: Stage coreutils
         run: |
@@ -34,10 +34,6 @@ jobs:
       - name: Stage ZShell
         run: |
           zde deps stage romdisk zshell
-
-      - name: Stage Zealasm
-        run: |
-          zde deps stage romdisk zealasm
 
       - name: Build with ZDE
         run: |
