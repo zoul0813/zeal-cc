@@ -17,6 +17,8 @@ struct reader {
     uint16_t pos;
     uint32_t buffer_start;
     uint32_t file_pos;
+    bool failed;
+    bool eof;
 };
 
 reader_t* reader_open(const char* filename) {
@@ -34,15 +36,21 @@ reader_t* reader_open(const char* filename) {
     r->pos = 0;
     r->buffer_start = 0;
     r->file_pos = 0;
+    r->failed = false;
+    r->eof = false;
     return r;
 }
 
 static int8_t reader_fill(reader_t* r) {
+    if (r->failed || r->eof) return -1;
     r->buffer_start = r->file_pos;
     r->buf_len = FILE_BUFFER_SIZE;
     zos_err_t err = read(r->dev, file_buffer, &r->buf_len);
     r->pos = 0;
     if (err != ERR_SUCCESS || r->buf_len == 0) {
+        r->failed = err != ERR_SUCCESS;
+        r->eof = !r->failed;
+        r->buf_len = 0;
         return -1;
     }
     r->file_pos += (uint32_t)r->buf_len;
@@ -50,7 +58,7 @@ static int8_t reader_fill(reader_t* r) {
 }
 
 int16_t reader_peek(reader_t* reader) {
-    if (!reader) return -1;
+    if (!reader || reader->failed) return -1;
     if (reader->pos >= reader->buf_len) {
         if (reader_fill(reader) < 0) {
             return -1;
@@ -66,22 +74,29 @@ int16_t reader_next(reader_t* reader) {
 }
 
 int8_t reader_seek(reader_t* reader, uint32_t offset) {
-    if (!reader) return -1;
+    if (!reader || reader->failed) return -1;
     int32_t pos = (int32_t)offset;
     zos_err_t err = seek(reader->dev, &pos, SEEK_SET);
     if (err != ERR_SUCCESS) {
+        reader->failed = true;
+        reader->buf_len = reader->pos = 0;
         return -1;
     }
     reader->buf_len = 0;
     reader->pos = 0;
     reader->buffer_start = (uint32_t)pos;
     reader->file_pos = (uint32_t)pos;
+    reader->eof = false;
     return 0;
 }
 
 uint32_t reader_tell(reader_t* reader) {
     if (!reader) return 0;
     return reader->buffer_start + (uint32_t)reader->pos;
+}
+
+bool reader_failed(reader_t* reader) {
+    return !reader || reader->failed;
 }
 
 void reader_close(reader_t* reader) {
@@ -109,14 +124,15 @@ output_t output_open(const char* filename) {
     return (output_t)dev;
 }
 
-void output_close(output_t handle) {
-    if (handle < 0) return;
+int8_t output_close(output_t handle) {
+    if (!OUTPUT_VALID(handle)) return 0;
     zos_dev_t dev = (zos_dev_t)handle;
-    close(dev);
+    return close(dev) == ERR_SUCCESS ? 0 : -1;
 }
 
 int8_t output_write(output_t handle, const char* data, uint16_t len) {
-    if (handle < 0 || !data || len == 0) return -1;
+    if (!OUTPUT_VALID(handle) || !data) return -1;
+    if (len == 0) return 0;
     zos_dev_t dev = (zos_dev_t)handle;
     uint16_t write_size = len;
     zos_err_t err = write(dev, data, &write_size);

@@ -373,6 +373,10 @@ int main(int argc, char** argv) {
             goto cleanup;
         }
     }
+    if (reader_failed(reader)) {
+        log_error("Failed to read AST\n");
+        goto cleanup;
+    }
     err = 0;
 
 cleanup:

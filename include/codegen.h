@@ -44,6 +44,7 @@ typedef struct {
 /* Code generator structure */
 typedef struct {
     output_t output_handle;
+    bool io_failed;
     
     uint16_t label_counter;
 
@@ -72,7 +73,7 @@ typedef struct {
 
 /* Code generator functions */
 codegen_t* codegen_create(const char* output_file);
-void codegen_destroy(codegen_t* gen);
+int8_t codegen_destroy(codegen_t* gen);
 cc_error_t codegen_generate_stream(void);
 
 /* Helper functions */

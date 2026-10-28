@@ -58,6 +58,10 @@ int main(int argc, char** argv) {
     }
 
     result = semantic_validate();
+    if (reader_failed(reader)) {
+        log_error("Failed to read AST\n");
+        goto cleanup;
+    }
     if (result != CC_OK) {
         log_error(SEM_MSG_FAILED_SEMANTIC);
         goto cleanup;

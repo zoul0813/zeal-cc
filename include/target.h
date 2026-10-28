@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 /* Target abstraction layer - provides platform-specific implementations
  * for I/O, argument parsing, and logging */
@@ -19,8 +20,12 @@ typedef struct {
 
 #ifdef __SDCC
 typedef int16_t output_t;
+#define OUTPUT_INVALID ((output_t)-1)
+#define OUTPUT_VALID(handle) ((handle) >= 0)
 #else
 typedef void* output_t;
+#define OUTPUT_INVALID NULL
+#define OUTPUT_VALID(handle) ((handle) != NULL)
 #endif
 
 /* Streaming reader */
@@ -35,6 +40,7 @@ args_t parse_args(int argc, char** argv, uint8_t mode);
 reader_t* reader_open(const char* filename);
 int16_t reader_next(reader_t* reader); /* returns next byte or -1 on EOF/error */
 int16_t reader_peek(reader_t* reader); /* returns next byte without consuming, or -1 */
+bool reader_failed(reader_t* reader); /* sticky error, distinct from normal EOF */
 int8_t reader_seek(reader_t* reader, uint32_t offset); /* absolute seek from file start */
 uint32_t reader_tell(reader_t* reader); /* current absolute position */
 void reader_close(reader_t* reader);
@@ -50,7 +56,7 @@ void log_error(const char* message);
 
 /* Streaming output */
 output_t output_open(const char* filename);
-void output_close(output_t handle);
+int8_t output_close(output_t handle); /* includes final flush; 0 on success, -1 on error */
 int8_t output_write(output_t handle, const char* data, uint16_t len);
 uint32_t output_tell(output_t handle);
 

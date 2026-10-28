@@ -5,6 +5,8 @@
 
 
 *.o
+*.d
+__pycache__/
 *.cdb
 *.map
 *.ihx

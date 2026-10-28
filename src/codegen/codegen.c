@@ -211,18 +211,23 @@ static void codegen_emit_hex(uint16_t value) {
 }
 
 static void codegen_emit_file(const char* path) {
-    if (!gen->output_handle || !path) return;
+    if (gen->io_failed) return;
     reader_t* reader = reader_open(path);
     if (!reader) {
         cc_error("Failed to open runtime file");
+        gen->io_failed = true;
         return;
     }
     int16_t ch = reader_next(reader);
     while (ch >= 0) {
         char c = (char)ch;
-        output_write(gen->output_handle, &c, 1);
+        if (output_write(gen->output_handle, &c, 1) < 0) {
+            gen->io_failed = true;
+            break;
+        }
         ch = reader_next(reader);
     }
+    if (reader_failed(reader)) gen->io_failed = true;
     reader_close(reader);
 }
 
@@ -809,22 +814,17 @@ codegen_t* codegen_create(const char* output_file) {
     mem_set(gen, 0, sizeof(*gen));
 
     gen->output_handle = output_open(output_file);
-#ifdef __SDCC
-    if (gen->output_handle < 0) {
-#else
-    if (!gen->output_handle) {
-#endif
-        cc_free(gen);
+    if (!OUTPUT_VALID(gen->output_handle)) {
         return NULL;
     }
 
     return gen;
 }
 
-void codegen_destroy(codegen_t* gen) {
-    if (gen->output_handle) {
-        output_close(gen->output_handle);
-    }
+int8_t codegen_destroy(codegen_t* gen) {
+    if (!gen) return 0;
+    int8_t status = output_close(gen->output_handle);
+    gen->output_handle = OUTPUT_INVALID;
     for (codegen_string_count_t i = 0; i < gen->string_count; i++) {
         if (gen->string_labels[i]) {
             cc_free((void*)gen->string_labels[i]);
@@ -833,15 +833,17 @@ void codegen_destroy(codegen_t* gen) {
             cc_free(gen->string_literals[i]);
         }
     }
+    gen->string_count = 0;
+    return status;
 }
 
 void codegen_emit(const char* fmt) {
-    if (!gen->output_handle || !fmt) return;
+    if (gen->io_failed || !fmt) return;
     uint16_t len = 0;
     const char* p = fmt;
     while (p[len]) len++;
     if (len > 0) {
-        output_write(gen->output_handle, fmt, len);
+        if (output_write(gen->output_handle, fmt, len) < 0) gen->io_failed = true;
     }
 }
 
@@ -2496,6 +2498,7 @@ cc_error_t codegen_generate_stream(void) {
     if (!ast) return CC_ERROR_INTERNAL;
 
     codegen_emit_file("runtime/crt0.asm");
+    if (gen->io_failed) return CC_ERROR_CODEGEN;
     codegen_emit("\n; Program code\n");
 
     if (ast_reader_begin_program(&decl_count) < 0) {
@@ -2599,5 +2602,5 @@ cc_error_t codegen_generate_stream(void) {
     codegen_emit_file("runtime/math_8.asm");
     codegen_emit_file("runtime/math_16.asm");
 
-    return CC_OK;
+    return gen->io_failed ? CC_ERROR_CODEGEN : CC_OK;
 }

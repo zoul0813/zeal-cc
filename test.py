@@ -1,632 +1,322 @@
 #!/usr/bin/env python3
+"""Host generation checks and ZOS assembly/execution regression tests."""
 import argparse
+import codecs
+from contextlib import contextmanager
 import os
+from pathlib import Path
 import platform
 import re
-import select
+import selectors
 import shutil
+import signal
 import subprocess
 import sys
 import time
-from pathlib import Path
 
-
-RED = "\033[0;31m"
-GREEN = "\033[0;32m"
-YELLOW = "\033[1;33m"
-BLUE = "\033[0;34m"
-NC = "\033[0m"
+ROOT = Path(__file__).resolve().parent
 HEADLESS_TIMEOUT_SEC = 120
-
-TESTS_RUN = 0
-TESTS_PASSED = 0
-TESTS_FAILED = 0
-
-EXPECTED_RESULTS = {
-    "break": "B1",
-    "assign": "15",
-    "array": "EF",
-    "char": "41",
-    "comp": "4E",
-    "compares": "3F",
-    "do_while": None,
-    "expr": "1C",
-    "for": "0A",
-    "goto": "B2",
-    "global": "0A",
-    "if": "2A",
-    "bitwise": "E4",
-    "math": "3A",
-    "params": "14",
-    "pointer": "86",
-    "simple_return": "0C",
-    "return16": "EF",
-    "struct": None,
-    "signs": "EE",
-    "semantic": None,
-    "ternary": None,
-    "unary": "AA",
-    "while": "0A",
-    "zealos": "EA",
+# One manifest for both runners: integer = ZOS exit byte; string = rejection stage.
+TEST_CASES = {
+    "break": 0xB1, "assign": 0x15, "array": 0xEF, "char": 0x41,
+    "comp": 0x4E, "compares": 0x3F, "do_while": "parse", "expr": 0x1C,
+    "for": 0x0A, "goto": 0xB2, "global": 0x0A, "if": 0x2A,
+    "bitwise": 0xE4, "math": 0x3A, "params": 0x14, "pointer": 0x86,
+    "simple_return": 0x0C, "return16": 0xEF, "struct": "parse", "signs": 0xEE,
+    "semantic": "semantic", "ternary": "parse", "unary": 0xAA,
+    "while": 0x0A, "zealos": 0xEA,
 }
+STAGES = ("parse", "semantic", "codegen")
+REJECTION_DIAGNOSTICS = {"parse": "Parsing failed", "semantic": "Semantic validation failed"}
 
 
-def print_header(title: str) -> None:
-    print(f"\n{BLUE}========================================{NC}")
-    print(f"{BLUE}{title}{NC}")
-    print(f"{BLUE}========================================{NC}\n")
+def host_arch():
+    return {"Darwin": "darwin", "Linux": "linux"}.get(platform.system(), platform.system())
 
 
-def print_result(test_name: str, result: int) -> None:
-    global TESTS_RUN, TESTS_PASSED, TESTS_FAILED
-    TESTS_RUN += 1
-    if result == 0:
-        print(f"{GREEN}✓{NC} {test_name}")
-        TESTS_PASSED += 1
-    else:
-        print(f"{RED}✗{NC} {test_name}")
-        TESTS_FAILED += 1
-
-def print_expected_fail(test_name: str) -> None:
-    global TESTS_RUN, TESTS_PASSED
-    TESTS_RUN += 1
-    print(f"{YELLOW}⚠{NC} {test_name}")
-    TESTS_PASSED += 1
+def clean_test_artifacts(cases=TEST_CASES):
+    for name in cases:
+        for suffix in (".ast", ".asm", ".bin"):
+            Path(f"tests/{name}{suffix}").unlink(missing_ok=True)
 
 
-def status_label(status: str) -> str:
-    if status == "ok":
-        return "Check"
-    if status == "expected_fail":
-        return "Expected"
-    if status == "unexpected_pass":
-        return "Unexpected"
-    if status == "missing":
-        return "Missing"
-    return "Fail"
+def validate_inventory():
+    sources = {p.stem for p in Path("tests").glob("*.c")}
+    if sources != set(TEST_CASES):
+        raise ValueError(f"Test manifest/source mismatch: {sorted(sources ^ set(TEST_CASES))}")
+    script_cases = re.findall(r"^h:/tests/(\w+)\.zs$", Path("test.zs").read_text(), re.M)
+    if len(script_cases) != len(TEST_CASES) or set(script_cases) != set(TEST_CASES):
+        raise ValueError("test.zs must run every manifest case exactly once")
+    for name in TEST_CASES:
+        if not Path(f"tests/{name}.zs").is_file():
+            raise ValueError(f"Missing target test script: tests/{name}.zs")
 
 
-def format_status(status: str, width: int) -> str:
-    label = f"{status_label(status):<{width}}"
-    if status == "ok":
-        return f"{GREEN}{label}{NC}"
-    if status == "expected_fail":
-        return f"{YELLOW}{label}{NC}"
-    if status == "unexpected_pass":
-        return f"{RED}{label}{NC}"
-    if status == "missing":
-        return f"{YELLOW}{label}{NC}"
-    return f"{RED}{label}{NC}"
-
-
-def update_counts(status: str) -> None:
-    global TESTS_RUN, TESTS_PASSED, TESTS_FAILED
-    if status == "missing":
-        return
-    TESTS_RUN += 1
-    if status in ("ok", "expected_fail"):
-        TESTS_PASSED += 1
-    else:
-        TESTS_FAILED += 1
-
-
-def print_results_table(host_results, zeal_results, zeal_messages) -> None:
-    tests = sorted({*host_results.keys(), *zeal_results.keys()})
-    header_test = "test"
-    header_host = "host"
-    header_zeal = "zeal-native"
-    test_width = max(len(header_test), max((len(t) for t in tests), default=0))
-    host_width = max(len(header_host), len("Unexpected"))
-    zeal_width = max(len(header_zeal), len("Unexpected"))
-
-    print(f"{header_test:<{test_width}} | {header_host:<{host_width}} | {header_zeal:<{zeal_width}}")
-    print(f"{'-' * test_width}-+-{'-' * host_width}-+-{'-' * zeal_width}")
-
-    for test in tests:
-        host_status = host_results.get(test, "missing")
-        zeal_status = zeal_results.get(test, "missing")
-        update_counts(host_status)
-        update_counts(zeal_status)
-        host_label = format_status(host_status, host_width)
-        zeal_label = format_status(zeal_status, zeal_width)
-        print(f"{test:<{test_width}} | {host_label} | {zeal_label}")
-        if host_status in ("fail", "unexpected_pass"):
-            print(f"  > host: compile failed")
-        if zeal_status in ("fail", "unexpected_pass"):
-            msg = zeal_messages.get(test, "failure")
-            print(f"  > zeal-native: {msg}")
-
-def run_cmd(cmd, quiet=False):
-    try:
-        if quiet:
-            return subprocess.run(cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return subprocess.run(cmd, check=False)
-    except FileNotFoundError:
-        return None
-
-
-def run_cmd_capture(cmd):
-    try:
-        return subprocess.run(cmd, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    except FileNotFoundError:
-        return None
-
-
-def host_arch() -> str:
-    sys_name = platform.system()
-    if sys_name == "Darwin":
-        return "darwin"
-    if sys_name == "Linux":
-        return "linux"
-    return sys_name
-
-
-def test_compile(compiler: str, test_file: Path, test_name: str) -> None:
-    if not test_file.exists():
-        print(f"{YELLOW}⚠{NC}  Skipping {test_name} (file not found: {test_file})")
-        return
-    asm_file = test_file.with_suffix(".asm")
-    result = run_cmd([compiler, str(test_file), str(asm_file)])
-    status = 1 if result is None else result.returncode
-    stem = test_file.stem
-    expected = EXPECTED_RESULTS.get(stem)
-    if stem in EXPECTED_RESULTS and expected is None:
-        if status == 0:
-            print_result(f"{test_name} (unexpected pass)", 1)
-        else:
-            print_expected_fail(f"{test_name} (expected fail)")
-        return
-    print_result(test_name, status)
-
-
-def ensure_reset_in_test_zs() -> None:
-    path = Path("test.zs")
-    if not path.exists():
-        return
-    lines = path.read_text().splitlines()
-    while lines and lines[-1].strip() == "":
-        lines.pop()
-    while lines and lines[-1].strip().lstrip(";").strip() == "reset":
-        lines.pop()
-    lines.append("reset")
-    path.write_text("\n".join(lines) + "\n")
-
-
-def comment_reset_in_test_zs() -> None:
-    path = Path("test.zs")
-    if not path.exists():
-        return
-    lines = path.read_text().splitlines()
-    while lines and lines[-1].strip() == "":
-        lines.pop()
-    while lines and lines[-1].strip().lstrip(";").strip() == "reset":
-        lines.pop()
-    lines.append("; reset")
-    path.write_text("\n".join(lines) + "\n")
-
-def clean_test_artifacts() -> None:
-    tests_dir = Path("tests")
-    if not tests_dir.exists():
-        return
-    for pattern in ("*.asm", "*.bin", "*.ast"):
-        for path in tests_dir.glob(pattern):
-            path.unlink(missing_ok=True)
-
-
-def parse_return_results(log: str):
-    exec_file = ""
-    current_test = ""
-    pairs = []
-    exec_re = re.compile(r"Exec\s+'([^']+)'")
-    return_re = re.compile(r"Returned\s+\$([0-9A-Fa-f]+)")
-    test_re = re.compile(r"TEST:\s+(\S+)")
-    for raw in log.splitlines():
-        line = raw.rstrip("\r").lstrip()
-        test_match = test_re.search(line)
-        if test_match:
-            current_test = test_match.group(1)
-            continue
-        exec_match = exec_re.search(line)
-        if exec_match:
-            exec_file = exec_match.group(1)
-            continue
-        ret_match = return_re.search(line)
-        if ret_match:
-            hex_val = ret_match.group(1)
-            if hex_val:
-                path = exec_file or current_test
-                if path:
-                    pairs.append((normalize_test_path(path), hex_val))
-                    exec_file = ""
-
-    if not pairs:
-        return []
-
-    results = []
-    for path, hex_val in pairs:
-        base = Path(path).stem
-        expected = EXPECTED_RESULTS.get(base, "")
-        hex_val = hex_val.upper()
-        ok = True
-        if base in EXPECTED_RESULTS and expected is None:
-            ok = False
-        elif expected and hex_val != expected:
-            ok = False
-        results.append((path, expected, hex_val, ok))
-    return results
-
-
-def normalize_failure_path(path: str, current_test: str) -> str:
-    if current_test:
-        return normalize_test_path(current_test)
-    normalized = normalize_test_path(path)
-    if normalized.endswith((".ast", ".asm", ".bin")):
-        return str(Path(normalized).with_suffix(".c"))
-    return normalized
-
-
-def parse_compile_failures(log: str):
-    failures = []
-    seen = set()
-    test_re = re.compile(r"TEST:\s+(\S+)")
-    patterns = [
-        ("parse", re.compile(r"Failed to parse\s+(\S+)")),
-        ("semantic", re.compile(r"Failed to validate\s+(\S+)")),
-        ("codegen", re.compile(r"Failed to codegen\s+(\S+)")),
-        ("assemble", re.compile(r"Failed to assemble\s+(\S+)")),
-        ("compile", re.compile(r"Failed to compile\s+(\S+)")),
-    ]
-    current_test = ""
-    for raw in log.splitlines():
-        line = raw.rstrip("\r").lstrip()
-        test_match = test_re.search(line)
-        if test_match:
-            current_test = test_match.group(1)
-            continue
-        for reason, pattern in patterns:
-            match = pattern.search(line)
-            if match:
-                path = normalize_failure_path(match.group(1), current_test)
-                if path not in seen:
-                    failures.append((path, reason))
-                    seen.add(path)
-                current_test = ""
+def run_host_tests(cases=TEST_CASES):
+    """Observe child exits directly; a diagnostic or partial log cannot pass a case."""
+    clean_test_artifacts(cases)
+    results, messages = {}, {}
+    for name, expected in cases.items():
+        path = f"tests/{name}.c"
+        ast, asm = f"tests/{name}.ast", f"tests/{name}.asm"
+        results[path] = "missing"
+        commands = ((path, ast), (ast,), (ast, asm))
+        for stage, args in zip(STAGES, commands):
+            try:
+                proc = subprocess.run(
+                    [f"bin/cc_{stage}_{host_arch()}", *args],
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                    timeout=HEADLESS_TIMEOUT_SEC, check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                results[path], messages[path] = "fail", f"{stage}: {exc}"
                 break
-    return failures
-
-
-def normalize_test_path(path: str) -> str:
-    if path.startswith("h:/tests/"):
-        return "tests/" + path[len("h:/tests/"):]
-    if path.startswith("H:/tests/"):
-        return "tests/" + path[len("H:/tests/"):]
-    return path
-
-
-def normalize_test_case(path: str) -> str:
-    normalized = normalize_test_path(path)
-    if normalized.endswith((".ast", ".asm", ".bin")):
-        return str(Path(normalized).with_suffix(".c"))
-    if normalized.endswith(".c"):
-        return normalized
-    return str(Path(normalized).with_suffix(".c"))
-
-
-def parse_zeal_test_results(log: str):
-    results = {}
-    messages = {}
-    failures = parse_compile_failures(log)
-    for path, reason in failures:
-        path = normalize_test_case(path)
-        stem = Path(path).stem
-        expected = EXPECTED_RESULTS.get(stem)
-        if stem in EXPECTED_RESULTS and expected is None:
-            results[path] = "expected_fail"
-            messages[path] = f"failed to {reason} (expected)"
-        else:
-            results[path] = "fail"
-            messages[path] = f"failed to {reason}"
-
-    returns = parse_return_results(log)
-    for path, expected, actual, ok in returns:
-        path = normalize_test_case(path)
-        if path in results and results[path] in ("fail", "expected_fail"):
-            continue
-        if Path(path).stem in EXPECTED_RESULTS and expected is None:
-            results[path] = "unexpected_pass"
-            messages[path] = f"unexpected pass (returned ${actual})"
-            continue
-        if ok:
-            results[path] = "ok"
-        else:
-            results[path] = "fail"
-            if expected:
-                messages[path] = f"expected ${expected}, got ${actual}"
-            else:
-                messages[path] = f"returned ${actual}"
-
-    ok_re = re.compile(r"OK:\s+(\S+)")
-    for raw in log.splitlines():
-        line = raw.rstrip("\r").lstrip()
-        ok_match = ok_re.search(line)
-        if not ok_match:
-            continue
-        path = normalize_test_case(ok_match.group(1))
-        if path in results:
-            continue
-        stem = Path(path).stem
-        expected = EXPECTED_RESULTS.get(stem)
-        if stem in EXPECTED_RESULTS and expected is None:
-            results[path] = "unexpected_pass"
-            messages[path] = "unexpected pass"
+            if proc.returncode != 0:
+                diagnostic = REJECTION_DIAGNOSTICS.get(stage, "")
+                if expected == stage and proc.returncode == 1 and diagnostic and diagnostic in proc.stdout:
+                    results[path], messages[path] = "expected_fail", f"rejected by {stage} as expected"
+                else:
+                    results[path], messages[path] = "fail", f"{stage} exited {proc.returncode}: {proc.stdout.strip()}"
+                break
+            if expected == stage:
+                results[path], messages[path] = "unexpected_pass", f"{stage} accepted an expected rejection"
+                break
         else:
             results[path] = "ok"
     return results, messages
 
 
-def parse_host_test_results(log: str, all_tests: list[str] | None = None):
-    tests = []
-    results = {}
-    test_re = re.compile(r"TEST:\s+(\S+)")
-    fail_re = re.compile(r"Failed to compile\s+(\S+)")
-    ok_re = re.compile(r"OK:\s+(\S+)")
-    expected_re = re.compile(r"OK \(expected failure\):\s+(\S+)")
+def parse_zeal_test_results(log, cases=TEST_CASES):
+    """Require ordered stage successes and an attributed decimal ZOS exit byte."""
+    results = {f"tests/{name}.c": "missing" for name in cases}
+    messages = {path: "no test result" for path in results}
+    records, current = {}, None
+    complete = False
+    global_errors = []
+    ansi = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
     for raw in log.splitlines():
-        line = raw.rstrip("\r").lstrip()
-        test_match = test_re.search(line)
-        if test_match:
-            path = normalize_test_path(test_match.group(1))
-            tests.append(path)
-            continue
-        ok_match = ok_re.search(line)
-        if ok_match:
-            path = normalize_test_path(ok_match.group(1))
-            results[path] = "ok"
-            continue
-        expected_match = expected_re.search(line)
-        if expected_match:
-            path = normalize_test_path(expected_match.group(1))
-            results[path] = "expected_fail"
-            continue
-        fail_match = fail_re.search(line)
-        if fail_match:
-            path = normalize_test_path(fail_match.group(1))
+        line = re.sub(r"[hH]:/tests/", "tests/", ansi.sub("", raw).strip())
+        if line.startswith("TEST: "):
+            path = line[6:]
+            if complete or path in records or path not in results:
+                global_errors.append(f"unexpected or duplicate test marker: {path}")
+                current = None
+                continue
+            current = path
+            records[path] = []
+        elif line == "!!! Complete !!!":
+            if complete:
+                global_errors.append("duplicate suite completion marker")
+            complete = True
+            current = None
+        elif current:
+            records[current].append(line)
+    if not complete:
+        global_errors.append("missing suite completion marker")
+    for path, lines in records.items():
+        name = Path(path).stem
+        expected = cases[name]
+        ast = str(Path(path).with_suffix(".ast"))
+        asm = str(Path(path).with_suffix(".asm"))
+        binary = str(Path(path).with_suffix(".bin"))
+        successes = [f"{path} -> {ast}", f"{ast} OK", f"{ast} -> {asm}", f"Exec '{binary}'"]
+        position, failure, returned, problem = 0, None, None, None
+        for line in lines:
+            if line in successes:
+                index = successes.index(line)
+                if index == 3 and failure is not None and isinstance(expected, str):
+                    continue  # coreutils prints Exec before reporting a missing binary.
+                if index != position:
+                    problem = "missing, duplicate, or out-of-order stage result"
+                position = index + 1
+            elif line.startswith("Exec '"):
+                problem = "execution belongs to another test"
+            match = re.fullmatch(r"Failed to (parse|validate|codegen|assemble|compile) (\S+)", line)
+            if match and failure is None:
+                stage = {"validate": "semantic"}.get(match[1], match[1])
+                target_path = str(Path(match[2]).with_suffix(".c"))
+                if target_path != path:
+                    problem = "failure belongs to another test"
+                failure = stage
+            if line.startswith("Returned"):
+                match = re.fullmatch(r"Returned\s+\$(\d+)", line)
+                if match is None or returned is not None or position != len(successes):
+                    problem = "invalid, duplicate, or unattributed execution result"
+                else:
+                    returned = int(match[1], 10)  # coreutils return uses put_u8, despite '$'.
+                    if not 0 <= returned <= 255:
+                        problem = "execution result is outside the ZOS exit-byte range"
+        if isinstance(expected, str):
+            required_position = STAGES.index(expected)
+            diagnostic = REJECTION_DIAGNOSTICS[expected]
+            # Later cascading errors/attempted execs are allowed; successful later stages are not.
+            prior_successes = successes[:required_position]
+            seen_successes = [line for line in lines if line in successes[:3]]
+            if not problem and failure == expected and diagnostic in lines and seen_successes == prior_successes and returned is None:
+                results[path], messages[path] = "expected_fail", f"rejected by {expected} as expected"
+            else:
+                results[path], messages[path] = "fail", f"expected rejection by {expected}, observed {failure or 'no rejection'}"
+        elif not problem and failure is None and position == len(successes) and returned == expected:
+            results[path], messages[path] = "ok", f"returned {returned} (0x{returned:02X})"
+        else:
             results[path] = "fail"
-            continue
-        if line == "Out of memory":
-            last = tests[-1] if tests else ""
-            if last:
-                results[last] = "fail"
-    if not tests and all_tests:
-        tests = list(all_tests)
-    output = []
-    seen = set()
-    for path in tests:
-        if path in seen:
-            continue
-        seen.add(path)
-        status = results.get(path)
-        if status is None:
-            status = "missing"
-        stem = Path(path).stem
-        expected = EXPECTED_RESULTS.get(stem)
-        if status == "ok" and stem in EXPECTED_RESULTS and expected is None:
-            status = "unexpected_pass"
-        if status == "fail" and stem in EXPECTED_RESULTS and expected is None:
-            status = "expected_fail"
-        output.append((path, status))
-    return output
+            messages[path] = problem or (f"stage failure: {failure}" if failure else f"expected {expected}, got {returned}")
+    if global_errors:
+        results["suite"] = "fail"
+        messages["suite"] = "; ".join(global_errors)
+    return results, messages
 
 
-def run_headless_emulator(
-    img: str,
-    eeprom: str,
-    test_name: str,
-    show_log: bool = False,
-    log_path: Path | None = None,
-) -> tuple[int | None, str]:
-    proc = None
-    streaming = show_log or log_path
-    if shutil.which("zeal-native") is None:
-        print(f"{YELLOW}⚠{NC}  Skipping {test_name} (zeal-native not found)")
-        return None, ""
-    if not Path(img).exists() or not Path(eeprom).exists():
-        print(f"{YELLOW}⚠{NC}  Skipping {test_name} (image(s) missing)")
-        return None, ""
+@contextmanager
+def termination_signals():
+    """Turn catchable process termination into normal stack unwinding."""
+    def terminate(signum, frame):
+        raise SystemExit(128 + signum)
+
+    previous = {}
+    try:
+        for signum in (signal.SIGTERM, signal.SIGHUP):
+            if signal.getsignal(signum) == signal.SIG_IGN:
+                continue
+            previous[signum] = signal.signal(signum, terminate)
+        yield
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+
+
+@contextmanager
+def reset_test_script():
+    """Restore the exact original bytes even on timeout, exceptions, or interruption."""
+    path = Path("test.zs")
+    original = path.read_bytes()
+    lines = original.decode().splitlines()
+    while lines and (not lines[-1].strip() or lines[-1].strip().lstrip(";").strip() == "reset"):
+        lines.pop()
+    try:
+        path.write_text("\n".join([*lines, "reset"]) + "\n")
+        yield
+    finally:
+        path.write_bytes(original)
+
+
+def run_headless_emulator(img, eeprom, test_name, show_log=False, log_path=None, timeout=HEADLESS_TIMEOUT_SEC):
+    if shutil.which("zeal-native") is None or not Path(img).is_file() or not Path(eeprom).is_file():
+        return 1, f"{test_name}: emulator or image(s) missing\n"
+    command = ["zeal-native", "--headless", "--no-reset", "-H", str(ROOT), "-r", img, "-e", eeprom]
+    # Avoid the emulator's user-global TF default; the headless kernel disables TF.
+    if Path(".zeal8bit/tf.img").is_file():
+        command += ["-t", ".zeal8bit/tf.img"]
+    proc, log_handle, chunks = None, None, []
+    decoder = codecs.getincrementaldecoder("utf-8")("replace")
+
+    def record(text):
+        chunks.append(text)
+        if show_log:
+            print(text, end="", flush=True)
+        if log_handle:
+            log_handle.write(text)
+            log_handle.flush()
 
     try:
-        zealasm_src = Path(".zeal8bit/zealasm")
-        zealasm_dst = Path("bin/zealasm")
-        if zealasm_src.exists() and zealasm_src.is_file():
-            shutil.copyfile(zealasm_src, zealasm_dst)
-
-        if streaming:
-            proc = subprocess.Popen(
-                ["zeal-native", "--headless", "--no-reset", "-r", img, "-e", eeprom],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                bufsize=1,
-            )
-            log_parts = []
-            start = time.monotonic()
-            output = proc.stdout
-            log_handle = log_path.open("w", encoding="utf-8") if log_path else None
-            try:
-                while True:
-                    elapsed = time.monotonic() - start
-                    if elapsed > HEADLESS_TIMEOUT_SEC:
-                        raise TimeoutError
-                    if output is None:
-                        break
-                    ready, _, _ = select.select([output], [], [], 0.1)
-                    if ready:
-                        line = output.readline()
-                        if line:
-                            log_parts.append(line)
-                            if show_log:
-                                print(line, end="")
-                            if log_handle:
-                                log_handle.write(line)
-                                log_handle.flush()
-                            continue
-                    if proc.poll() is not None:
-                        break
-                if output is not None:
-                    remainder = output.read()
-                    if remainder:
-                        log_parts.append(remainder)
-                        if show_log:
-                            print(remainder, end="")
-                        if log_handle:
-                            log_handle.write(remainder)
-            finally:
-                if log_handle:
-                    log_handle.close()
-            status = proc.wait()
-            log = "".join(log_parts)
-        else:
-            proc = subprocess.run(
-                ["zeal-native", "--headless", "--no-reset", "-r", img, "-e", eeprom],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                check=False,
-                timeout=HEADLESS_TIMEOUT_SEC,
-            )
-            log = proc.stdout or ""
-            status = proc.returncode
-    except TimeoutError:
-        print(
-            f"{RED}X{NC} {test_name} timed out after "
-            f"{HEADLESS_TIMEOUT_SEC}s (possible hang/reset loop)"
-        )
-        try:
-            proc.kill()
-            proc.wait(timeout=1)
-        except Exception:
-            pass
-        return 1, ""
-    except Exception as exc:
-        print(f"{RED}X{NC} {test_name} failed to run zeal-native: {exc}")
-        return 1, ""
-
-    if not streaming:
         if log_path:
-            log_path.write_text(log)
-        if show_log and log:
-            print(log)
+            log_handle = Path(log_path).open("w", encoding="utf-8")
+        proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True)
+        os.set_blocking(proc.stdout.fileno(), False)
+        deadline = time.monotonic() + timeout
+        with selectors.DefaultSelector() as selector:
+            selector.register(proc.stdout, selectors.EVENT_READ)
+            while selector.get_map():
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise subprocess.TimeoutExpired(command, timeout)
+                for key, _ in selector.select(min(remaining, 0.1)):
+                    data = os.read(key.fd, 65536)
+                    if not data:
+                        selector.unregister(key.fileobj)
+                    else:
+                        record(decoder.decode(data))
+            record(decoder.decode(b"", final=True))
+        return proc.wait(timeout=max(0.001, deadline - time.monotonic())), "".join(chunks)
+    except subprocess.TimeoutExpired:
+        record(f"\n{test_name} timed out after {timeout}s\n")
+        return 1, "".join(chunks)
+    except OSError as exc:
+        record(f"\n{test_name} failed: {exc}\n")
+        return 1, "".join(chunks)
+    finally:
+        if proc:
+            # Own process group only; also closes pipes held open by descendants.
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            proc.wait()
+            proc.stdout.close()
+        if log_handle:
+            log_handle.close()
 
-    return status, log
+
+def print_results(label, results, messages):
+    print(f"\n{label}")
+    for path, status in results.items():
+        print(f"{status:16} {path}: {messages.get(path, '')}")
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run Zeal C compiler tests")
-    parser.add_argument(
-        "--headless-only",
-        action="store_true",
-        help="Only run the Zeal-native headless test",
-    )
-    parser.add_argument(
-        "--headless-log",
-        action="store_true",
-        help="Print the Zeal-native headless output",
-    )
-    parser.add_argument(
-        "--headless-log-file",
-        type=Path,
-        help="Write the Zeal-native headless output to this file",
-    )
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--host-only", action="store_true", help="Check host generation only; no ZOS build/execution")
+    modes.add_argument("--headless-only", action="store_true", help="Build and test ZOS only")
+    parser.add_argument("--no-build", action="store_true", help="Explicitly use existing compiler binaries")
+    parser.add_argument("--headless-log", action="store_true")
+    parser.add_argument("--headless-log-file", type=Path)
     args = parser.parse_args(argv)
-    print(f"{BLUE}╔════════════════════════════════════════╗{NC}")
-    print(f"{BLUE}║     Zeal C Compiler Test Suite         ║{NC}")
-    print(f"{BLUE}╚════════════════════════════════════════╝{NC}")
-
-    print_header("Building ZOS Target")
-    zos_build = run_cmd(["zde", "cmake"], quiet=True)
-    zos_status = 1 if zos_build is None else zos_build.returncode
-    print_result("ZOS compilation (bin/cc)", zos_status)
-
-    mac_status = 0
-    arch = host_arch()
-    cc_parse = Path(f"bin/cc_parse_{arch}")
-    cc_codegen = Path(f"bin/cc_codegen_{arch}")
-    cc_semantic = Path(f"bin/cc_semantic_{arch}")
-    host_results = {}
-    zeal_results = {}
-    zeal_messages = {}
-
-    if not args.headless_only:
-        print_header("Building Host Target")
-        run_cmd(["make", "clean"], quiet=True)
-        mac_build = run_cmd(["make"], quiet=True)
-        mac_status = 1 if mac_build is None else mac_build.returncode
-        print_result("Host compilation (make)", mac_status)
-
-        print_header("Running Host Tests")
-        if cc_parse.exists() and cc_codegen.exists():
+    os.chdir(ROOT)
+    results, checks = [], []
+    try:
+        validate_inventory()
+        for label, enabled, command in (
+            ("Host build", not args.headless_only, ["make", "all"]),
+            ("ZOS build", not args.host_only, ["zde", "--no-tty", "cmake"]),
+        ):
+            if enabled and not args.no_build:
+                try:
+                    status = subprocess.run(command, check=False).returncode
+                except OSError as exc:
+                    print(f"{label}: {exc}")
+                    status = 1
+                checks.append(status == 0)
+                if status != 0:
+                    return 1  # Never run stale artifacts after a failed build.
+        if not args.headless_only:
+            host, messages = run_host_tests()
+            print_results("Host generation (no execution)", host, messages)
+            results.extend(host.values())
+        if not args.host_only:
+            for name in STAGES:
+                if not Path(f"bin/cc_{name}").is_file():
+                    raise ValueError(f"Missing ZOS stage: bin/cc_{name}")
+            if Path(".zeal8bit/zealasm").is_file():
+                shutil.copyfile(".zeal8bit/zealasm", "bin/zealasm")
             clean_test_artifacts()
-            host_tests = run_cmd_capture(["./test.sh"])
-            if host_tests is None:
-                print_result("Host test.sh", 1)
-            else:
-                host_log = (host_tests.stdout or "") + (host_tests.stderr or "")
-                all_tests = [str(p) for p in sorted(Path("tests").glob("*.c"))]
-                results = parse_host_test_results(host_log, all_tests=all_tests)
-                if results:
-                    host_results = {path: status for path, status in results}
-                else:
-                    print_result("Host test.sh", host_tests.returncode)
-        else:
-            print(f"{RED}✗{NC} host binaries not found, skipping tests")
-
-        print_header("Verifying Build Artifacts")
-        print_result("ZOS binary exists (bin/cc)", 0 if Path("bin/cc").exists() else 1)
-        print_result(f"Host cc_parse exists ({cc_parse})", 0 if cc_parse.exists() else 1)
-        print_result(f"Host cc_codegen exists ({cc_codegen})", 0 if cc_codegen.exists() else 1)
-        print_result(f"Host cc_semantic exists ({cc_semantic})", 0 if cc_semantic.exists() else 1)
-
-    print_header("Zeal-native Headless Smoke Test")
-    if zos_status == 0:
-        clean_test_artifacts()
-        ensure_reset_in_test_zs()
-        zeal_status, zeal_log = run_headless_emulator(
-            ".zeal8bit/headless.img",
-            ".zeal8bit/eeprom.img",
-            "zeal-native headless boot",
-            show_log=args.headless_log,
-            log_path=args.headless_log_file,
-        )
-        if zeal_status is not None:
-            print_result("zeal-native headless boot", zeal_status)
-        if zeal_log:
-            zeal_results, zeal_messages = parse_zeal_test_results(zeal_log)
-        comment_reset_in_test_zs()
-    else:
-        print(f"{YELLOW}⚠{NC}  Skipping zeal-native headless boot (ZOS build failed)")
-
-    print_header("Test Results")
-    print_results_table(host_results, zeal_results, zeal_messages)
-
-    print_header("Test Summary")
-    print(f"Total tests run:    {BLUE}{TESTS_RUN}{NC}")
-    print(f"Tests passed:       {GREEN}{TESTS_PASSED}{NC}")
-    print(f"Tests failed:       {RED}{TESTS_FAILED}{NC}")
-
-    if TESTS_FAILED == 0:
-        print(f"\n{GREEN}╔════════════════════════════════════════╗{NC}")
-        print(f"{GREEN}║          All Tests Passed! ✓           ║{NC}")
-        print(f"{GREEN}╚════════════════════════════════════════╝{NC}\n")
-        return 0
-
-    print(f"\n{RED}╔════════════════════════════════════════╗{NC}")
-    print(f"{RED}║         Some Tests Failed ✗            ║{NC}")
-    print(f"{RED}╚════════════════════════════════════════╝{NC}\n")
-    return 1
+            with termination_signals(), reset_test_script():
+                status, log = run_headless_emulator(
+                    ".zeal8bit/headless.img", ".zeal8bit/eeprom.img", "ZOS execution",
+                    args.headless_log, args.headless_log_file,
+                )
+            checks.append(status == 0)
+            zeal, messages = parse_zeal_test_results(log)
+            print_results("ZOS assembly and execution", zeal, messages)
+            results.extend(zeal.values())
+            if status != 0:
+                print(f"Emulator failed (exit {status}); see --headless-log or --headless-log-file")
+        failed = sum(value not in ("ok", "expected_fail") for value in results)
+        print(f"\n{len(results)} test outcomes; {failed} failed or missing")
+        return 0 if results and failed == 0 and all(checks) else 1
+    except (OSError, ValueError) as exc:
+        print(f"Test infrastructure failed: {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

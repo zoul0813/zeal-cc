@@ -122,13 +122,12 @@ static int8_t ast_write_function(const ast_node_t* node) {
     if (name_index < 0) return -1;
     ast_write_u8(writer->out, AST_TAG_FUNCTION);
     ast_write_u16(writer->out, (uint16_t)name_index);
-    ast_write_type(node->data.function.return_type);
+    if (ast_write_type(node->data.function.return_type) < 0) return -1;
     ast_write_u8(writer->out, (uint8_t)node->data.function.param_count);
     for (ast_param_count_t i = 0; i < node->data.function.param_count; i++) {
-        ast_write_node(node->data.function.params[i]);
+        if (ast_write_node(node->data.function.params[i]) < 0) return -1;
     }
-    ast_write_node(node->data.function.body);
-    return 0;
+    return ast_write_node(node->data.function.body);
 }
 
 static int8_t ast_write_var_decl(const ast_node_t* node) {
@@ -149,7 +148,7 @@ static int8_t ast_write_compound(const ast_node_t* node) {
     ast_write_u8(writer->out, AST_TAG_COMPOUND_STMT);
     ast_write_u16(writer->out, (uint16_t)node->data.compound.stmt_count);
     for (ast_stmt_count_t i = 0; i < node->data.compound.stmt_count; i++) {
-        ast_write_node(node->data.compound.statements[i]);
+        if (ast_write_node(node->data.compound.statements[i]) < 0) return -1;
     }
     return 0;
 }
@@ -158,8 +157,7 @@ static int8_t ast_write_return(const ast_node_t* node) {
     ast_write_u8(writer->out, AST_TAG_RETURN_STMT);
     if (node->data.return_stmt.expr) {
         ast_write_u8(writer->out, 1);
-        ast_write_node(node->data.return_stmt.expr);
-        return 0;
+        return ast_write_node(node->data.return_stmt.expr);
     }
     ast_write_u8(writer->out, 0);
     return 0;
@@ -196,10 +194,10 @@ static int8_t ast_write_label(const ast_node_t* node) {
 static int8_t ast_write_if(const ast_node_t* node) {
     ast_write_u8(writer->out, AST_TAG_IF_STMT);
     ast_write_u8(writer->out, node->data.if_stmt.else_branch ? 1 : 0);
-    ast_write_node(node->data.if_stmt.condition);
-    ast_write_node(node->data.if_stmt.then_branch);
+    if (ast_write_node(node->data.if_stmt.condition) < 0) return -1;
+    if (ast_write_node(node->data.if_stmt.then_branch) < 0) return -1;
     if (node->data.if_stmt.else_branch) {
-        ast_write_node(node->data.if_stmt.else_branch);
+        return ast_write_node(node->data.if_stmt.else_branch);
     }
     return 0;
 }
@@ -606,8 +604,9 @@ static void ast_writer_reset_counts(void) {
 
 void cleanup(void) {
     if (writer) {
-        if (writer->out) {
+        if (OUTPUT_VALID(writer->out)) {
             output_close(writer->out);
+            writer->out = OUTPUT_INVALID;
         }
         ast_free_strings();
     }
@@ -644,6 +643,7 @@ int main(int argc, char** argv) {
     writer = (ast_writer_t*)cc_malloc(sizeof(*writer));
     if (!writer) return 1;
     mem_set(writer, 0, sizeof(*writer));
+    writer->out = OUTPUT_INVALID;
 
 
     args = parse_args(argc, argv, ARG_MODE_IN_OUT);
@@ -684,6 +684,10 @@ int main(int argc, char** argv) {
         ast = NULL;
     }
 
+    if (reader_failed(reader)) {
+        log_error("Failed to read source\n");
+        goto cleanup;
+    }
     if (parser->error_count > 0) {
         log_error("Parsing failed\n");
         goto cleanup;
@@ -712,15 +716,15 @@ int main(int argc, char** argv) {
     if (!parser) goto cleanup;
 
     writer->out = output_open(args.output_file);
-#ifdef __SDCC
-    if (writer->out < 0) goto cleanup;
-#else
-    if (!writer->out) goto cleanup;
-#endif
+    if (!OUTPUT_VALID(writer->out)) {
+        log_error("Failed to open AST output\n");
+        goto cleanup;
+    }
 
     writer->strings_frozen = true;
     ast_writer_reset_counts();
 
+    ast_write_handler(handle_error, "Failed to write AST header\n");
     if (ast_write_header_full(total_nodes, total_strings, string_table_offset) < 0) {
         log_error("Failed to write AST header\n");
         goto cleanup;
@@ -741,11 +745,20 @@ int main(int argc, char** argv) {
             ast = NULL;
             continue;
         }
-        ast_write_node(ast);
+        if (ast_write_node(ast) < 0) {
+            ast_node_destroy(ast);
+            ast = NULL;
+            log_error("Failed to write AST node\n");
+            goto cleanup;
+        }
         ast_node_destroy(ast);
         ast = NULL;
     }
 
+    if (reader_failed(reader)) {
+        log_error("Failed to read source\n");
+        goto cleanup;
+    }
     if (parser->error_count > 0) {
         log_error("Parsing failed\n");
         goto cleanup;
@@ -754,6 +767,15 @@ int main(int argc, char** argv) {
     if (ast_write_string_table(&string_table_offset) < 0) {
         log_error("Failed to write AST string table\n");
         goto cleanup;
+    }
+
+    {
+        int8_t close_status = output_close(writer->out);
+        writer->out = OUTPUT_INVALID;
+        if (close_status < 0) {
+            log_error("Failed to close AST output\n");
+            goto cleanup;
+        }
     }
 
     log_msg(args.input_file);

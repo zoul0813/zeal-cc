@@ -91,13 +91,23 @@ This requires:
 
 ### Desktop version:
 ```bash
-./bin/cc input.c output.asm
+./bin/cc_parse_darwin input.c output.ast
+./bin/cc_semantic_darwin output.ast
+./bin/cc_codegen_darwin output.ast output.asm
 ```
 
+Use the `_linux` suffix on Linux. Run codegen from the repository root so it can
+read `runtime/*.asm`. Any stage failure stops the pipeline; check its exit status
+before running the next stage.
+
 ### ZOS version:
-```bash
-cc input.c output.asm
+```text
+cc_parse input.c output.ast
+cc_semantic output.ast
+cc_codegen output.ast output.asm
 ```
+
+The `cc` driver is unfinished; use the three stages above.
 
 The compiler generates Z80 assembly compatible with Zealasm.
 
@@ -194,29 +204,33 @@ main:
 
 **Important**: All test input and output files must remain in the `tests/` directory. Never write test output to `/tmp` or any location outside the project.
 
-Run individual tests:
+Run host infrastructure and generation checks:
 ```bash
-./bin/cc tests/simple_return.c tests/simple_return.asm      # Simple return
-./bin/cc tests/return16.c tests/return16.asm  # 16-bit return value
-./bin/cc tests/expr.c tests/expr.asm  # Expression precedence
-./bin/cc tests/assign.c tests/assign.asm  # Assignment chaining
-./bin/cc tests/compares.c tests/compares.asm  # Comparisons
-./bin/cc tests/math.c tests/math.asm  # Math ops
-./bin/cc tests/if.c tests/if.asm      # If statement
-./bin/cc tests/while.c tests/while.asm  # While loop
-./bin/cc tests/for.c tests/for.asm    # For loop
-./bin/cc tests/params.c tests/params.asm  # Locals + function parameters
-./bin/cc tests/comp.c tests/comp.asm  # Factorial comprehensive
-./bin/cc tests/do_while.c tests/do_while.asm  # Do/while (expected fail)
-./bin/cc tests/unary.c tests/unary.asm  # Unary ops
-./bin/cc tests/char.c tests/char.asm    # Char literals
-./bin/cc tests/global.c tests/global.asm  # Global variables
-./bin/cc tests/pointer.c tests/pointer.asm  # Pointer + string literal indexing
+make test
 ```
 
-All test artifacts (`.asm`, `.o`, `.bin`, etc.) are stored in `tests/` for version control and review.
+`./test.sh` runs the host generation suite using existing binaries. These checks
+validate parser → semantic → codegen results; they do not execute generated Z80
+programs.
 
-**Note**: When adding a new test source in `tests/`, also update `test.zs` so the Zeal headless script runs the new case on target hardware. Expected failures are tracked in `test.py`.
+Run the full build and target execution suite:
+```bash
+./test.py --headless-log-file tests/headless.log
+```
+
+This builds the host compiler with Make and the ZOS compiler with `zde cmake`,
+then assembles and executes target-generated programs in Zeal Native. SDCC and
+the target SDKs run inside ZDE. See [TESTING.md](TESTING.md) for image setup.
+
+`test.py` owns the expected results and rejection stages. Every case must have an
+explicit outcome; missing tests, unexpected rejections, incomplete execution and
+nonzero process exits fail the run. The current coreutils `return` utility prints
+a decimal exit byte after `$`.
+
+When adding a C fixture under `tests/`, update `TEST_CASES` in `test.py`, its target
+`.zs` script, and `test.zs`. The runner checks that these inventories agree.
+Infrastructure-only tests live under `tests/infrastructure/` and run on the host.
+All test artifacts remain under `tests/`.
 
 ## Architecture
 

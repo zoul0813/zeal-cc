@@ -63,6 +63,19 @@ int main(int argc, char** argv) {
         goto cleanup;
     }
 
+    if (reader_failed(reader)) {
+        log_error("Failed to read AST\n");
+        goto cleanup;
+    }
+    {
+        int8_t close_status = codegen_destroy(codegen_ctx);
+        codegen_ctx = NULL;
+        if (close_status < 0) {
+            log_error("Failed to close assembly output\n");
+            goto cleanup;
+        }
+    }
+
     log_msg(args.input_file);
     log_msg(" -> ");
     log_msg(args.output_file);

@@ -50,9 +50,18 @@ AST_DUMP_SRCS = src/tools/ast_dump.c src/common/common.c src/common/type.c src/c
 AST_DUMP_OBJS = $(AST_DUMP_SRCS:.c=.o)
 AST_DUMP_TARGET = bin/ast_dump_$(ARCH)
 
+ALL_OBJS = $(sort $(CC_OBJS) $(PARSE_OBJS) $(CODEGEN_OBJS) $(SEMANTIC_OBJS) $(AST_DUMP_OBJS))
+DEPS = $(ALL_OBJS:.o=.d)
+
+.DEFAULT_GOAL := all
+-include $(DEPS)
+
 .PHONY: all clean test
 
 all: $(TARGET) $(PARSE_TARGET) $(CODEGEN_TARGET) $(SEMANTIC_TARGET) $(AST_DUMP_TARGET)
+
+# Also replaces objects made before dependency tracking was introduced.
+$(ALL_OBJS): Makefile
 
 $(TARGET): $(CC_OBJS)
 	@mkdir -p bin
@@ -75,7 +84,7 @@ $(AST_DUMP_TARGET): $(AST_DUMP_OBJS)
 	$(CC) $(LDFLAGS) -o $@ $^
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
 clean:
 	rm -f $(CC_OBJS) $(TARGET)
@@ -84,11 +93,10 @@ clean:
 	rm -f $(SEMANTIC_OBJS) $(SEMANTIC_TARGET)
 	rm -f $(AST_DUMP_OBJS) $(AST_DUMP_TARGET)
 	rm -rf bin/*.o
+	rm -f $(DEPS)
 
-test: $(TARGET)
-	@echo "Testing compiler..."
-	@./$(TARGET) tests/simple_return.c tests/simple_return.asm
-	@echo "Test output:"
-	@cat tests/simple_return.asm
+test: all
+	python3 -m unittest discover -s tests -p 'test_*.py'
+	./test.sh
 
 .PHONY: all clean test
