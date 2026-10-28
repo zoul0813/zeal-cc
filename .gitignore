@@ -21,3 +21,9 @@
 /.zeal8bit
 
 examples/Zeal-8-bit-OS/
+
+# Local review workflow
+/AGENTS.md
+/.agents
+/.review-workflow/
+/reviews/
