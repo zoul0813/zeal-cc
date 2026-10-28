@@ -97,7 +97,6 @@ uint16_t cc_init_pool_default(void) {
 
     if(heap_end <= heap_start) {
         return cc_init_pool((void*)heap_start, 0);
-        return;
     }
     return cc_init_pool((void*)heap_start, (size_t)(heap_end - heap_start));
 }
