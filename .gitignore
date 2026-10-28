@@ -17,6 +17,7 @@
 /tests/*.asm
 /tests/*.bin
 /tests/*.ast
+/tests/audit/
 
 /.zeal8bit
 
