@@ -250,4 +250,4 @@ We will iterate on this implementation, adding:
 
 ## License
 
-See LICENSE file for details.
+This project is licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE).
