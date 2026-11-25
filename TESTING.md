@@ -5,7 +5,9 @@
 * Copy eeprom.img and headless.img to ./.zeal8bit/ in the repo root
 * Copy zealasm to H:/bin (!!! headless native does NOT support tf.img !!!)
 
-!!! Make sure you have the "headless" version of Zeal Native, and `--headless --no-reset` is supported !!!
+Put the dedicated `zeal-headless` executable on PATH (ZDE builds it in
+`build-headless`). The runner uses `zeal-headless --headless --no-reset`;
+the desktop `zeal-native` executable is not used for automated target tests.
 !!! Make sure you have the latest version of ZShell, commit 1961d0d1a3a6d6d6a3bde3188bed61a5d18008af or newer !!!
 
 `test.py` will automatically add a `reset` at the end of test.zs for automated testing

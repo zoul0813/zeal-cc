@@ -129,6 +129,42 @@ class TemporaryArtifacts(unittest.TestCase):
 
 
 class RunnerProcessTests(TemporaryArtifacts):
+    def test_dedicated_headless_executable_in_both_logging_modes(self):
+        desktop = self.work / "zeal-native"
+        desktop.write_text("#!/bin/sh\nexit 99\n")
+        desktop.chmod(0o755)
+        emulator = self.work / "zeal-headless"
+        emulator.write_text(
+            '#!/bin/sh\n[ "$1" = --headless ] && [ "$2" = --no-reset ] || exit 98\n'
+            f"cat <<'GUEST'\n{execution_log()}GUEST\n"
+        )
+        emulator.chmod(0o755)
+        image = self.work / "image"
+        image.touch()
+        with mock.patch.dict(os.environ, {"PATH": str(self.work) + os.pathsep + os.environ["PATH"]}):
+            for stream in (False, True):
+                with self.subTest(stream=stream), contextlib.redirect_stdout(io.StringIO()) as stdout:
+                    log_path = self.work / "emulator.log" if stream else None
+                    code, log = suite.run_headless_emulator(str(image), str(image), "test", stream, log_path)
+                    self.assertEqual(code, 0, log)
+                    results, _ = suite.parse_zeal_test_results(log, {"simple_return": 12})
+                    self.assertEqual(results, {"tests/simple_return.c": "ok"})
+                    self.assertEqual(stdout.getvalue(), log if stream else "")
+                    if log_path:
+                        self.assertEqual(log_path.read_text(), log)
+
+    def test_desktop_executable_is_not_a_fallback(self):
+        desktop = self.work / "zeal-native"
+        desktop.write_text("#!/bin/sh\nexit 0\n")
+        desktop.chmod(0o755)
+        image = self.work / "image"
+        image.touch()
+        with mock.patch.dict(os.environ, {"PATH": str(self.work)}), contextlib.redirect_stderr(io.StringIO()) as stderr:
+            code, log = suite.run_headless_emulator(str(image), str(image), "test")
+        self.assertEqual(code, 1)
+        self.assertIn("zeal-headless not found on PATH", log)
+        self.assertEqual(stderr.getvalue(), log)
+
     def test_inherited_ignored_signal_is_preserved(self):
         previous = signal.signal(signal.SIGHUP, signal.SIG_IGN)
         try:
@@ -139,7 +175,7 @@ class RunnerProcessTests(TemporaryArtifacts):
             signal.signal(signal.SIGHUP, previous)
 
     def test_termination_signals_restore_script_and_reap_emulator(self):
-        executable = self.work / "zeal-native"
+        executable = self.work / "zeal-headless"
         executable.write_text("#!/usr/bin/env python3\nimport os,time\nfrom pathlib import Path\nPath('emulator.pid').write_text(str(os.getpid()))\ntime.sleep(30)\n")
         executable.chmod(0o755)
         image = self.work / "image"
@@ -196,7 +232,7 @@ class RunnerProcessTests(TemporaryArtifacts):
         self.assertEqual(path.read_bytes(), original)
 
     def test_unterminated_output_cannot_bypass_timeout(self):
-        executable = self.work / "zeal-native"
+        executable = self.work / "zeal-headless"
         executable.write_text("#!/usr/bin/env python3\nimport os,time\nos.write(1,b'partial')\ntime.sleep(5)\n")
         executable.chmod(0o755)
         image = self.work / "image"

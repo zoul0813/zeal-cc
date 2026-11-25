@@ -201,12 +201,7 @@ def reset_test_script():
 
 
 def run_headless_emulator(img, eeprom, test_name, show_log=False, log_path=None, timeout=HEADLESS_TIMEOUT_SEC):
-    if shutil.which("zeal-native") is None or not Path(img).is_file() or not Path(eeprom).is_file():
-        return 1, f"{test_name}: emulator or image(s) missing\n"
-    command = ["zeal-native", "--headless", "--no-reset", "-H", str(ROOT), "-r", img, "-e", eeprom]
-    # Avoid the emulator's user-global TF default; the headless kernel disables TF.
-    if Path(".zeal8bit/tf.img").is_file():
-        command += ["-t", ".zeal8bit/tf.img"]
+    executable = shutil.which("zeal-headless")
     proc, log_handle, chunks = None, None, []
     decoder = codecs.getincrementaldecoder("utf-8")("replace")
 
@@ -221,6 +216,21 @@ def run_headless_emulator(img, eeprom, test_name, show_log=False, log_path=None,
     try:
         if log_path:
             log_handle = Path(log_path).open("w", encoding="utf-8")
+        if not executable:
+            message = f"{test_name}: zeal-headless not found on PATH\n"
+        elif missing := [str(path) for path in (img, eeprom) if not Path(path).is_file()]:
+            message = f"{test_name}: missing image(s): {', '.join(missing)}\n"
+        else:
+            message = None
+        if message:
+            record(message)
+            if not show_log:
+                print(message, end="", file=sys.stderr)
+            return 1, "".join(chunks)
+        command = [executable, "--headless", "--no-reset", "-H", str(ROOT), "-r", img, "-e", eeprom]
+        # Avoid the emulator's user-global TF default; the headless kernel disables TF.
+        if Path(".zeal8bit/tf.img").is_file():
+            command += ["-t", ".zeal8bit/tf.img"]
         proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True)
         os.set_blocking(proc.stdout.fileno(), False)
         deadline = time.monotonic() + timeout
