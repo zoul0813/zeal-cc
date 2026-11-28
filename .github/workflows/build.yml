@@ -53,18 +53,18 @@ jobs:
           if-no-files-found: error
 
       - name: Stage Pages demo
-        if: github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/workflow'
         run: python3 stage.py
 
       - name: Create eeprom.img
-        if: github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/workflow'
         run: |
           zde image eeprom add .deploy/eeprom
           zde image eeprom create 64 # custom eeprom image
           cp $ZDE_PATH/mnt/eeprom.img ${{ github.workspace }}/.deploy/eeprom.img
 
       - name: Build Kernel/Romdisk
-        if: github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/workflow'
         env:
           ZDE_USER_PATH: ${{ github.workspace }}/.deploy
         run: |
@@ -73,14 +73,14 @@ jobs:
           cp $ZDE_PATH/home/Zeal-8-bit-OS/build/os_with_romdisk.img .deploy/default.img
 
       - name: Upload Pages
-        if: github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/workflow'
         uses: actions/upload-pages-artifact@v3
         with:
           path: .deploy
 
   deploy:
     needs: build
-    if: github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/workflow'
     runs-on: ubuntu-latest
     environment: github-pages
     permissions:

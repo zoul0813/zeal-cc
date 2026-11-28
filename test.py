@@ -260,14 +260,23 @@ def check_driver_failures(work, batch):
         finally:
             (work / "removed").rename(component)
 
-    # Exercise both public assembly spellings and replacement of a prior success.
+    source = host / "tests/simple_return.c"
+    source.write_text("int main() { return 93; }\n")
     guest.script(work, ["cd h:/tests", "cc -S simple_return.c", "? cc simple_return.c h:/tests/listing.asm",
-                        "? cc simple_return.c", "? echo REBUILT"])
+                        "? cc simple_return.c", "? return h:/tests/simple_return.bin", "? echo REBUILT"])
     status, log = batch(work, "rebuild")
     asm = (host / "tests/simple_return.asm").read_bytes()
-    if (status or "REBUILT" not in log.splitlines() or not asm
-            or asm != (host / "tests/listing.asm").read_bytes() or output.read_bytes() != previous):
+    rebuilt = output.read_bytes()
+    if (status or "REBUILT" not in log.splitlines() or "Returned  $93" not in log.splitlines()
+            or not asm or asm != (host / "tests/listing.asm").read_bytes() or rebuilt == previous):
         raise ValueError("Assembly or executable rebuild failed")
+
+    source.write_text("int main( {\n")
+    guest.script(work, ["cd h:/tests", "cc simple_return.c", ": echo REJECTED"])
+    status, log = batch(work, "rejected-rebuild")
+    if (status or "REJECTED" not in log.splitlines() or "cc: failed /bin/cc_parse status 1" not in log
+            or output.read_bytes() != rebuilt or (host / "tests/cc-work").exists()):
+        raise ValueError("Rejected rebuild failed to preserve the last successful binary")
 
 
 def target_run(args):

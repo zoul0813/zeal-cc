@@ -102,17 +102,23 @@ int main(int argc, char **argv) {
         int existing = lookup == 0;
         if (lookup && lookup != ERR_NO_SUCH_ENTRY) err = lookup;
         if (existing && D_ISDIR(info.s_flags)) err = ERR_INVALID_PARAMETER;
-        if (!err && existing) err = copy_file(dst, SAVE);
+        if (!err && existing) {
+            err = copy_file(dst, SAVE);
+            /* HostFS can fail a write to an existing truncated file. Publish
+               into a fresh file only after the backup has closed successfully. */
+            if (!err) err = rm(dst);
+        }
         if (!err) {
             err = copy_file(asm_only ? ASM : BIN, dst);
-            if (err && existing && copy_file(SAVE, dst)) {
-                keep_backup = 1;
-                put_s("cc: recover previous output from " SAVE "\n");
-            } else if (err && !existing) {
+            if (err) {
                 rm(dst);
+                if (existing && copy_file(SAVE, dst)) {
+                    keep_backup = 1;
+                    put_s("cc: recover previous output from " SAVE "\n");
+                }
             }
         }
-        if (err) put_s("cc: could not publish output\n");
+        if (err) { put_s("cc: could not publish output, status "); put_u8(err); put_s("\n"); }
     }
     rm(AST); rm(ASM); rm(BIN);
     if (!keep_backup) { rm(SAVE); rm(WORK); }
