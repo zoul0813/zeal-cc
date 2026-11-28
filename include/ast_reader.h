@@ -15,9 +15,13 @@ typedef struct {
     uint16_t decl_count;
     uint16_t decl_index;
     uint8_t program_started;
+    uint8_t walk_depth;
+    bool validating;
+    uint16_t nodes_left;
 } ast_reader_t;
 
 int8_t ast_reader_init(void);
+int8_t ast_reader_validate(void);
 int8_t ast_reader_load_strings(void);
 const char* ast_reader_string(uint16_t index);
 int8_t ast_reader_read_type_info(uint8_t* base, uint8_t* depth,

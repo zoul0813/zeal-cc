@@ -388,6 +388,54 @@ static int8_t semantic_check_gotos(const semantic_ctx_t* ctx) {
     return 0;
 }
 
+/* Labels/gotos belong to a function. Keeping this context out of the recursive
+ * node dispatcher prevents SDCC reserving 386 bytes again for every expression. */
+static int8_t semantic_check_function(semantic_state_t* state) {
+    uint8_t param_count = 0;
+    uint8_t base = 0;
+    uint8_t depth = 0;
+    uint16_t array_len = 0;
+    semantic_ctx_t local_ctx;
+    uint16_t name_index = ast_read_u16();
+    const char* name = ast_reader_string(name_index);
+    uint8_t prev_in_function = state ? state->in_function : 0;
+    semantic_type_t prev_return_type;
+    uint8_t prev_return_is_void = state ? state->return_is_void : 0;
+    semantic_ctx_t* prev_label_ctx = state ? state->label_ctx : NULL;
+    mem_set(&local_ctx, 0, sizeof(local_ctx));
+    if (state) {
+        prev_return_type = state->return_type;
+    } else {
+        semantic_type_clear(&prev_return_type);
+    }
+    if (ast_reader_read_type_info(&base, &depth, &array_len) < 0) return -1;
+    param_count = ast_read_u8();
+    if (state && semantic_scope_lookup(state, name) == NULL) {
+        semantic_type_t return_type;
+        return_type = semantic_type_make(base, depth, array_len);
+        if (semantic_scope_add_func(state, name, &return_type, 0, NULL) < 0) return -1;
+    }
+    if (state) {
+        if (semantic_scope_push(state) < 0) return -1;
+        state->in_function = 1;
+        state->label_ctx = &local_ctx;
+        state->return_type = semantic_type_make(base, depth, array_len);
+        state->return_is_void = semantic_type_is_void_scalar(&state->return_type);
+    }
+    for (uint8_t i = 0; i < param_count; i++) {
+        if (semantic_check_node_with_lvalue(0, state, NULL, NULL, NULL) < 0) return -1;
+    }
+    if (semantic_check_node_with_lvalue(0, state, NULL, NULL, NULL) < 0) return -1;
+    if (state) {
+        semantic_scope_pop(state);
+        state->in_function = prev_in_function;
+        state->label_ctx = prev_label_ctx;
+        state->return_type = prev_return_type;
+        state->return_is_void = prev_return_is_void;
+    }
+    return semantic_check_gotos(&local_ctx);
+}
+
 static int8_t semantic_check_tag_with_lvalue(
     uint8_t tag,
     uint8_t loop_depth,
@@ -402,51 +450,8 @@ static int8_t semantic_check_tag_with_lvalue(
     if (out_type) semantic_type_clear(out_type);
 
     switch (tag) {
-        case AST_TAG_FUNCTION: {
-            uint8_t param_count = 0;
-            uint8_t base = 0;
-            uint8_t depth = 0;
-            uint16_t array_len = 0;
-            semantic_ctx_t local_ctx;
-            uint16_t name_index = ast_read_u16();
-            const char* name = ast_reader_string(name_index);
-            uint8_t prev_in_function = state ? state->in_function : 0;
-            semantic_type_t prev_return_type;
-            uint8_t prev_return_is_void = state ? state->return_is_void : 0;
-            semantic_ctx_t* prev_label_ctx = state ? state->label_ctx : NULL;
-            mem_set(&local_ctx, 0, sizeof(local_ctx));
-            if (state) {
-                prev_return_type = state->return_type;
-            } else {
-                semantic_type_clear(&prev_return_type);
-            }
-            if (ast_reader_read_type_info(&base, &depth, &array_len) < 0) return -1;
-            param_count = ast_read_u8();
-            if (state && semantic_scope_lookup(state, name) == NULL) {
-                semantic_type_t return_type;
-                return_type = semantic_type_make(base, depth, array_len);
-                if (semantic_scope_add_func(state, name, &return_type, 0, NULL) < 0) return -1;
-            }
-            if (state) {
-                if (semantic_scope_push(state) < 0) return -1;
-                state->in_function = 1;
-                state->label_ctx = &local_ctx;
-                state->return_type = semantic_type_make(base, depth, array_len);
-                state->return_is_void = semantic_type_is_void_scalar(&state->return_type);
-            }
-            for (uint8_t i = 0; i < param_count; i++) {
-                if (semantic_check_node_with_lvalue(0, state, NULL, NULL, NULL) < 0) return -1;
-            }
-            if (semantic_check_node_with_lvalue(0, state, NULL, NULL, NULL) < 0) return -1;
-            if (state) {
-                semantic_scope_pop(state);
-                state->in_function = prev_in_function;
-                state->label_ctx = prev_label_ctx;
-                state->return_type = prev_return_type;
-                state->return_is_void = prev_return_is_void;
-            }
-            return semantic_check_gotos(&local_ctx);
-        }
+        case AST_TAG_FUNCTION:
+            return semantic_check_function(state);
         case AST_TAG_VAR_DECL: {
             uint8_t has_init = 0;
             uint8_t base = 0;

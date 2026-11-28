@@ -153,6 +153,7 @@ typedef struct {
     token_t* current;
     token_t* next;
     uint16_t error_count;
+    uint8_t depth;
 } parser_t;
 
 extern parser_t* parser;

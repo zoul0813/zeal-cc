@@ -45,7 +45,7 @@ SEMANTIC_TARGET = bin/cc_semantic_$(ARCH)
 
 AST_DUMP_SRCS = src/tools/ast_dump.c src/common/common.c src/common/type.c src/common/ast_read.c \
                 src/common/ast_reader/ast_reader_init.c src/common/ast_reader/ast_reader_load_strings.c src/common/ast_reader/ast_reader_string.c \
-                src/common/ast_reader/ast_reader_read_type_info.c src/common/ast_reader/ast_reader_begin_program.c src/common/ast_reader/ast_reader_destroy.c \
+                src/common/ast_reader/ast_reader_read_type_info.c src/common/ast_reader/ast_reader_begin_program.c src/common/ast_reader/ast_reader_destroy.c src/common/ast_reader/ast_reader_skip_tag.c src/common/ast_reader/ast_reader_skip_node.c \
                 src/target/modern/target_io.c
 AST_DUMP_OBJS = $(AST_DUMP_SRCS:.c=.o)
 AST_DUMP_TARGET = bin/ast_dump_$(ARCH)
@@ -100,3 +100,31 @@ test: all
 	./test.sh
 
 .PHONY: all clean test
+
+export ZDE_STRICT_EXIT := 1
+CASE ?= simple_return
+STAGE ?= parse
+.PHONY: dist accept debug debug-smoke
+
+dist:
+	zde --no-tty cmake
+	python3 stage.py --dist
+
+accept: dist ensure-media
+	python3 test.py --headless-only --no-build
+
+debug: dist ensure-media
+	python3 test.py --debug-case "$(CASE)" --stage "$(STAGE)" --no-build
+
+debug-smoke: dist ensure-media
+	python3 test.py --debug-smoke --no-build
+
+.PHONY: test-media
+test-media:
+	zde --no-tty deps stage romdisk coreutils
+	zde --no-tty deps stage romdisk zshell
+	zde --no-tty exec python3 tests/build_media.py
+
+.PHONY: ensure-media
+ensure-media:
+	@python3 -c 'from stage import media; import sys; sys.exit(not (media("headless.img","ZEAL_CC_ROM").is_file() and media("zealasm","ZEALASM").is_file()))' || $(MAKE) test-media

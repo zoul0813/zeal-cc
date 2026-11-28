@@ -117,6 +117,7 @@ typedef struct {
     const char* filename;
     int16_t current_char;
     bool eof;
+    bool failed;
     uint16_t line;
     uint16_t column;
 } lexer_t;

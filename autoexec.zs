@@ -1,2 +1,2 @@
-set PATH=H:/bin,A:
+set PATH=H:/bin,A:/
 exec h:/test.zs

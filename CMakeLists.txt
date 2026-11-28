@@ -123,6 +123,8 @@ add_program(ast_dump
     "src/common/ast_reader/ast_reader_read_type_info.c"
     "src/common/ast_reader/ast_reader_begin_program.c"
     "src/common/ast_reader/ast_reader_destroy.c"
+    "src/common/ast_reader/ast_reader_skip_tag.c"
+    "src/common/ast_reader/ast_reader_skip_node.c"
     "src/target/zeal8bit/target_io.c"
     ILIBS core
 )
@@ -145,3 +147,15 @@ add_custom_target(increment_build_number
 
 # Make zshell depend on the version increment
 add_dependencies(cc increment_build_number)
+
+# Stop target builds before code/static storage can overlap the streaming reader.
+find_program(CC_PYTHON NAMES python3)
+if(NOT CC_PYTHON)
+    message(FATAL_ERROR "Python 3 is required to check compiler memory bounds")
+endif()
+add_custom_target(check_target_memory ALL
+    COMMAND ${CC_PYTHON} ${CMAKE_CURRENT_LIST_DIR}/tests/check_target_memory.py
+            --maps ${CMAKE_CURRENT_LIST_DIR}/debug
+    COMMENT "Checking compiler memory bounds"
+)
+add_dependencies(check_target_memory cc_parse_bin cc_semantic_bin cc_codegen_bin ast_dump_bin)

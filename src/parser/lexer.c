@@ -58,6 +58,7 @@ lexer_t* lexer_create(const char* filename) {
     lexer->line = 1;
     lexer->column = 1;
     lexer->eof = false;
+    lexer->failed = false;
     lexer->current_char = reader_next(reader);
     if (lexer->current_char < 0) {
         lexer->current_char = '\0';
@@ -120,7 +121,7 @@ static void lexer_skip_line_comment(void) {
     }
 }
 
-static void lexer_skip_block_comment(void) {
+static bool lexer_skip_block_comment(void) {
     /* Skip the opening slash-star */
     lexer_advance();
     lexer_advance();
@@ -129,10 +130,11 @@ static void lexer_skip_block_comment(void) {
         if (lexer->current_char == '*' && lexer_peek(1) == '/') {
             lexer_advance(); /* Skip * */
             lexer_advance(); /* Skip / */
-            break;
+            return true;
         }
         lexer_advance();
     }
+    return false;
 }
 
 static bool is_identifier_start(char c) {
@@ -151,6 +153,7 @@ static token_t* token_create(token_type_t type, const char* value, uint16_t line
     token->line = line;
     token->column = column;
     token->next = NULL;
+    token->int_val = 0;
     token->value = NULL;
 
     if (type == TOK_IDENTIFIER || type == TOK_STRING) {
@@ -160,93 +163,59 @@ static token_t* token_create(token_type_t type, const char* value, uint16_t line
     return token;
 }
 
+static token_t* lexer_error(const char* message, uint16_t line, uint16_t column) {
+    log_error("Lex error: ");
+    log_error(message);
+    log_error("\n");
+    lexer->failed = true;
+    lexer->eof = true;
+    lexer->current_char = '\0';
+    return token_create(TOK_ERROR, NULL, line, column);
+}
+
+static uint8_t digit_value(char c) {
+    if (c >= '0' && c <= '9') return (uint8_t)(c - '0');
+    if (c >= 'a' && c <= 'f') return (uint8_t)(c - 'a' + 10);
+    if (c >= 'A' && c <= 'F') return (uint8_t)(c - 'A' + 10);
+    return 255;
+}
+
 static token_t* lexer_read_number(void) {
-    uint16_t start_line = lexer->line;
-    uint16_t start_column = lexer->column;
-    char buffer[MAX_TOKEN_LENGTH];
-    uint8_t len = 0;
-    bool is_hex = false;
-
-    /* Check for hex prefix */
-    if (lexer->current_char == '0' &&
-        (lexer_peek(1) == 'x' || lexer_peek(1) == 'X')) {
-        is_hex = true;
-        buffer[len++] = lexer->current_char;
-        lexer_advance();
-        buffer[len++] = lexer->current_char;
-        lexer_advance();
-    }
-
-    /* Read digits */
-    while (len < MAX_TOKEN_LENGTH - 1) {
-        if (is_hex) {
-            if ((lexer->current_char >= '0' && lexer->current_char <= '9') ||
-                (lexer->current_char >= 'a' && lexer->current_char <= 'f') ||
-                (lexer->current_char >= 'A' && lexer->current_char <= 'F')) {
-                buffer[len++] = lexer->current_char;
-                lexer_advance();
-            } else {
-                break;
-            }
-        } else {
-            if (lexer->current_char >= '0' && lexer->current_char <= '9') {
-                buffer[len++] = lexer->current_char;
-                lexer_advance();
-            } else if (lexer->current_char == '.') {
-                buffer[len++] = lexer->current_char;
-                lexer_advance();
-            } else if (lexer->current_char == 'e' || lexer->current_char == 'E') {
-                buffer[len++] = lexer->current_char;
-                lexer_advance();
-                if (lexer->current_char == '+' || lexer->current_char == '-') {
-                    buffer[len++] = lexer->current_char;
-                    lexer_advance();
-                }
-            } else {
-                break;
-            }
+    uint16_t line = lexer->line;
+    uint16_t column = lexer->column;
+    uint16_t value = 0;
+    uint8_t base = 10;
+    uint8_t length = 0;
+    uint8_t digits = 0;
+    if (lexer->current_char == '0') {
+        base = 8;
+        if (lexer_peek(1) == 'x' || lexer_peek(1) == 'X') {
+            base = 16;
+            lexer_advance();
+            lexer_advance();
+            length = 2;
         }
     }
-
-    /* Skip suffix (L, U, f, etc.) */
-    while (lexer->current_char == 'L' || lexer->current_char == 'l' ||
-           lexer->current_char == 'U' || lexer->current_char == 'u' ||
-           lexer->current_char == 'F' || lexer->current_char == 'f') {
+    while (1) {
+        uint8_t digit = digit_value((char)lexer->current_char);
+        if (digit >= base) break;
+        if (++length >= MAX_TOKEN_LENGTH) return lexer_error("Numeric token too long", line, column);
+        if (value > (UINT16_MAX - digit) / base) return lexer_error("Integer exceeds 16-bit range", line, column);
+        value = (uint16_t)(value * base + digit);
+        digits++;
         lexer_advance();
     }
-
-    buffer[len] = '\0';
-
-    token_t* token = token_create(TOK_NUMBER, buffer, start_line, start_column);
-    if (token) {
-        /* Parse integer */
-        int32_t val = 0;
-        uint8_t i = 0;
-
-        if (is_hex) {
-            i = 2; /* Skip 0x */
-            while (i < len) {
-                val = (int32_t)(val * 16);
-                char c = buffer[i];
-                if (c >= '0' && c <= '9') {
-                    val += (int32_t)(c - '0');
-                } else if (c >= 'a' && c <= 'f') {
-                    val += (int32_t)(c - 'a' + 10);
-                } else if (c >= 'A' && c <= 'F') {
-                    val += (int32_t)(c - 'A' + 10);
-                }
-                i++;
-            }
-        } else {
-            while (i < len && buffer[i] >= '0' && buffer[i] <= '9') {
-                val = (int32_t)(val * 10 + (buffer[i] - '0'));
-                i++;
-            }
-        }
-
-        token->int_val = (int16_t)val;
+    if (!digits) return lexer_error("Expected digits after numeric prefix", line, column);
+    /* The implemented integer model is unsigned by default; long/float suffixes are unsupported. */
+    if (lexer->current_char == 'u' || lexer->current_char == 'U') {
+        if (++length >= MAX_TOKEN_LENGTH) return lexer_error("Numeric token too long", line, column);
+        lexer_advance();
     }
-
+    if (is_identifier_char((char)lexer->current_char) || lexer->current_char == '.') {
+        return lexer_error("Invalid or unsupported integer literal", line, column);
+    }
+    token_t* token = token_create(TOK_NUMBER, NULL, line, column);
+    if (token) token->int_val = (int16_t)value;
     return token;
 }
 
@@ -260,6 +229,7 @@ static token_t* lexer_read_identifier(void) {
         buffer[len++] = lexer->current_char;
         lexer_advance();
     }
+    if (is_identifier_char((char)lexer->current_char)) return lexer_error("Identifier too long", start_line, start_column);
     buffer[len] = '\0';
 
     /* Check if it's a keyword */
@@ -284,79 +254,59 @@ typedef struct {
     char value;
 } lexer_escape_t;
 
-static char lexer_unescape_char(char c) {
+static bool lexer_unescape_char(char c, char* out) {
     static const lexer_escape_t escapes[] = {
-        { 'n', '\n' },
-        { 't', '\t' },
-        { 'r', '\r' },
-        { '\\', '\\' },
-        { '"', '"' },
-        { '\'', '\'' },
-        { '0', '\0' }
+        { 'n', '\n' }, { 't', '\t' }, { 'r', '\r' },
+        { '\\', '\\' }, { '"', '"' }, { '\'', '\'' }, { '0', '\0' }
     };
-    for (uint8_t i = 0; i < (uint8_t)(sizeof(escapes) / sizeof(escapes[0])); i++) {
-        if (escapes[i].esc == c) {
-            return escapes[i].value;
-        }
+    for (uint8_t i = 0; i < DIM(escapes); i++) {
+        if (escapes[i].esc == c) { *out = escapes[i].value; return true; }
     }
-    return c;
+    return false;
 }
 
 static token_t* lexer_read_string(void) {
-    uint16_t start_line = lexer->line;
-    uint16_t start_column = lexer->column;
+    uint16_t line = lexer->line;
+    uint16_t column = lexer->column;
     char buffer[MAX_STRING_LENGTH];
-    uint8_t len = 0;
-
-    /* Skip opening quote */
+    uint8_t length = 0;
     lexer_advance();
-
-    while (lexer->current_char != '"' && lexer->current_char != '\0' &&
-           len < MAX_STRING_LENGTH - 1) {
-        if (lexer->current_char == '\\') {
+    while (lexer->current_char != '"') {
+        if (lexer->eof || lexer->current_char == '\0' || lexer->current_char == '\n' || lexer->current_char == '\r')
+            return lexer_error("Unterminated string literal", line, column);
+        char c = (char)lexer->current_char;
+        if (c == '\\') {
             lexer_advance();
-            buffer[len++] = lexer_unescape_char(lexer->current_char);
-            lexer_advance();
-        } else {
-            buffer[len++] = lexer->current_char;
-            lexer_advance();
+            if (!lexer_unescape_char((char)lexer->current_char, &c))
+                return lexer_error("Unsupported string escape", line, column);
+            if (c == '\0') return lexer_error("Embedded NUL strings are unsupported", line, column);
         }
-    }
-
-    if (lexer->current_char == '"') {
+        if (length >= MAX_STRING_LENGTH - 1) return lexer_error("String literal too long", line, column);
+        buffer[length++] = c;
         lexer_advance();
     }
-
-    buffer[len] = '\0';
-    return token_create(TOK_STRING, buffer, start_line, start_column);
+    lexer_advance();
+    buffer[length] = '\0';
+    return token_create(TOK_STRING, buffer, line, column);
 }
 
 static token_t* lexer_read_char(void) {
-    uint16_t start_line = lexer->line;
-    uint16_t start_column = lexer->column;
-    char buffer[8];
-
-    /* Skip opening quote */
+    uint16_t line = lexer->line;
+    uint16_t column = lexer->column;
     lexer_advance();
-
-    char c = lexer->current_char;
+    if (lexer->eof || lexer->current_char == '\0' || lexer->current_char == '\n' || lexer->current_char == '\r' || lexer->current_char == '\'')
+        return lexer_error("Invalid character literal", line, column);
+    char c = (char)lexer->current_char;
     if (c == '\\') {
         lexer_advance();
-        c = lexer_unescape_char(lexer->current_char);
+        if (!lexer_unescape_char((char)lexer->current_char, &c))
+            return lexer_error("Unsupported character escape", line, column);
     }
     lexer_advance();
-
-    if (lexer->current_char == '\'') {
-        lexer_advance();
-    }
-
-    buffer[0] = c;
-    buffer[1] = '\0';
-
-    token_t* token = token_create(TOK_CHAR, NULL, start_line, start_column);
-    if (token) {
-        token->int_val = (int16_t)c;
-    }
+    if (lexer->current_char != '\'') return lexer_error("Expected closing character quote", line, column);
+    lexer_advance();
+    token_t* token = token_create(TOK_CHAR, NULL, line, column);
+    if (token) token->int_val = (uint8_t)c;
     return token;
 }
 
@@ -423,7 +373,7 @@ token_t* lexer_next_token(void) {
         }
 
         if (lexer->current_char == '/' && lexer_peek(1) == '*') {
-            lexer_skip_block_comment();
+            if (!lexer_skip_block_comment()) return lexer_error("Unterminated block comment", lexer->line, lexer->column);
             continue;
         }
 
@@ -504,9 +454,10 @@ token_t* lexer_next_token(void) {
                                     start_column);
             }
         }
-        return token_create(TOK_ERROR, NULL, start_line, start_column);
+        return lexer_error("Unsupported source character", start_line, start_column);
     }
 
+    if (!lexer->eof) return lexer_error("NUL byte in source", lexer->line, lexer->column);
     return token_create(TOK_EOF, NULL, lexer->line, lexer->column);
 }
 

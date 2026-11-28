@@ -23,6 +23,10 @@
 #define AST_TAG_STRING_LITERAL 19
 #define AST_TAG_ARRAY_ACCESS 20
 
+#define AST_MAX_STRINGS 512
+#define AST_MAX_DEPTH 32
+#define AST_MAX_POINTER_DEPTH 8
+
 /* AST binary header size in bytes */
 #define AST_HEADER_SIZE 16
 

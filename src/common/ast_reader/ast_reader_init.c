@@ -27,8 +27,7 @@ static int8_t ast_read_header(
     reserved = ast_read_u8();
     flags = ast_read_u16();
     *out_version = version;
-    (void)reserved;
-    (void)flags;
+    if (version != AST_FORMAT_VERSION || reserved || flags) return -1;
     *node_count = ast_read_u16();
     *string_count = ast_read_u16();
     *string_table_offset = ast_read_u32();
@@ -44,12 +43,16 @@ int8_t ast_reader_init(void) {
     ast->decl_count = 0;
     ast->decl_index = 0;
     ast->program_started = 0;
+    ast->walk_depth = 0;
+    ast->validating = false;
+    ast->nodes_left = 0;
 
     if (reader_seek(reader, 0) < 0) return -1;
     if (ast_read_header(reader, &ast->format_version, &ast->node_count, &ast->string_count,
                         &ast->string_table_offset) < 0) {
         return -1;
     }
-    if (ast->string_count > 0 && ast->string_table_offset < AST_HEADER_SIZE) return -1;
+    if (!ast->node_count || ast->string_count > AST_MAX_STRINGS ||
+        ast->string_table_offset < AST_HEADER_SIZE + 3) return -1;
     return 0;
 }

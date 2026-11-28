@@ -28,21 +28,21 @@
                 romdisk: 'default.img',
                 eeprom: 'eeprom.img',
                 tf: 'tf.img',
-                imagePersistence: true,
+                imageStorage: 'opfs',
                 hostfs,
-                onImageConflict(image) {
+                onImageUpdateAvailable(image) {
                     const useRemote = window.confirm(
-                        `${image.key} changed on the server, but your local image has saved changes.\n\n` +
+                        `${image.name} changed on the server. Replacing it discards local image changes and guest RAM.\n\n` +
                         'Use the updated server image? Press Cancel to keep your local image.'
                     );
-                    return useRemote ? 'remote' : 'local';
+                    if (useRemote) emulator.applyImageUpdates([image.name]).catch(reportError);
                 },
                 onLoadingChange: setLoading,
             });
             await emulator.start();
             const size = await emulator.diskImageUsage();
             console.log(
-                'Total IndexedDB usage:',
+                'Disk image storage:',
                 `${size}B`,
                 `${(size / 1024).toFixed(2)}K`,
                 `${(size / 1024 / 1024).toFixed(2)}M`
@@ -80,9 +80,9 @@
     });
     attachButton('#btn-clear', async () => {
         try {
+            hostfs?.reset();
             await emulator?.clearDiskImages();
             console.log('Cached disk images cleared');
-            await reload();
         } catch (error) {
             reportError(error);
         }

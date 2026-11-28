@@ -26,6 +26,9 @@ h:/tests/return16.zs
 h:/tests/zealos.zs
 h:/tests/semantic.zs
 
+h:/tests/literals.zs
+h:/tests/bad_literal.zs
+
 echo !!! Complete !!!
 
 ; reset

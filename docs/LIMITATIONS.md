@@ -36,3 +36,19 @@
   `HL` for 16-bit results (including `int` and pointers). The ZOS exit code is
   8-bit, so `crt0` truncates `main`'s return value to the low byte (`L`) before
   calling `_exit`.
+
+## Input safety bounds
+
+The implemented literal model supports 16-bit decimal/octal/hexadecimal integers
+and `u`/`U`, not floating-point or long suffixes. Numeric overflow and malformed
+or unterminated tokens are errors. Embedded NUL string literals are unsupported
+and rejected; the AST format cannot retain them.
+
+AST depth (including program) is limited to 32; pointer depth to eight; decoded
+strings to 95 bytes and identifiers to 31 bytes. Source parser recursion has its
+own 32-call expression/unary/statement guard. A plain return can contain at most
+28 left-associative binary terms; an unbraced `if`/`else if` ladder can have at
+most 27 arms, with surrounding constructs reducing these limits. AST structure
+is validated before use. Standalone codegen still requires semantic-validated
+input; schema validation is not a substitute for language-level semantic checks.
+See TESTING.md for sanitizer and target memory checks.

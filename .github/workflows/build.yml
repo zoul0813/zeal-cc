@@ -4,20 +4,23 @@ on:
     branches:
       - main
       - workflow
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      ZDE_USE: docker
+      ZDE_STRICT_EXIT: "1"
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
         with:
           submodules: "recursive"
           fetch-depth: 0
@@ -25,27 +28,43 @@ jobs:
       - name: Setup ZDE
         uses: zoul0813/zeal-dev-environment/github/setup-zde@main
         with:
-          deps: zealfs coreutils zshell
+          deps: zealfs coreutils zshell Zeal8bit/Zeal-Disk-Tool Zeal8bit/Zeal-NativeEmulator
 
-      - name: Stage coreutils
+      - name: Build and test installed compiler
         run: |
-          zde deps stage romdisk coreutils
+          make test
+          make dist test-media
+          zde --no-tty exec zeal-headless --skill
+          zde --no-tty exec python3 test.py --headless-only --no-build
+          zde --no-tty exec python3 test.py --debug-smoke --no-build
 
-      - name: Stage ZShell
-        run: |
-          zde deps stage romdisk zshell
+      - name: Retain failing guest runs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guest-diagnostics
+          path: tests/audit/guest-*/
 
-      - name: Build with ZDE
-        run: |
-          zde cmake && python3 stage.py
+      - name: Upload tested hardware installation
+        uses: actions/upload-artifact@v4
+        with:
+          name: zeal-cc
+          path: dist/zeal-cc/
+          if-no-files-found: error
+
+      - name: Stage Pages demo
+        if: github.event_name != 'pull_request'
+        run: python3 stage.py
 
       - name: Create eeprom.img
+        if: github.event_name != 'pull_request'
         run: |
           zde image eeprom add .deploy/eeprom
           zde image eeprom create 64 # custom eeprom image
           cp $ZDE_PATH/mnt/eeprom.img ${{ github.workspace }}/.deploy/eeprom.img
 
       - name: Build Kernel/Romdisk
+        if: github.event_name != 'pull_request'
         env:
           ZDE_USER_PATH: ${{ github.workspace }}/.deploy
         run: |
@@ -53,13 +72,19 @@ jobs:
           cp $ZDE_PATH/home/Zeal-8-bit-OS/build/os_with_romdisk.img bin/default.img
           cp $ZDE_PATH/home/Zeal-8-bit-OS/build/os_with_romdisk.img .deploy/default.img
 
-      - name: Deploy
-        uses: ./.github/actions/deploy-pages
+      - name: Upload Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .deploy
 
-      # - name: Upload binaries
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: zshell-binaries
-      #     path: |
-      #       bin/zshell
-      #       bin/default.img
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: github-pages
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/deploy-pages@v4

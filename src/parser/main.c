@@ -7,7 +7,7 @@
 #include "target.h"
 #include "cc_compat.h"
 
-#define MAX_AST_STRINGS 512
+#define MAX_AST_STRINGS AST_MAX_STRINGS
 
 typedef struct {
     output_t out;
@@ -15,6 +15,7 @@ typedef struct {
     uint16_t decl_count;
     uint16_t string_count;
     bool strings_frozen;
+    uint8_t walk_depth;
     uint32_t header_node_count_offset;
     uint32_t header_string_count_offset;
     uint32_t header_string_table_offset;
@@ -309,6 +310,10 @@ static const ast_write_fn g_ast_write_handlers[AST_NODE_TYPE_COUNT] = {
 
 static int8_t ast_write_node(const ast_node_t* node) {
     if (!writer || !node) return -1;
+    if (writer->walk_depth >= AST_MAX_DEPTH - 1 || writer->node_count >= UINT16_MAX - 1) {
+        cc_error("AST size or nesting limit exceeded");
+        return -1;
+    }
     writer->node_count++;
     if (node->type >= AST_NODE_TYPE_COUNT) {
         cc_error("Unsupported AST node in writer");
@@ -319,7 +324,10 @@ static int8_t ast_write_node(const ast_node_t* node) {
         cc_error("Unsupported AST node in writer");
         return -1;
     }
-    return fn(node);
+    writer->walk_depth++;
+    int8_t result = fn(node);
+    writer->walk_depth--;
+    return result;
 }
 
 static int8_t ast_write_header_full(
@@ -583,6 +591,10 @@ static const ast_measure_fn g_ast_measure_handlers[AST_NODE_TYPE_COUNT] = {
 
 static int8_t ast_measure_node(const ast_node_t* node, uint32_t* out_size) {
     if (!writer || !node || !out_size) return -1;
+    if (writer->walk_depth >= AST_MAX_DEPTH - 1 || writer->node_count >= UINT16_MAX - 1) {
+        cc_error("AST size or nesting limit exceeded");
+        return -1;
+    }
     writer->node_count++;
     if (node->type >= AST_NODE_TYPE_COUNT) {
         cc_error("Unsupported AST node in size pass");
@@ -593,7 +605,10 @@ static int8_t ast_measure_node(const ast_node_t* node, uint32_t* out_size) {
         cc_error("Unsupported AST node in size pass");
         return -1;
     }
-    return fn(node, out_size);
+    writer->walk_depth++;
+    int8_t result = fn(node, out_size);
+    writer->walk_depth--;
+    return result;
 }
 
 static void ast_writer_reset_counts(void) {
@@ -672,9 +687,9 @@ int main(int argc, char** argv) {
         {
             uint32_t node_size = 0;
             if (ast_measure_node(ast, &node_size) < 0) {
+                log_error("Failed to size AST node\nParsing failed\n");
                 ast_node_destroy(ast);
                 ast = NULL;
-                log_error("Failed to size AST node\n");
                 goto cleanup;
             }
             nodes_bytes += node_size;
@@ -688,7 +703,7 @@ int main(int argc, char** argv) {
         log_error("Failed to read source\n");
         goto cleanup;
     }
-    if (parser->error_count > 0) {
+    if (lexer->failed || parser->error_count > 0) {
         log_error("Parsing failed\n");
         goto cleanup;
     }
@@ -759,7 +774,7 @@ int main(int argc, char** argv) {
         log_error("Failed to read source\n");
         goto cleanup;
     }
-    if (parser->error_count > 0) {
+    if (lexer->failed || parser->error_count > 0) {
         log_error("Parsing failed\n");
         goto cleanup;
     }

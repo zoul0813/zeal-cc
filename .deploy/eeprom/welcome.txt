@@ -1,9 +1,5 @@
-# Zeal CC Interactive Demo
+Zeal CC interactive demo
 
-This is a preview of Zeal CC with ZShell and coreutils preinstalled.
-
-There are a number of apps, games, etc on T:/
-
-Things to try:
-
-`h:/tests/zealos.zs` - simple "hello world" example written in Zeal CC
+cd H:/examples/hexdump
+cc hexdump.c
+./hexdump.bin

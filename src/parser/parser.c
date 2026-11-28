@@ -1,5 +1,6 @@
 #include "cc_compat.h"
 #include "parser.h"
+#include "ast_format.h"
 
 #include "common.h"
 #include "symbol.h"
@@ -56,6 +57,17 @@ static void parser_error(const char* msg, token_t* tok) {
 
 static void parser_error_current(const char* msg) {
     parser_error(msg, parser_current());
+}
+
+static ast_node_t* parse_bounded(ast_node_t* (*parse)(void)) {
+    if (parser->depth >= AST_MAX_DEPTH) {
+        parser_error_current("Source nesting too deep");
+        return NULL;
+    }
+    parser->depth++;
+    ast_node_t* node = parse();
+    parser->depth--;
+    return node;
 }
 
 static const char ERR_SIGNED_UNSIGNED[] = "Cannot combine signed and unsigned";
@@ -129,6 +141,7 @@ parser_t* parser_create(void) {
     parser->current = lexer_next_token();
     parser->next = lexer_next_token();
     parser->error_count = 0;
+    parser->depth = 0;
 
     return parser;
 }
@@ -200,6 +213,7 @@ static ast_node_t* ast_node_create(ast_node_type_t type) {
     ast_node_t* node = (ast_node_t*)cc_malloc(sizeof(ast_node_t));
     if (!node) return NULL;
 
+    mem_set(node, 0, sizeof(*node));
     node->type = type;
     return node;
 }
@@ -244,6 +258,19 @@ static type_t* parse_type(void) {
     return type;
 }
 
+static type_t* parse_pointer_suffix(type_t* type) {
+    uint8_t depth = 0;
+    while (parser_match(TOK_STAR)) {
+        if (depth++ >= AST_MAX_POINTER_DEPTH) {
+            parser_error_current("Pointer nesting too deep");
+            type_destroy(type);
+            return NULL;
+        }
+        type = type_create_pointer(type);
+    }
+    return type;
+}
+
 static int8_t parse_array_suffix(uint16_t* out_len, bool allow_unsized) {
     if (!out_len) return -1;
     if (!parser_match(TOK_LBRACKET)) return 0;
@@ -262,11 +289,11 @@ static int8_t parse_array_suffix(uint16_t* out_len, bool allow_unsized) {
     }
     token_t* len_tok = parser_current();
     int16_t len = len_tok->int_val;
-    parser_advance();
     if (len <= 0) {
         parser_error(ERR_ARRAY_POS, len_tok);
         return -1;
     }
+    parser_advance();
     if (!parser_consume_expected(TOK_RBRACKET, ERR_AFTER_ARRAY_LEN)) {
         return -1;
     }
@@ -291,6 +318,17 @@ static type_t* parse_array_type(
         return NULL;
     }
     if (as_pointer) {
+        uint8_t depth = 0;
+        const type_t* current = base;
+        while (current->kind == TYPE_POINTER) {
+            depth++;
+            current = current->data.pointer.base_type;
+        }
+        if (depth >= AST_MAX_POINTER_DEPTH) {
+            parser_error_current("Pointer nesting too deep");
+            type_destroy(base);
+            return NULL;
+        }
         base = type_create_pointer(base);
     } else {
         base = type_create_array(base, array_len);
@@ -564,7 +602,12 @@ static ast_node_t* parse_binary_left(ast_node_t* (*next)(void),
     return left;
 }
 
+static ast_node_t* parse_unary_inner(void);
 static ast_node_t* parse_unary(void) {
+    return parse_bounded(parse_unary_inner);
+}
+
+static ast_node_t* parse_unary_inner(void) {
     if (parser_match(TOK_PLUS)) {
         return parse_unary();
     }
@@ -684,7 +727,12 @@ static ast_node_t* parse_logical_or(void) {
                              (uint8_t)(sizeof(ops) / sizeof(ops[0])));
 }
 
+static ast_node_t* parse_expression_inner(void);
 static ast_node_t* parse_expression(void) {
+    return parse_bounded(parse_expression_inner);
+}
+
+static ast_node_t* parse_expression_inner(void) {
     ast_node_t* left = parse_logical_or();
     if (!left) return NULL;
 
@@ -712,13 +760,17 @@ static ast_node_t* parse_expression(void) {
     return left;
 }
 
+static ast_node_t* parse_statement_inner(void);
 static ast_node_t* parse_statement(void) {
+    return parse_bounded(parse_statement_inner);
+}
+
+static ast_node_t* parse_statement_inner(void) {
     /* Variable declaration: int x; or int x = 5; */
     type_t* var_type = parse_type();
     if (var_type) {
-        while (parser_match(TOK_STAR)) {
-            var_type = type_create_pointer(var_type);
-        }
+        var_type = parse_pointer_suffix(var_type);
+        if (!var_type) return NULL;
 
         token_t* name_tok = parser_current();
         char* name = name_tok->value;
@@ -959,8 +1011,10 @@ static ast_node_t* parse_parameter(void) {
         ast_node_destroy(param);
         return NULL;
     }
-    while (parser_match(TOK_STAR)) {
-        var_type = type_create_pointer(var_type);
+    var_type = parse_pointer_suffix(var_type);
+    if (!var_type) {
+        ast_node_destroy(param);
+        return NULL;
     }
 
     token_t* name_tok = parser_current();
@@ -997,9 +1051,8 @@ static ast_node_t* parse_parameter(void) {
 static ast_node_t* parse_declaration(void) {
     type_t* decl_type = parse_type();
     if (decl_type) {
-        while (parser_match(TOK_STAR)) {
-            decl_type = type_create_pointer(decl_type);
-        }
+        decl_type = parse_pointer_suffix(decl_type);
+        if (!decl_type) return NULL;
 
         token_t* name_tok = parser_current();
         char* name = name_tok->value;
@@ -1307,7 +1360,14 @@ static const ast_destroy_fn g_ast_destroy_handlers[AST_NODE_TYPE_COUNT] = {
 };
 
 void ast_node_destroy(ast_node_t* node) {
+    static uint8_t depth = 0;
     if (!node) return;
+    if (depth >= AST_MAX_DEPTH) {
+        cc_error("AST nesting too deep during cleanup");
+        log_error("Parsing failed\n");
+        exit(1);
+    }
+    depth++;
 
     if (node->type < AST_NODE_TYPE_COUNT) {
         ast_destroy_fn fn = g_ast_destroy_handlers[node->type];
@@ -1317,4 +1377,5 @@ void ast_node_destroy(ast_node_t* node) {
     }
 
     cc_free(node);
+    depth--;
 }

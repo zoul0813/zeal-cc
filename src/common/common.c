@@ -23,20 +23,37 @@ static size_t g_pool_offset = 0;
 static size_t g_pool_max = 0;
 static cc_block_header_t* g_pool_head = NULL;
 
+/* SDCC/Z80 uses byte alignment; host objects may require long-double alignment. */
+#ifdef __SDCC
+#define CC_ALIGNMENT ((size_t)1)
+#else
+typedef union { long double number; void* pointer; uint64_t integer; } cc_alignment_t;
+typedef struct { char byte; cc_alignment_t aligned; } cc_alignment_probe_t;
+#define CC_ALIGNMENT offsetof(cc_alignment_probe_t, aligned)
+#endif
+#define CC_HEADER_SIZE (((sizeof(cc_block_header_t) + CC_ALIGNMENT - 1) / CC_ALIGNMENT) * CC_ALIGNMENT)
+
 static size_t cc_align_size(size_t size) {
-    const size_t align = 4;
-    return (size + (align - 1)) & ~(align - 1);
+#ifdef __SDCC
+    return size; /* Byte alignment cannot overflow by rounding. */
+#else
+    if (size > (size_t)-1 - (CC_ALIGNMENT - 1)) {
+        cc_error("Allocation size overflow");
+        exit(1);
+    }
+    return ((size + CC_ALIGNMENT - 1) / CC_ALIGNMENT) * CC_ALIGNMENT;
+#endif
 }
 
 void cc_reset_pool(void) {
-    if (!g_memory_pool || g_pool_size <= sizeof(cc_block_header_t)) {
+    if (!g_memory_pool || g_pool_size <= CC_HEADER_SIZE) {
         cc_error("Memory pool not initialized");
         exit(1);
     }
     g_pool_offset = 0;
     g_pool_max = 0;
     g_pool_head = (cc_block_header_t*)g_memory_pool;
-    g_pool_head->size = g_pool_size - sizeof(cc_block_header_t);
+    g_pool_head->size = g_pool_size - CC_HEADER_SIZE;
     g_pool_head->free = true;
     g_pool_head->next = NULL;
 }
@@ -45,7 +62,7 @@ static void cc_coalesce_free_blocks(void) {
     cc_block_header_t* cur = g_pool_head;
     while (cur && cur->next) {
         if (cur->free && cur->next->free) {
-            cur->size += sizeof(cc_block_header_t) + cur->next->size;
+            cur->size += CC_HEADER_SIZE + cur->next->size;
             cur->next = cur->next->next;
             continue;
         }
@@ -64,20 +81,20 @@ void* cc_malloc(size_t size) {
     while (cur) {
         if (cur->free && cur->size >= size) {
             size_t remaining = cur->size - size;
-            if (remaining > sizeof(cc_block_header_t) + 4) {
-                cc_block_header_t* split = (cc_block_header_t*)((char*)cur + sizeof(cc_block_header_t) + size);
-                split->size = remaining - sizeof(cc_block_header_t);
+            if (remaining >= CC_HEADER_SIZE + CC_ALIGNMENT) {
+                cc_block_header_t* split = (cc_block_header_t*)((char*)cur + CC_HEADER_SIZE + size);
+                split->size = remaining - CC_HEADER_SIZE;
                 split->free = true;
                 split->next = cur->next;
                 cur->next = split;
                 cur->size = size;
             }
             cur->free = false;
-            g_pool_offset += cur->size;
+            g_pool_offset += CC_HEADER_SIZE + cur->size;
             if (g_pool_offset > g_pool_max) {
                 g_pool_max = g_pool_offset;
             }
-            return (char*)cur + sizeof(cc_block_header_t);
+            return (char*)cur + CC_HEADER_SIZE;
         }
         cur = cur->next;
     }
@@ -112,8 +129,13 @@ uint16_t cc_init_pool_default(void) {
 
 uint16_t cc_init_pool(void* pool, size_t size) {
 
-    g_memory_pool = (char*)pool;
-    g_pool_size = size;
+    size_t adjustment = (size_t)((CC_ALIGNMENT - ((uintptr_t)pool % CC_ALIGNMENT)) % CC_ALIGNMENT);
+    if (!pool || size <= adjustment || size - adjustment <= CC_HEADER_SIZE) {
+        cc_error("Memory pool too small");
+        exit(1);
+    }
+    g_memory_pool = (char*)pool + adjustment;
+    g_pool_size = ((size - adjustment) / CC_ALIGNMENT) * CC_ALIGNMENT;
     g_pool_head = NULL;
     g_pool_offset = 0;
     g_pool_max = 0;
@@ -125,7 +147,7 @@ uint16_t cc_init_pool(void* pool, size_t size) {
     put_s("\n");
     #endif
 
-    return size;
+    return (uint16_t)g_pool_size;
 }
 
 void cc_free(void* ptr) {
@@ -133,11 +155,11 @@ void cc_free(void* ptr) {
     if (!g_pool_head) {
         return;
     }
-    cc_block_header_t* header = (cc_block_header_t*)((char*)ptr - sizeof(cc_block_header_t));
+    cc_block_header_t* header = (cc_block_header_t*)((char*)ptr - CC_HEADER_SIZE);
     if (header->free) return;
     header->free = true;
-    if (g_pool_offset >= header->size) {
-        g_pool_offset -= header->size;
+    if (g_pool_offset >= CC_HEADER_SIZE + header->size) {
+        g_pool_offset -= CC_HEADER_SIZE + header->size;
     } else {
         g_pool_offset = 0;
     }

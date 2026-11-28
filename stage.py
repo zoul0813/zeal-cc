@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from contextlib import contextmanager
 import json
 import os
 import shutil
@@ -20,28 +21,56 @@ EMULATOR_ARCHIVE = (
 EMULATOR_FILES = (
     "zeal.elf.js",
     "zeal.elf.wasm",
-    "libnative/indexeddb.js",
     "libnative/disk-images.js",
     "libnative/zeal-native.js",
 )
 
 
-def stage_hostfs():
-    for name in ("bin", "runtime", "tests"):
-        source = ROOT / name
-        destination = HOSTFS / name
-        destination.mkdir(parents=True, exist_ok=True)
-        for path in source.iterdir():
-            if path.is_file():
-                shutil.copy2(path, destination / path.name)
+DIST = ROOT / "dist/zeal-cc"
+FILES = {
+    "bin": ("cc", "cc_parse", "cc_semantic", "cc_codegen", "ast_dump"),
+    "runtime": ("crt0.asm", "zeal8bit.asm", "math_8.asm", "math_16.asm"),
+    "examples/hexdump": ("hexdump.c", "sample.dat"),
+}
 
-    paths = sorted(
-        path.relative_to(HOSTFS).as_posix()
-        for path in HOSTFS.rglob("*")
-        if path.is_file() and path.name != "index.json"
-    )
-    with (HOSTFS / "index.json").open("w", encoding="utf-8") as handle:
-        json.dump(paths, handle)
+
+def media(name, variable):
+    generated = ROOT / "build/test-media" / name
+    return Path(os.environ.get(variable, generated if generated.is_file() else ROOT / ".zeal8bit" / name))
+
+
+@contextmanager
+def replacement(destination):
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=destination.parent) as work:
+        tree = Path(work) / "tree"
+        tree.mkdir()
+        yield tree
+        previous = Path(work) / "previous"
+        if destination.exists():
+            destination.rename(previous)
+        try:
+            tree.rename(destination)
+        except OSError:
+            if previous.exists():
+                previous.rename(destination)
+            raise
+
+
+def stage_dist():
+    with replacement(DIST) as tree:
+        for folder, names in FILES.items():
+            (tree / folder).mkdir(parents=True)
+            for name in names:
+                shutil.copyfile(ROOT / folder / name, tree / folder / name)
+
+
+def stage_hostfs():
+    with replacement(HOSTFS) as tree:
+        shutil.copytree(DIST, tree, dirs_exist_ok=True)
+        shutil.copyfile(media("zealasm", "ZEALASM"), tree / "bin/zealasm")
+        paths = sorted(path.relative_to(tree).as_posix() for path in tree.rglob("*") if path.is_file())
+        (tree / "index.json").write_text(json.dumps(paths))
 
 
 def stage_emulator():
@@ -77,5 +106,11 @@ def stage_emulator():
 
 
 if __name__ == "__main__":
-    stage_hostfs()
-    stage_emulator()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dist", action="store_true")
+    if parser.parse_args().dist:
+        stage_dist()
+    else:
+        stage_hostfs()
+        stage_emulator()

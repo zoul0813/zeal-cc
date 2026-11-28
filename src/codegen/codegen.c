@@ -38,8 +38,6 @@ static void codegen_emit_hex(uint16_t value);
 static bool codegen_stream_type_is_16bit(uint8_t base, uint8_t depth);
 static void codegen_emit_string_literal(const char* value);
 
-
-static uint32_t g_arg_offsets[8];
 static char g_emit_buf[CODEGEN_LABEL_MAX + 1];
 extern codegen_t codegen;
 static codegen_t* gen;
@@ -209,6 +207,12 @@ static void codegen_emit_hex(uint16_t value) {
     *buf = '\0';
     codegen_emit(g_emit_buf);
 }
+
+#ifdef __SDCC
+#define RUNTIME_PATH "/runtime/"
+#else
+#define RUNTIME_PATH "runtime/"
+#endif
 
 static void codegen_emit_file(const char* path) {
     if (gen->io_failed) return;
@@ -1336,13 +1340,19 @@ static cc_error_t codegen_statement_compound(uint8_t tag) {
     return CC_OK;
 }
 
+static cc_error_t codegen_read_condition(void) {
+    cc_error_t err = codegen_stream_expression_expect(ast_read_u8(), true);
+    if (err == CC_OK && g_result_in_hl) codegen_emit("  ld a, h\n  or l\n");
+    return err;
+}
+
 static cc_error_t codegen_statement_if(uint8_t tag) {
     (void)tag;
     uint8_t has_else = 0;
     char* else_label = NULL;
     char* end_label = NULL;
     has_else = ast_read_u8();
-    cc_error_t err = codegen_read_and_stream_expression();
+    cc_error_t err = codegen_read_condition();
     if (err != CC_OK) return err;
     else_label = codegen_new_label_persist();
     if (has_else) {
@@ -1379,7 +1389,7 @@ static cc_error_t codegen_statement_while(uint8_t tag) {
     char* end_label = codegen_new_label_persist();
     cc_error_t err = CC_OK;
     codegen_emit_label(loop_label);
-    err = codegen_read_and_stream_expression();
+    err = codegen_read_condition();
     if (err != CC_OK) {
         goto while_cleanup;
     }
@@ -1420,7 +1430,7 @@ static cc_error_t codegen_statement_for(uint8_t tag) {
     }
     codegen_emit_label(loop_label);
     if (has_cond) {
-        err = codegen_read_and_stream_expression();
+        err = codegen_read_condition();
         if (err != CC_OK) {
             goto for_cleanup;
         }
@@ -1637,6 +1647,7 @@ static cc_error_t codegen_stream_expression_tag(uint8_t tag) {
                     codegen_emit_mangled_var(name);
                     codegen_emit(CG_STR_RPAREN_NL);
                 }
+                g_result_in_hl = false;
                 if (g_expect_result_in_hl) {
                     if (is_signed) {
                         codegen_result_sign_extend_to_hl();
@@ -1933,19 +1944,20 @@ logical_cleanup:
             (void)name;
 
             if (arg_count > 0) {
-                if (arg_count > (uint8_t)DIM(g_arg_offsets)) {
+                uint32_t arg_offsets[8];
+                if (arg_count > (uint8_t)DIM(arg_offsets)) {
                     for (uint8_t i = 0; i < arg_count; i++) {
                         if (ast_reader_skip_node() < 0) return CC_ERROR_CODEGEN;
                     }
                     return CC_ERROR_CODEGEN;
                 }
                 for (uint8_t i = 0; i < arg_count; i++) {
-                    g_arg_offsets[i] = reader_tell(reader);
+                    arg_offsets[i] = reader_tell(reader);
                     if (ast_reader_skip_node() < 0) return CC_ERROR_CODEGEN;
                 }
                 uint32_t end_pos = reader_tell(reader);
                 for (uint8_t i = arg_count; i-- > 0;) {
-                    if (reader_seek(reader, g_arg_offsets[i]) < 0) return CC_ERROR_CODEGEN;
+                    if (reader_seek(reader, arg_offsets[i]) < 0) return CC_ERROR_CODEGEN;
                     uint8_t arg_tag = 0;
                     arg_tag = ast_read_u8();
                     cc_error_t err = codegen_stream_expression_tag(arg_tag);
@@ -2497,7 +2509,7 @@ cc_error_t codegen_generate_stream(void) {
     uint16_t decl_count = 0;
     if (!ast) return CC_ERROR_INTERNAL;
 
-    codegen_emit_file("runtime/crt0.asm");
+    codegen_emit_file(RUNTIME_PATH "crt0.asm");
     if (gen->io_failed) return CC_ERROR_CODEGEN;
     codegen_emit("\n; Program code\n");
 
@@ -2598,9 +2610,9 @@ cc_error_t codegen_generate_stream(void) {
             codegen_emit("  .db 0\n");
         }
     }
-    codegen_emit_file("runtime/zeal8bit.asm");
-    codegen_emit_file("runtime/math_8.asm");
-    codegen_emit_file("runtime/math_16.asm");
+    codegen_emit_file(RUNTIME_PATH "zeal8bit.asm");
+    codegen_emit_file(RUNTIME_PATH "math_8.asm");
+    codegen_emit_file(RUNTIME_PATH "math_16.asm");
 
     return gen->io_failed ? CC_ERROR_CODEGEN : CC_OK;
 }

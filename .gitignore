@@ -30,3 +30,5 @@ examples/Zeal-8-bit-OS/
 /.agents
 /.review-workflow/
 /reviews/
+
+/dist/

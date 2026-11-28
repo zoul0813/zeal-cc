@@ -21,9 +21,9 @@ spec.loader.exec_module(suite)
 
 def execution_log(name="simple_return", value="12"):
     return f"""TEST: h:/tests/{name}.c
-h:/tests/{name}.c -> h:/tests/{name}.ast
-h:/tests/{name}.ast OK
-h:/tests/{name}.ast -> h:/tests/{name}.asm
+{name}.c -> cc-work/input.ast
+cc-work/input.ast OK
+cc-work/input.ast -> cc-work/output.asm
 Exec 'h:/tests/{name}.bin'
 Returned  ${value}
 !!! Complete !!!
@@ -45,13 +45,13 @@ class ResultTests(unittest.TestCase):
             "compile only": good.replace("Returned  $12\n", ""),
             "no execution attribution": good.replace("Exec 'h:/tests/simple_return.bin'\n", ""),
             "wrong binary": good.replace("simple_return.bin", "other.bin"),
-            "missing semantic": good.replace("h:/tests/simple_return.ast OK\n", ""),
+            "missing semantic": good.replace("cc-work/input.ast OK\n", ""),
             "wrong return": good.replace("$12", "$13"),
             "hex format": good.replace("$12", "$0C"),
             "overflow": good.replace("$12", "$268"),
             "duplicate return": good.replace("Returned  $12", "Returned  $12\nReturned  $12"),
             "duplicate test": good.replace("!!! Complete !!!", good),
-            "failure then success": good.replace("h:/tests/simple_return.ast OK", "Failed to validate h:/tests/simple_return.ast\nh:/tests/simple_return.ast OK"),
+            "failure then success": good.replace("cc-work/input.ast OK", "cc: failed /bin/cc_semantic status 1\ncc-work/input.ast OK"),
         }
         for label, log in variants.items():
             with self.subTest(label=label):
@@ -63,18 +63,18 @@ class ResultTests(unittest.TestCase):
         self.assertEqual(results["tests/array.c"], "missing")
 
     def test_expected_rejection_requires_correct_stage_and_diagnostic(self):
-        prefix = "TEST: h:/tests/semantic.c\nh:/tests/semantic.c -> h:/tests/semantic.ast\n"
-        rejected = prefix + "Semantic validation failed\nFailed to validate h:/tests/semantic.ast\n!!! Complete !!!\n"
+        prefix = "TEST: h:/tests/semantic.c\nsemantic.c -> cc-work/input.ast\n"
+        rejected = prefix + "Semantic validation failed\ncc: failed /bin/cc_semantic status 1\n!!! Complete !!!\n"
         results, _ = suite.parse_zeal_test_results(rejected, {"semantic": "semantic"})
         self.assertEqual(results["tests/semantic.c"], "expected_fail")
-        for log in (rejected.replace("Semantic validation failed\n", ""), rejected.replace("Failed to validate", "Failed to parse"), execution_log("semantic")):
+        for log in (rejected.replace("Semantic validation failed\n", ""), rejected.replace("cc_semantic", "cc_parse"), execution_log("semantic")):
             results, _ = suite.parse_zeal_test_results(log, {"semantic": "semantic"})
             self.assertEqual(results["tests/semantic.c"], "fail")
 
-    def test_expected_parse_failure_allows_cascading_missing_file_errors(self):
+    def test_expected_parse_failure_rejects_cascading_execution(self):
         log = """TEST: h:/tests/struct.c
 Parsing failed
-Failed to parse h:/tests/struct.c
+cc: failed /bin/cc_parse status 1
 Failed to validate h:/tests/struct.ast
 Failed to codegen h:/tests/struct.ast
 Exec 'h:/tests/struct.bin'
@@ -83,7 +83,7 @@ Failed to assemble h:/tests/struct.asm
 !!! Complete !!!
 """
         results, _ = suite.parse_zeal_test_results(log, {"struct": "parse"})
-        self.assertEqual(results["tests/struct.c"], "expected_fail")
+        self.assertEqual(results["tests/struct.c"], "fail")
         results, _ = suite.parse_zeal_test_results(log.replace("error occurred 0004", "Returned  $0"), {"struct": "parse"})
         self.assertEqual(results["tests/struct.c"], "fail")
 
@@ -105,14 +105,9 @@ Failed to assemble h:/tests/struct.asm
             stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
             stack.enter_context(mock.patch.object(suite, "validate_inventory"))
             stack.enter_context(mock.patch.object(suite, "clean_test_artifacts"))
-            stack.enter_context(mock.patch.object(suite, "reset_test_script", contextlib.nullcontext))
-            stack.enter_context(mock.patch.object(Path, "is_file", return_value=True))
-            stack.enter_context(mock.patch.object(suite.shutil, "copyfile"))
             stack.enter_context(mock.patch.object(suite, "run_host_tests", return_value=({"test": "missing"}, {})))
             self.assertEqual(suite.main(["--host-only", "--no-build"]), 1)
-            with mock.patch.object(suite, "run_headless_emulator", return_value=(0, "!!! Complete !!!\n")):
-                self.assertEqual(suite.main(["--headless-only", "--no-build"]), 1)
-            with mock.patch.object(suite, "run_headless_emulator", return_value=(1, execution_log())), mock.patch.object(suite, "parse_zeal_test_results", return_value=({"test": "ok"}, {})):
+            with mock.patch.object(suite, "target_run", side_effect=ValueError("failed emulator")):
                 self.assertEqual(suite.main(["--headless-only", "--no-build"]), 1)
 
     def test_build_failure_never_runs_stale_compiler(self):
@@ -135,7 +130,7 @@ class RunnerProcessTests(TemporaryArtifacts):
         desktop.chmod(0o755)
         emulator = self.work / "zeal-headless"
         emulator.write_text(
-            '#!/bin/sh\n[ "$1" = --headless ] && [ "$2" = --no-reset ] || exit 98\n'
+            '#!/bin/sh\n[ "$1" = --no-reset ] || exit 98\n'
             f"cat <<'GUEST'\n{execution_log()}GUEST\n"
         )
         emulator.chmod(0o755)
@@ -145,7 +140,7 @@ class RunnerProcessTests(TemporaryArtifacts):
             for stream in (False, True):
                 with self.subTest(stream=stream), contextlib.redirect_stdout(io.StringIO()) as stdout:
                     log_path = self.work / "emulator.log" if stream else None
-                    code, log = suite.run_headless_emulator(str(image), str(image), "test", stream, log_path)
+                    code, log = suite.run_headless_emulator(self.work, "test", stream, log_path)
                     self.assertEqual(code, 0, log)
                     results, _ = suite.parse_zeal_test_results(log, {"simple_return": 12})
                     self.assertEqual(results, {"tests/simple_return.c": "ok"})
@@ -160,7 +155,7 @@ class RunnerProcessTests(TemporaryArtifacts):
         image = self.work / "image"
         image.touch()
         with mock.patch.dict(os.environ, {"PATH": str(self.work)}), contextlib.redirect_stderr(io.StringIO()) as stderr:
-            code, log = suite.run_headless_emulator(str(image), str(image), "test")
+            code, log = suite.run_headless_emulator(self.work, "test")
         self.assertEqual(code, 1)
         self.assertIn("zeal-headless not found on PATH", log)
         self.assertEqual(stderr.getvalue(), log)
@@ -186,9 +181,9 @@ class RunnerProcessTests(TemporaryArtifacts):
             "import runpy,signal; "
             "signal.signal(signal.SIGTERM,signal.SIG_DFL); "
             "signal.signal(signal.SIGHUP,signal.SIG_DFL); "
-            f"s=runpy.run_path({str(ROOT / 'test.py')!r}); "
-            "exec(\"with s['termination_signals'](), s['reset_test_script']():\\n"
-            " s['run_headless_emulator']('image','image','test',timeout=10)\")"
+            f"import sys; sys.path.insert(0,{str(ROOT)!r}); s=runpy.run_path({str(ROOT / 'test.py')!r}); "
+            "exec(\"with s['termination_signals']():\\n"
+            " s['run_headless_emulator'](s['Path'].cwd(),'test',timeout=10)\")"
         )
         for signum in (signal.SIGTERM, signal.SIGHUP):
             with self.subTest(signal=signum):
@@ -220,17 +215,6 @@ class RunnerProcessTests(TemporaryArtifacts):
                         except ProcessLookupError:
                             pass
 
-    def test_reset_script_restored_on_interrupt(self):
-        path = self.work / "test.zs"
-        original = b"cd h:/\r\n; reset\r\n\r\n"
-        path.write_bytes(original)
-        with mock.patch.object(suite, "Path", return_value=path):
-            with self.assertRaises(KeyboardInterrupt):
-                with suite.reset_test_script():
-                    self.assertTrue(path.read_bytes().endswith(b"reset\n"))
-                    raise KeyboardInterrupt
-        self.assertEqual(path.read_bytes(), original)
-
     def test_unterminated_output_cannot_bypass_timeout(self):
         executable = self.work / "zeal-headless"
         executable.write_text("#!/usr/bin/env python3\nimport os,time\nos.write(1,b'partial')\ntime.sleep(5)\n")
@@ -240,7 +224,7 @@ class RunnerProcessTests(TemporaryArtifacts):
         for stream in (False, True):
             with self.subTest(stream=stream), mock.patch.dict(os.environ, {"PATH": str(self.work) + os.pathsep + os.environ["PATH"]}), contextlib.redirect_stdout(io.StringIO()):
                 start = time.monotonic()
-                code, log = suite.run_headless_emulator(str(image), str(image), "test", show_log=stream, timeout=0.3)
+                code, log = suite.run_headless_emulator(self.work, "test", show_log=stream, timeout=0.3)
                 self.assertNotEqual(code, 0)
                 self.assertIn("partial", log)
                 self.assertIn("timed out", log)
