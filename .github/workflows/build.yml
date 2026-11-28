@@ -54,7 +54,7 @@ jobs:
 
       - name: Stage Pages demo
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/workflow'
-        run: python3 stage.py
+        run: zde --no-tty exec python3 stage.py
 
       - name: Create eeprom.img
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/workflow'

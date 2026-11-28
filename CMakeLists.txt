@@ -160,3 +160,10 @@ add_custom_target(check_target_memory ALL
     COMMENT "Checking compiler memory bounds"
 )
 add_dependencies(check_target_memory cc_parse_bin cc_semantic_bin cc_codegen_bin ast_dump_bin)
+
+# Produce the installable TF directory in ordinary ZDE and collection builds.
+add_custom_target(stage_install ALL
+    COMMAND ${CC_PYTHON} ${CMAKE_CURRENT_LIST_DIR}/stage.py --dist
+    COMMENT "Staging the Zeal CC bin and lib directories"
+)
+add_dependencies(stage_install cc_bin check_target_memory)

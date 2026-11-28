@@ -33,7 +33,7 @@ def main():
         subprocess.run(["make", "-o", "version.txt", f"ZOS_INCLUDE={zos}/sdk/z88dk-z80asm"],
                        cwd=asm, check=True)
         (asm / "bin/zealasm.bin").replace(output / "zealasm")
-        (build / "os_with_romdisk.img").replace(output / "headless.img")
+        (build / "os_with_romdisk.img").replace(output / "headless-tf.img")
 
 
 if __name__ == "__main__":

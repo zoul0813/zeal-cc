@@ -102,12 +102,15 @@ before running the next stage.
 
 ### Build and run on Zeal
 
-Run `make dist` on the host. Copy the contents of `dist/zeal-cc/` to the root
-of a writable Zeal drive, install Zealasm as `bin/zealasm`, and put that
-drive's `bin` directory on the ZShell PATH. From the installation drive:
+Run `make dist` and copy the contents of `dist/zeal-cc/` to `T:/`.
+The compiler commands go in `T:/bin/` and the runtime assembly goes in
+`T:/lib/`. Install Zealasm as `T:/bin/zealasm` and include `T:/bin/`
+in the ZShell PATH. Projects can live on another writable drive.
+
+The optional example is in `examples/hexdump/` in the repository. To try it,
+copy its two files into a project directory, then run:
 
 ```text
-cd /examples/hexdump
 cc hexdump.c
 ./hexdump.bin
 ```

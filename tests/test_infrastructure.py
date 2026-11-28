@@ -57,7 +57,7 @@ class ResultTests(unittest.TestCase):
             "overflow": good.replace("$12", "$268"),
             "duplicate return": good.replace("Returned  $12", "Returned  $12\nReturned  $12"),
             "duplicate test": good.replace("!!! Complete !!!", good),
-            "failure then success": good.replace("cc-work/input.ast OK", "cc: failed /bin/cc_semantic status 1\ncc-work/input.ast OK"),
+            "failure then success": good.replace("cc-work/input.ast OK", "cc: failed T:/bin/cc_semantic status 1\ncc-work/input.ast OK"),
         }
         for label, log in variants.items():
             with self.subTest(label=label):
@@ -70,7 +70,7 @@ class ResultTests(unittest.TestCase):
 
     def test_expected_rejection_requires_correct_stage_and_diagnostic(self):
         prefix = "TEST: h:/tests/semantic.c\nsemantic.c -> cc-work/input.ast\n"
-        rejected = prefix + "Semantic validation failed\ncc: failed /bin/cc_semantic status 1\n!!! Complete !!!\n"
+        rejected = prefix + "Semantic validation failed\ncc: failed T:/bin/cc_semantic status 1\n!!! Complete !!!\n"
         results, _ = suite.parse_zeal_test_results(rejected, {"semantic": "semantic"})
         self.assertEqual(results["tests/semantic.c"], "expected_fail")
         for log in (rejected.replace("Semantic validation failed\n", ""), rejected.replace("cc_semantic", "cc_parse"), execution_log("semantic")):
@@ -80,7 +80,7 @@ class ResultTests(unittest.TestCase):
     def test_expected_parse_failure_rejects_cascading_execution(self):
         log = """TEST: h:/tests/struct.c
 Parsing failed
-cc: failed /bin/cc_parse status 1
+cc: failed T:/bin/cc_parse status 1
 Failed to validate h:/tests/struct.ast
 Failed to codegen h:/tests/struct.ast
 Exec 'h:/tests/struct.bin'

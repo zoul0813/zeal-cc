@@ -3,11 +3,13 @@
 ## ZOS
 
 `make dist` builds the target executables inside ZDE. Copy the contents of
-`dist/zeal-cc/` to the root of the project drive. Install Zealasm as
-`/bin/zealasm` on that drive and add its bin directory to ZShell's PATH.
+`dist/zeal-cc/bin/` into `T:/bin/` and `dist/zeal-cc/lib/` into `T:/lib/`.
+Install Zealasm separately as `T:/bin/zealasm` and add `T:/bin/` to ZShell's PATH.
+Run the compiler from your writable project directory. The resulting Bin-file
+is written alongside the source. To try the optional hex dump, copy
+`examples/hexdump/hexdump.c` and `sample.dat` there first.
 
 ```text
-cd /examples/hexdump
 cc hexdump.c
 ./hexdump.bin
 cc -S hexdump.c

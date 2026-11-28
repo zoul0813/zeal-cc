@@ -128,7 +128,7 @@ def parse_zeal_test_results(log, cases=TEST_CASES):
             elif line.startswith("Exec '"):
                 problem = "execution belongs to another test"
             if line.startswith("cc: failed "):
-                match = re.fullmatch(r"cc: failed /bin/cc_(parse|semantic|codegen) status 1", line)
+                match = re.fullmatch(r"cc: failed T:/bin/cc_(parse|semantic|codegen) status 1", line)
                 if failure or not match:
                     problem = "unexpected stage failure"
                 failure = match[1] if match else "unknown"
@@ -246,19 +246,22 @@ def check_driver_failures(work, batch):
     previous = output.read_bytes()
     if not previous:
         raise ValueError("Missing executable before driver failure checks")
-    for missing, stage in (("bin/cc_semantic", "cc_semantic"), ("runtime/crt0.asm", "cc_codegen"),
+    for missing, stage in (("bin/cc_semantic", "cc_semantic"), ("lib/crt0.asm", "cc_codegen"),
                            ("bin/zealasm", "zealasm")):
-        component = host / missing
-        component.rename(work / "removed")
+        image = work / "tf.img"
+        component = "/" + missing
+        saved = work / "removed"
+        distribution.disk(image, "export", component, saved)
+        distribution.disk(image, "rm", component)
         guest.script(work, ["cd h:/tests", "cc simple_return.c", ": echo EXPECTED-FAILURE"])
         try:
             status, log = batch(work, stage)
-            if (status or f"cc: failed /bin/{stage} status " not in log
+            if (status or f"cc: failed T:/bin/{stage} status " not in log
                     or "EXPECTED-FAILURE" not in log.splitlines() or output.read_bytes() != previous
                     or (host / "tests/cc-work").exists()):
                 raise ValueError(f"Driver failure check failed for {missing}")
         finally:
-            (work / "removed").rename(component)
+            distribution.disk(image, "import", saved, component)
 
     reserved = host / "tests/cc-work"
     reserved.mkdir()
@@ -305,7 +308,7 @@ def check_driver_failures(work, batch):
     source.write_text("int main( {\n")
     guest.script(work, ["cd h:/tests", "cc simple_return.c", ": echo REJECTED"])
     status, log = batch(work, "rejected-rebuild")
-    if (status or "REJECTED" not in log.splitlines() or "cc: failed /bin/cc_parse status 1" not in log
+    if (status or "REJECTED" not in log.splitlines() or "cc: failed T:/bin/cc_parse status 1" not in log
             or output.read_bytes() != rebuilt or (host / "tests/cc-work").exists()):
         raise ValueError("Rejected rebuild failed to preserve the last successful binary")
 
@@ -328,7 +331,7 @@ def target_run(args):
         binary_fixture.mkdir()
         data = bytes(range(240, 256)) + b"\x00"
         (binary_fixture / "sample.dat").write_bytes(data)
-        commands = ["cd h:/tests"]
+        commands = ["cd T:/lib", "? echo TF-INSTALL-READY", "cd h:/tests"]
         for name in cases:
             commands += [f"echo TEST: h:/tests/{name}.c", f"cc {name}.c",
                          f"? return h:/tests/{name}.bin"]
@@ -339,6 +342,8 @@ def target_run(args):
                      "return h:/examples/hexdump/hexdump.bin", "? echo EXAMPLE-END"]
         guest.script(work, commands)
         status, log = batch(work)
+        if "TF-INSTALL-READY" not in log.splitlines():
+            raise ValueError("Cannot access T:/lib. Use a TF-enabled ROM and the staged TF image.")
         results, messages = parse_zeal_test_results(log)
         print_results("ZOS assembly and execution", results, messages)
         example = log.partition("!!! Complete !!!")[2].replace("\r", "")
@@ -392,8 +397,6 @@ def main(argv=None):
             print_results("Host generation (no execution)", host, messages)
             results.extend(host.values())
         if not args.host_only:
-            if not args.no_build:
-                distribution.stage_dist()
             target_run(args)
             checks.append(True)
         failed = sum(value not in ("ok", "expected_fail") for value in results)

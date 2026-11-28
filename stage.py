@@ -29,8 +29,7 @@ EMULATOR_FILES = (
 DIST = ROOT / "dist/zeal-cc"
 FILES = {
     "bin": ("cc", "cc_parse", "cc_semantic", "cc_codegen", "ast_dump"),
-    "runtime": ("crt0.asm", "zeal8bit.asm", "math_8.asm", "math_16.asm"),
-    "examples/hexdump": ("hexdump.c", "sample.dat"),
+    "lib": ("crt0.asm", "zeal8bit.asm", "math_8.asm", "math_16.asm"),
 }
 
 
@@ -62,13 +61,45 @@ def stage_dist():
         for folder, names in FILES.items():
             (tree / folder).mkdir(parents=True)
             for name in names:
-                shutil.copyfile(ROOT / folder / name, tree / folder / name)
+                source = ROOT / ("runtime" if folder == "lib" else folder) / name
+                shutil.copyfile(source, tree / folder / name)
+
+
+def stage_example(tree):
+    directory = Path("examples/hexdump")
+    (tree / directory).mkdir(parents=True)
+    for name in ("hexdump.c", "sample.dat"):
+        shutil.copyfile(ROOT / directory / name, tree / directory / name)
+
+
+def disk(image, *args):
+    subprocess.run(["zdt", "--yes", "-i", image, *args], check=True,
+                   stdout=subprocess.DEVNULL)
+
+
+def stage_tf(destination, dist, *, base=None):
+    with tempfile.TemporaryDirectory(dir=destination.parent) as directory:
+        image = Path(directory) / "tf.img"
+        if base is None:
+            subprocess.run(["zdt", "--yes", "image", "create", image, "--size", "4MiB", "--mbr"],
+                           check=True, stdout=subprocess.DEVNULL)
+            disk(image, "partition", "create")
+            existing = set()
+        else:
+            shutil.copyfile(base, image)
+            listing = subprocess.check_output(["zdt", "--json", "-i", image, "ls", "/"])
+            existing = {entry["name"] for entry in json.loads(listing)["data"] if entry["directory"]}
+        for folder, names in FILES.items():
+            if folder not in existing:
+                disk(image, "mkdir", f"/{folder}")
+            disk(image, "import", *(dist / folder / name for name in names), f"/{folder}/")
+        disk(image, "import", media("zealasm", "ZEALASM"), "/bin/zealasm")
+        image.replace(destination)
 
 
 def stage_hostfs():
     with replacement(HOSTFS) as tree:
-        shutil.copytree(DIST, tree, dirs_exist_ok=True)
-        shutil.copyfile(media("zealasm", "ZEALASM"), tree / "bin/zealasm")
+        stage_example(tree)
         paths = sorted(path.relative_to(tree).as_posix() for path in tree.rglob("*") if path.is_file())
         (tree / "index.json").write_text(json.dumps(paths))
 
@@ -112,5 +143,6 @@ if __name__ == "__main__":
     if parser.parse_args().dist:
         stage_dist()
     else:
+        stage_tf(DEPLOY / "compiler-tf.img", DIST, base=DEPLOY / "tf.img")
         stage_hostfs()
         stage_emulator()

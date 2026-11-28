@@ -209,7 +209,7 @@ static void codegen_emit_hex(uint16_t value) {
 }
 
 #ifdef __SDCC
-#define RUNTIME_PATH "/runtime/"
+#define RUNTIME_PATH "T:/lib/"
 #else
 #define RUNTIME_PATH "runtime/"
 #endif

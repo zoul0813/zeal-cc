@@ -15,10 +15,10 @@ make debug CASE=simple_return STAGE=parse
 ```
 
 The media build writes to `build/test-media`. For an existing UART ROM
-with ZShell booting B:/autoexec.zs and the coreutils return command, set
-`ZEAL_CC_ROM` and `ZEALASM`. Legacy `.zeal8bit/headless.img` and
-`.zeal8bit/zealasm` are also recognized. Every run creates its own EEPROM
-from the tracked autoexec, explicit TF image, HostFS tree, and guest script.
+with TF support, ZShell booting B:/autoexec.zs and the coreutils return command, set
+`ZEAL_CC_ROM` and `ZEALASM`. Every run creates a private EEPROM and TF image. The compiler and assembler run
+from T:/bin and load runtime assembly from T:/lib. HostFS holds the writable
+project, test script, and optional hex dump example.
 The only compiler binaries available to the guest come from the staged install.
 On systems where the emulator and disk tool are installed only inside ZDE,
 run `make dist test-media`, then `zde --no-tty exec python3 test.py --headless-only --no-build`.

@@ -108,7 +108,6 @@ STAGE ?= parse
 
 dist:
 	zde --no-tty cmake
-	python3 stage.py --dist
 
 accept: dist ensure-media
 	python3 test.py --headless-only --no-build
@@ -127,4 +126,4 @@ test-media:
 
 .PHONY: ensure-media
 ensure-media:
-	@python3 -c 'from stage import media; import sys; sys.exit(not (media("headless.img","ZEAL_CC_ROM").is_file() and media("zealasm","ZEALASM").is_file()))' || $(MAKE) test-media
+	@python3 -c 'from stage import media; import sys; sys.exit(not (media("headless-tf.img","ZEAL_CC_ROM").is_file() and media("zealasm","ZEALASM").is_file()))' || $(MAKE) test-media

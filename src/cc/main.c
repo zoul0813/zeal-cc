@@ -71,10 +71,10 @@ int main(int argc, char **argv) {
     /* A private directory owns every intermediate. Never reuse stale files. */
     err = mkdir(WORK);
     if (err) { put_s("cc: cannot create cc-work\n"); return err; }
-    err = stage("/bin/cc_parse", src, AST);
-    if (!err) err = stage("/bin/cc_semantic", AST, 0);
-    if (!err) err = stage("/bin/cc_codegen", AST, ASM);
-    if (!err && !asm_only) err = stage("/bin/zealasm", ASM, BIN);
+    err = stage("T:/bin/cc_parse", src, AST);
+    if (!err) err = stage("T:/bin/cc_semantic", AST, 0);
+    if (!err) err = stage("T:/bin/cc_codegen", AST, ASM);
+    if (!err && !asm_only) err = stage("T:/bin/zealasm", ASM, BIN);
     if (!err) {
         err = publish(asm_only ? ASM : BIN, dst, &keep_backup);
         if (err) { put_s("cc: could not publish output, status "); put_u8(err); put_s("\n"); }

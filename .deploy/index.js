@@ -27,8 +27,9 @@
                 canvas,
                 romdisk: 'default.img',
                 eeprom: 'eeprom.img',
-                tf: 'tf.img',
+                tf: 'compiler-tf.img',
                 imageStorage: 'opfs',
+                diskImages: {tf: {key: 'tf.img'}},
                 hostfs,
                 onImageUpdateAvailable(image) {
                     const useRemote = window.confirm(

@@ -7,7 +7,7 @@ import subprocess
 import sys
 import tempfile
 
-from stage import DIST, ROOT, media
+from stage import DIST, ROOT, media, stage_example, stage_tf
 
 
 @contextmanager
@@ -17,16 +17,13 @@ def workspace(cases):
     work = Path(tempfile.mkdtemp(prefix="guest-", dir=parent))
     host = work / "host"
     try:
-        shutil.copytree(DIST, host)
-        shutil.copyfile(media("zealasm", "ZEALASM"), host / "bin/zealasm")
-        shutil.copyfile(media("headless.img", "ZEAL_CC_ROM"), work / "rom.img")
+        stage_tf(work / "tf.img", DIST)
+        stage_example(host)
+        shutil.copyfile(media("headless-tf.img", "ZEAL_CC_ROM"), work / "rom.img")
         (host / "tests").mkdir()
         for case in cases:
             shutil.copyfile(ROOT / f"tests/{case}.c", host / f"tests/{case}.c")
         shutil.copyfile(ROOT / "tests/zealos.txt", host / "tests/zealos.txt")
-        # The UART kernel disables TF. An explicit private image suppresses auto-discovery.
-        with (work / "tf.img").open("wb") as image:
-            image.truncate(4 * 1024 * 1024)
         image = work / "eeprom.img"
         for args in (["image", "create", image, "--size", "64KiB"],
                      ["-i", image, "partition", "create"],
@@ -86,7 +83,7 @@ def debug(work, case, stage, smoke, batch):
         return
     name = "_parser_parse_next"
     address = int(re.search(r"^\s*([0-9A-F]+)\s+" + name + r"\s", mapfile.read_text(), re.M)[1], 16)
-    binary = (work / "host/bin/cc_parse").read_bytes()
+    binary = (DIST / "bin/cc_parse").read_bytes()
     expected = binary[address - 0x4000:address - 0x4000 + 8].hex(" ")
     commands = f"bp {name}\nrun 200000000\nregs\nmmu\nrb {name} 8\nbc {name}\nrun 50000000\nquit\n"
     (work / "commands.txt").write_text(commands)

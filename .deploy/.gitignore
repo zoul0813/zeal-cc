@@ -3,3 +3,4 @@ eeprom.img
 libnative/
 zeal.elf.*
 hostfs/*
+compiler-tf.img
