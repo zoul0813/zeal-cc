@@ -1,5 +1,8 @@
 int main() {
     char c;
-    c = 'A';
-    return c; /* Expected return: 'A' (0x41). */
+    c = 255;
+    char equal = (c == 255);
+    if (equal == 0) return 1;
+    if (c == 255) return 'A';
+    return 2;
 }

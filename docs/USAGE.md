@@ -18,7 +18,9 @@ Use single-file source paths without spaces. The driver creates `cc-work` in
 the current directory and removes it after the build. If that name already
 exists, the driver exits. Stage failures leave an existing output intact.
 ZOS has no rename syscall. During the final copy the driver backs up an
-existing destination and reports a recovery path if restoring it fails.
+existing destination in `cc-work/previous`. If the guest resets during
+publication (observed on a full ZealFS EEPROM), save that backup before
+removing the interrupted workspace. The destination may be incomplete.
 
 ## Host
 

@@ -60,6 +60,7 @@ endfunction()
 
 add_program(cc
     "src/cc/main.c"
+    "src/cc/publish.c"
     ILIBS core
 )
 

@@ -4,15 +4,12 @@
 #include <zos_sys.h>
 #include <zos_vfs.h>
 
-#define WORK "cc-work"
+#include "publish.h"
 #define AST WORK "/input.ast"
 #define ASM WORK "/output.asm"
 #define BIN WORK "/output.bin"
-#define SAVE WORK "/previous"
 
 static char args[PATH_MAX], output[PATH_MAX];
-static unsigned char buffer[256];
-static zos_stat_t info;
 
 static int stage(const char *program, const char *first, const char *second) {
     const char *argv[] = {args};
@@ -33,25 +30,6 @@ static int stage(const char *program, const char *first, const char *second) {
         put_u8(err ? err : status); put_s("\n");
     }
     return err ? err : status;
-}
-
-/* ZOS has no rename syscall. Back up an existing destination before publishing. */
-static int copy_file(const char *src, const char *dst) {
-    zos_dev_t in = open(src, O_RDONLY);
-    if (in < 0) return -in;
-    zos_dev_t out = open(dst, O_WRONLY | O_CREAT | O_TRUNC);
-    int err = out < 0 ? -out : 0;
-    while (!err) {
-        uint16_t n = sizeof(buffer);
-        err = read(in, buffer, &n);
-        if (err || !n) break;
-        uint16_t written = n;
-        err = write(out, buffer, &written);
-        if (!err && written != n) err = ERR_FAILURE;
-    }
-    if (out >= 0 && close(out) && !err) err = ERR_FAILURE;
-    if (close(in) && !err) err = ERR_FAILURE;
-    return err;
 }
 
 /* Resolve the destination directory before cc-work exists. This prevents a
@@ -98,26 +76,7 @@ int main(int argc, char **argv) {
     if (!err) err = stage("/bin/cc_codegen", AST, ASM);
     if (!err && !asm_only) err = stage("/bin/zealasm", ASM, BIN);
     if (!err) {
-        int lookup = stat(dst, &info);
-        int existing = lookup == 0;
-        if (lookup && lookup != ERR_NO_SUCH_ENTRY) err = lookup;
-        if (existing && D_ISDIR(info.s_flags)) err = ERR_INVALID_PARAMETER;
-        if (!err && existing) {
-            err = copy_file(dst, SAVE);
-            /* HostFS can fail a write to an existing truncated file. Publish
-               into a fresh file only after the backup has closed successfully. */
-            if (!err) err = rm(dst);
-        }
-        if (!err) {
-            err = copy_file(asm_only ? ASM : BIN, dst);
-            if (err) {
-                rm(dst);
-                if (existing && copy_file(SAVE, dst)) {
-                    keep_backup = 1;
-                    put_s("cc: recover previous output from " SAVE "\n");
-                }
-            }
-        }
+        err = publish(asm_only ? ASM : BIN, dst, &keep_backup);
         if (err) { put_s("cc: could not publish output, status "); put_u8(err); put_s("\n"); }
     }
     rm(AST); rm(ASM); rm(BIN);

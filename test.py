@@ -260,6 +260,26 @@ def check_driver_failures(work, batch):
         finally:
             (work / "removed").rename(component)
 
+    reserved = host / "tests/cc-work"
+    reserved.mkdir()
+    marker = reserved / "owner"
+    marker.write_bytes(b"reserved")
+    guest.script(work, ["cd h:/tests", "cc simple_return.c", ": echo RESERVED"])
+    status, log = batch(work, "reserved")
+    if (status or "RESERVED" not in log.splitlines() or "cc: cannot create cc-work" not in log
+            or output.read_bytes() != previous or marker.read_bytes() != b"reserved"):
+        raise ValueError("Driver touched an existing workspace or output")
+    marker.unlink()
+    reserved.rmdir()
+
+    directory = host / "tests/directory.asm"
+    directory.mkdir()
+    guest.script(work, ["cd h:/tests", "cc simple_return.c directory.asm", ": echo DIRECTORY"])
+    status, log = batch(work, "directory")
+    if (status or "DIRECTORY" not in log.splitlines() or "cc: could not publish output" not in log
+            or not directory.is_dir() or reserved.exists()):
+        raise ValueError("Driver did not preserve an output directory")
+
     source = host / "tests/simple_return.c"
     source.write_text("int main() { return 93; }\n")
     guest.script(work, ["cd h:/tests", "cc -S simple_return.c", "? cc simple_return.c h:/tests/listing.asm",
@@ -270,6 +290,17 @@ def check_driver_failures(work, batch):
     if (status or "REBUILT" not in log.splitlines() or "Returned  $93" not in log.splitlines()
             or not asm or asm != (host / "tests/listing.asm").read_bytes() or rebuilt == previous):
         raise ValueError("Assembly or executable rebuild failed")
+
+    # Disk B is the private ZealFS EEPROM. First publish to a missing path.
+    guest.script(work, ["cd h:/tests", "cc simple_return.c b:/listing.asm", "? echo EEPROM"])
+    status, log = batch(work, "eeprom")
+    disk = ["zdt", "--yes", "-i", str(work / "eeprom.img")]
+    saved = work / "listing.asm"
+    if status or "EEPROM" not in log.splitlines():
+        raise ValueError("Could not publish assembly to ZealFS")
+    subprocess.run([*disk, "export", "/listing.asm", saved], check=True)
+    if saved.read_bytes() != asm:
+        raise ValueError("ZealFS output differs from HostFS assembly")
 
     source.write_text("int main( {\n")
     guest.script(work, ["cd h:/tests", "cc simple_return.c", ": echo REJECTED"])
@@ -333,6 +364,8 @@ def main(argv=None):
     parser.add_argument("--stage", choices=STAGES, default="parse")
     parser.add_argument("--debug-smoke", action="store_true")
     args = parser.parse_args(argv)
+    if args.host_only and (args.debug_case or args.debug_smoke):
+        parser.error("--host-only cannot run the guest debugger")
     if args.debug_smoke:
         args.debug_case, args.stage = "simple_return", "parse"
     if args.debug_case:

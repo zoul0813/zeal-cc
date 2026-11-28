@@ -31,6 +31,12 @@ Returned  ${value}
 
 
 class ResultTests(unittest.TestCase):
+    def test_host_only_rejects_guest_debug_options(self):
+        for debug in (["--debug-smoke"], ["--debug-case", "simple_return"]):
+            with self.subTest(debug=debug), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
+                suite.main(["--host-only", *debug])
+            self.assertEqual(error.exception.code, 2)
+
     def test_decimal_return_format(self):
         results, _ = suite.parse_zeal_test_results(execution_log(), {"simple_return": 12})
         self.assertEqual(results, {"tests/simple_return.c": "ok"})
@@ -318,6 +324,14 @@ class CompilerIOTests(TemporaryArtifacts):
                 self.assertEqual(build.returncode, 0, build.stdout + build.stderr)
                 proc = subprocess.run([binary, self.work / "writer.ast"], capture_output=True, text=True)
                 self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+
+    def test_publication_rollback(self):
+        binary = self.work / "publish_test"
+        subprocess.run(["cc", "-std=c99", "-Wall", "-Wextra", "-Werror",
+                        "-Itests/infrastructure/zos_mock", "tests/infrastructure/publish_test.c",
+                        "-o", binary], cwd=ROOT, check=True)
+        (self.work / "cc-work").mkdir()
+        subprocess.run([binary], cwd=self.work, check=True)
 
     def test_adapter_fault_injection(self):
         input_file = self.work / "byte"
